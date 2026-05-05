@@ -1,0 +1,9 @@
+aws-cdk-lib==2.80.0
+constructs>=10.0.0
+pytest==7.4.2
+pytest-cov==4.1.0
+black==23.10.0
+flake8==6.1.0
+mypy==1.5.1
+boto3-stubs==1.28.85
+types-beautifulsoup4==4.9.25.9
