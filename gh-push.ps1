@@ -12,7 +12,7 @@ git add .
 git commit -m "Initial commit of Candle Garden Estimator"
 
 # Set the token
-$env:GITHUB_TOKEN = "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"
+$env:GITHUB_TOKEN = "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"
 
 # Create the repo and push
 & "C:\Program Files\GitHub CLI\gh.exe" repo create candle-garden-estimator --private --source=. --push
