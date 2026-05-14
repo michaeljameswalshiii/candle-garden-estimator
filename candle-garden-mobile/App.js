@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createStackNavigator } from '@react-navigation/stack';
 import { View, Text, StyleSheet } from 'react-native';
 
 // Import screens
@@ -10,7 +11,9 @@ import OrdersScreen from './screens/OrdersScreen';
 import ClassScheduleScreen from './screens/ClassScheduleScreen';
 import EstimatorScreen from './screens/EstimatorScreen';
 import ProfileScreen from './screens/ProfileScreen';
+import RefillStep4 from './screens/RefillStep4';
 
+const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
 // Simple icon component using emoji - using proper boolean check
@@ -31,6 +34,16 @@ const TabIcon = ({ name, focused }) => {
     </View>
   );
 };
+
+// Estimator Stack Navigator
+function EstimatorStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="EstimatorMain" component={EstimatorScreen} />
+      <Stack.Screen name="RefillStep4" component={RefillStep4} />
+    </Stack.Navigator>
+  );
+}
 
 export default function App() {
   return (
@@ -57,13 +70,13 @@ export default function App() {
           name="Orders" 
           component={OrdersScreen}
         />
-<Tab.Screen 
+        <Tab.Screen 
           name="Classes" 
           component={ClassScheduleScreen}
         />
         <Tab.Screen 
           name="Estimator" 
-          component={EstimatorScreen}
+          component={EstimatorStack}
           options={{ title: 'Refill' }}
         />
         <Tab.Screen 

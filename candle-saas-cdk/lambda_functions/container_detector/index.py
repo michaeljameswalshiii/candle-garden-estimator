@@ -67,23 +67,32 @@ def detect_container(body):
                 image_data = base64.b64encode(response.read()).decode("utf-8")
         
         # Use Claude 3 Sonnet for vision analysis
-        prompt = """You are a candle container detection expert. 
-Analyze this image and determine if it shows a container suitable for pouring candle wax into.
+        prompt = """You are an expert candle refill estimator.
 
-Look for:
-1. Empty containers (jars, votives, tumblers, tins, molds)
-2. Containers that could hold melted wax
-3. Common candle vessels like mason jars, apothecary jars, tea light holders
-4. Empty space inside a container that could be filled
+Analyze the uploaded photo and detect ALL possible vessels that could hold candle wax (mugs, cups, bowls, jars, glasses, etc.).
 
-Respond with ONLY a JSON object with these fields:
-- container_detected: true or false
-- confidence: a number between 0 and 1
-- container_type: description of the container if detected, or "none" if not
-- estimated_ounces: estimated capacity in ounces if detected, or 0 if not
-- reasoning: brief explanation of your decision
+Rules:
+- A vessel is valid even if it has some liquid or residue.
+- Prefer empty or mostly empty vessels.
+- If multiple vessels are present, describe the best one(s) for refilling.
+- Estimate volume in ounces or ml if possible.
+- Always return structured JSON.
 
-Do not include any other text in your response. Format as valid JSON only."""
+Output format:
+{
+  "vessels_detected": true,
+  "vessels": [
+    {
+      "type": "white ceramic mug",
+      "estimated_volume_oz": 12,
+      "confidence": 0.85,
+      "notes": "Contains some liquid - still usable after cleaning"
+    }
+  ],
+  "recommendation": "..."
+}
+
+If no vessel is found with high confidence, still return a helpful fallback instead of "No Vessel Detected"."""
 
         # Call Bedrock Claude with vision
         response = bedrock_client.invoke_model(
@@ -115,9 +124,26 @@ Do not include any other text in your response. Format as valid JSON only."""
             })
         )
         
-        # Parse response
-        response_body = json.loads(response["body"].read().decode("utf-8"))
-        content = response_body["content"][0]["text"]
+        # Parse response - handle different response formats
+        try:
+            response_body = response.get("body")
+            if response_body:
+                if hasattr(response_body, 'read'):
+                    content = response_body.read().decode("utf-8")
+                else:
+                    content = response_body.decode("utf-8") if isinstance(response_body, bytes) else str(response_body)
+                response_body = json.loads(content)
+            else:
+                response_body = json.loads(response["body"].read().decode("utf-8")) if "body" in response else {}
+        except Exception as e:
+            logger.error(f"Failed to parse response: {str(e)}")
+            return {
+                "statusCode": 500,
+                "body": json.dumps({"error": "Failed to parse AI response"}),
+                "headers": {"Content-Type": "application/json"},
+            }
+        
+        content = response_body.get("content", [{}])[0].get("text", "")
         
         # Try to extract JSON from response
         try:
@@ -128,45 +154,78 @@ Do not include any other text in your response. Format as valid JSON only."""
                 result = json.loads(content[start_idx:end_idx])
             else:
                 result = {
-                    "container_detected": False,
-                    "confidence": 0,
-                    "container_type": "none",
-                    "estimated_ounces": 0,
-                    "reasoning": "Could not parse AI response"
-                }
+                    "vessels_detected": False,
+                    "vessels": [],
+                    "recommendation": "Could not parse AI response"
+}
         except json.JSONDecodeError:
             result = {
-                "container_detected": False,
-                "confidence": 0,
-                "container_type": "none",
-                "estimated_ounces": 0,
-                "reasoning": "Could not parse AI response"
+                "vessels_detected": False,
+                "vessels": [],
+                "recommendation": "Could not parse AI response"
             }
         
-        # Only return results if container is detected with decent confidence
-        if result.get("container_detected", False) and result.get("confidence", 0) > 0.5:
+        # Check for vessels_detected or legacy container_detected
+        vessels_detected = result.get("vessels_detected", result.get("container_detected", False))
+        vessels = result.get("vessels", [])
+        
+        # Filter out non-candle containers (soda cans, etc.) and calculate total volume
+        # Specifically ignore "Alani" or similar beverage containers
+        valid_vessels = []
+        for v in vessels:
+            vessel_type = v.get("type", "").lower()
+            # Skip beverage cans, soda cans, etc.
+            skip_phrases = ["alani", "soda can", "energy drink", "cola", "pepsi", "coke", "beverage can"]
+            if any(phrase in vessel_type for phrase in skip_phrases):
+                continue
+            valid_vessels.append(v)
+        
+        if vessels_detected and len(valid_vessels) > 0:
+            # Calculate total volume from all valid vessels
+            total_volume_oz = sum(v.get("estimated_volume_oz", 12) for v in valid_vessels)
+            
+            # Use the first/best vessel as primary
+            best_vessel = valid_vessels[0]
+            vessel_type = best_vessel.get("type", "Unknown")
+            estimated_ounces = best_vessel.get("estimated_volume_oz", 12)
+            confidence = best_vessel.get("confidence", 0.7)
+            notes = best_vessel.get("notes", "")
+            
             return {
                 "statusCode": 200,
                 "body": json.dumps({
                     "success": True,
                     "container_detected": True,
-                    "container_type": result.get("container_type", "unknown"),
-                    "confidence": result.get("confidence", 0),
-                    "estimated_ounces": result.get("estimated_ounces", 0),
-                    "reasoning": result.get("reasoning", "")
+                    "container_type": vessel_type,
+                    "confidence": confidence,
+                    "estimated_ounces": estimated_ounces,
+                    "total_volume_oz": total_volume_oz,
+                    "vessels": valid_vessels,
+                    "notes": notes,
+                    "recommendation": result.get("recommendation", "")
                 }),
                 "headers": {"Content-Type": "application/json"},
             }
         else:
+            # No vessel detected - provide helpful fallback
             return {
                 "statusCode": 200,
                 "body": json.dumps({
                     "success": True,
                     "container_detected": False,
-                    "confidence": result.get("confidence", 0),
+                    "confidence": 0.3,
                     "container_type": "none",
-                    "estimated_ounces": 0,
-                    "reasoning": result.get("reasoning", "No candle container detected")
+                    "estimated_ounces": 12,
+                    "total_volume_oz": 0,
+                    "vessels": [],
+                    "reasoning": "Vessel not clearly detected. Try these tips: Make sure the vessel is well-lit, take photo from above or side, empty the vessel if possible.",
+                    "tips": [
+                        "Make sure the vessel is well-lit",
+                        "Take photo from above or side",
+                        "Empty the vessel if possible",
+                        "Try a different angle"
+                    ],
+                    "allowManualEntry": True
                 }),
                 "headers": {"Content-Type": "application/json"},
             }
