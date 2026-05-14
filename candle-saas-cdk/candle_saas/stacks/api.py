@@ -189,7 +189,6 @@ class APIStack(Stack):
                 "DB_HOST": db.db_instance_endpoint_address,
                 "DB_PORT": "5432",
                 "DB_NAME": "candledb",
-                "AWS_REGION": self.region,
             },
             timeout=Duration.seconds(120),
             memory_size=1024,
@@ -232,9 +231,6 @@ class APIStack(Stack):
             role=role,
             vpc=vpc,
             security_groups=[sg],
-            environment={
-                "AWS_REGION": self.region,
-            },
             timeout=Duration.seconds(120),
             memory_size=1024,
             ephemeral_storage=512,
