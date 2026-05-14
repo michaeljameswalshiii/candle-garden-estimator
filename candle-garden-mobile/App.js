@@ -16,7 +16,7 @@ import RefillStep4 from './screens/RefillStep4';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// Simple icon component using emoji - using proper boolean check
+// Simple icon component using emoji
 const TabIcon = ({ name, focused }) => {
   const icons = {
     Home: '🏠',
@@ -26,11 +26,12 @@ const TabIcon = ({ name, focused }) => {
     Estimator: '🕯️',
     Profile: '👤',
   };
-  // Explicitly convert to boolean to avoid Fabric issues
   const isFocused = Boolean(focused);
   return (
     <View style={styles.iconContainer}>
-      <Text style={[styles.icon, isFocused && styles.iconFocused]}>{icons[name]}</Text>
+      <Text style={[styles.icon, isFocused && styles.iconFocused]}>
+        {icons[name]}
+      </Text>
     </View>
   );
 };
@@ -58,49 +59,22 @@ export default function App() {
           headerShown: false,
         })}
       >
-        <Tab.Screen 
-          name="Home" 
-          component={HomeScreen}
-        />
-        <Tab.Screen 
-          name="Products" 
-          component={ProductsScreen}
-        />
-        <Tab.Screen 
-          name="Orders" 
-          component={OrdersScreen}
-        />
-        <Tab.Screen 
-          name="Classes" 
-          component={ClassScheduleScreen}
-        />
+        <Tab.Screen name="Home" component={HomeScreen} />
+        <Tab.Screen name="Products" component={ProductsScreen} />
+        <Tab.Screen name="Orders" component={OrdersScreen} />
+        <Tab.Screen name="Classes" component={ClassScheduleScreen} />
         <Tab.Screen 
           name="Estimator" 
           component={EstimatorStack}
           options={{ title: 'Refill' }}
         />
-        <Tab.Screen 
-          name="Profile" 
-          component={ProfileScreen}
-        />
+        <Tab.Screen name="Profile" component={ProfileScreen} />
       </Tab.Navigator>
     </NavigationContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  tabBar: {
-    height: 60,
-    paddingBottom: 8,
-    paddingTop: 8,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-  },
-  tabLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
   iconContainer: {
     alignItems: 'center',
     justifyContent: 'center',
