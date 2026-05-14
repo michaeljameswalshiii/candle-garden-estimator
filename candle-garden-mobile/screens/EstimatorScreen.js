@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Alert, Image, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Alert, Image, ScrollView, TextInput } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 
 // Custom Button component to avoid Fabric boolean prop issues
@@ -24,9 +25,22 @@ function CustomButton({ title, onPress, disabled, color }) {
 
 // EstimatorScreen for refill calculations
 export default function EstimatorScreen() {
+  const navigation = useNavigation();
   const [image, setImage] = useState(null);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [showManualEntry, setShowManualEntry] = useState(false);
+  const [manualOunces, setManualOunces] = useState('');
+
+  // Continue to shipping/quantity screen
+  const continueToShipping = () => {
+    if (result && result.estimated_ounces) {
+      navigation.navigate('RefillStep4', { 
+        ounces: result.estimated_ounces,
+        containerType: result.container_type 
+      });
+    }
+  };
 
 // Deployed Lambda Function URL
 const DETECTOR_URL = 'https://9vewi8siei.execute-api.us-east-1.amazonaws.com/prod/detect';
@@ -36,8 +50,7 @@ const DETECTOR_URL = 'https://9vewi8siei.execute-api.us-east-1.amazonaws.com/pro
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [4, 3],
+        allowsEditing: false,
         quality: 0.8,
       });
 
@@ -61,8 +74,7 @@ const DETECTOR_URL = 'https://9vewi8siei.execute-api.us-east-1.amazonaws.com/pro
       }
 
       const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        aspect: [4, 3],
+        allowsEditing: false,
         quality: 0.8,
       });
 
@@ -125,11 +137,23 @@ const estimateCandle = async () => {
 
       const detectData = await detectResponse.json();
       
-      // If container detection failed or no container detected, show error and stop
-      if (!detectData.success || !detectData.container_detected || detectData.confidence < 0.7) {
+      // Check if vessel detected with sufficient confidence
+      if (!detectData.success || !detectData.container_detected || detectData.confidence < 0.5) {
+        // Show helpful fallback with tips
+        const tips = detectData.tips || [
+          'Make sure the vessel is well-lit',
+          'Take photo from above or side',
+          'Empty the vessel if possible',
+          'Try a different angle'
+        ];
+        
         Alert.alert(
-          'No Container Detected',
-          'We could not detect a candle container in this photo. Please take a clear photo of your empty candle container next to a 12oz soda can for size reference. The container should be empty or mostly empty.'
+          'Vessel Not Clearly Detected',
+          tips.join('\n• '),
+          [
+            { text: 'Try Again', onPress: () => {} },
+            { text: 'Enter Manually', onPress: () => setShowManualEntry(true) }
+          ]
         );
         setLoading(false);
         return;
@@ -162,11 +186,30 @@ const estimateCandle = async () => {
   }
 };
 
-  return (
+// Manual entry submission
+const submitManualEntry = () => {
+  const ounces = parseInt(manualOunces);
+  if (!ounces || ounces < 4 || ounces > 32) {
+    Alert.alert('Invalid Input', 'Please enter a volume between 4 and 32 ounces');
+    return;
+  }
+  
+  const costData = calculateCost(ounces);
+  setResult({
+    estimated_ounces: ounces,
+    container_type: 'Manual Entry',
+    confidence: 1.0,
+    ...costData
+  });
+  setShowManualEntry(false);
+  setManualOunces('');
+};
+
+return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Refill Estimator</Text>
       <Text style={styles.instruction}>
-        Take or select a photo of your candle container next to a 12oz soda can for size reference
+        Take a clear photo of your empty (or mostly empty) candle vessel from above or the side. Good examples: mugs, jars, bowls, glasses.
       </Text>
 
       {image ? (
@@ -201,13 +244,42 @@ const estimateCandle = async () => {
         )}
       </View>
 
-      {result && (
+      {/* Manual Entry Form */}
+      {showManualEntry && (
+        <View style={styles.manualEntryContainer}>
+          <Text style={styles.manualEntryTitle}>Enter Volume Manually</Text>
+          <Text style={styles.manualEntryHint}>Enter the volume in ounces (4-32 oz)</Text>
+          <View style={styles.inputRow}>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.input}
+                value={manualOunces}
+                onChangeText={setManualOunces}
+                keyboardType="numeric"
+                placeholder="12"
+                placeholderTextColor="#999"
+              />
+            </View>
+            <Text style={styles.inputSuffix}>oz</Text>
+          </View>
+          <View style={styles.manualButtons}>
+            <CustomButton title="Cancel" onPress={() => setShowManualEntry(false)} color="#666" />
+            <CustomButton title="Submit" onPress={submitManualEntry} />
+          </View>
+        </View>
+      )}
+
+{result && (
         <View style={styles.result}>
           <Text style={styles.resultTitle}>Estimate Results:</Text>
           <Text style={styles.resultText}>Volume: {result.estimated_ounces} oz</Text>
           <Text style={styles.resultText}>Wax Cost: ${result.wax_cost}</Text>
           <Text style={styles.resultText}>Shipping: ${result.shipping_cost} ({result.box_type})</Text>
           <Text style={styles.total}>Total: ${result.total_cost}</Text>
+          <CustomButton 
+            title="Continue to Shipping & Quantity" 
+            onPress={continueToShipping}
+          />
         </View>
       )}
     </ScrollView>
@@ -302,10 +374,57 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 5,
   },
-  total: {
+total: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#2e7d32',
     marginTop: 10,
+  },
+  // Manual entry styles
+  manualEntryContainer: {
+    backgroundColor: '#f5f5f5',
+    padding: 20,
+    borderRadius: 10,
+    marginTop: 20,
+    alignItems: 'center',
+    width: '100%',
+  },
+  manualEntryTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    color: '#2e7d32',
+  },
+  manualEntryHint: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 15,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  inputContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+  },
+  input: {
+    fontSize: 18,
+    width: 80,
+    textAlign: 'center',
+  },
+  inputSuffix: {
+    fontSize: 18,
+    marginLeft: 10,
+    color: '#666',
+  },
+  manualButtons: {
+    flexDirection: 'row',
+    gap: 12,
   },
 });

@@ -47,9 +47,9 @@ class NetworkStack(Stack):
             allow_all_outbound=True,
         )
         
-        # Allow Lambda to access database
+        # Allow Lambda to access database on PostgreSQL port using CDK v2 Port
         self.database_sg.connections.allow_from(
             self.lambda_sg,
-            port=ec2.Port.tcp(5432),
+            ec2.Port.tcp(5432),
             description="Allow Lambda to access PostgreSQL"
         )
