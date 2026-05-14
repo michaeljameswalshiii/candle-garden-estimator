@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, Text, StyleSheet } from 'react-native';
 
 // Import screens
@@ -13,7 +13,7 @@ import EstimatorScreen from './screens/EstimatorScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import RefillStep4 from './screens/RefillStep4';
 
-const Stack = createStackNavigator();
+const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 // Simple icon component using emoji - using proper boolean check
