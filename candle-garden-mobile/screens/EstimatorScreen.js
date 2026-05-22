@@ -137,8 +137,8 @@ const estimateCandle = async () => {
 
       const detectData = await detectResponse.json();
       
-      // Check if vessel detected with sufficient confidence
-      if (!detectData.success || !detectData.container_detected || detectData.confidence < 0.5) {
+// Check if vessel detected with sufficient confidence
+      if (!detectData.success || !detectData.container_detected || detectData.confidence < 0.35) {
         // Show helpful fallback with tips
         const tips = detectData.tips || [
           'Make sure the vessel is well-lit',

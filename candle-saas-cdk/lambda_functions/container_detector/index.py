@@ -3,20 +3,19 @@ import os
 import boto3
 import base64
 import logging
+import re
+import urllib.request
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # Initialize Bedrock client
-bedrock_client = boto3.client("bedrock-runtime", region_name=os.environ.get("AWS_REGION", "us-east-1"))
+bedrock_runtime = boto3.client("bedrock-runtime", region_name=os.environ.get("AWS_REGION", "us-east-1"))
 
 
 def handler(event, context):
     """
-    Handle container detection requests using Bedrock Claude Vision.
-    
-    Routes:
-    - POST /detect - Analyze image for candle container
+    Handle container detection requests using Amazon Nova Lite.
     """
     try:
         http_method = event.get("httpMethod", "").upper()
@@ -56,158 +55,134 @@ def handler(event, context):
 
 
 def detect_container(body):
-    """Detect if image contains a candle container using Bedrock Claude Vision."""
+    """Detect if image contains a candle container using Amazon Nova Lite."""
     try:
         image_data = body.get("image", "")
         
         # If image is a URL, fetch it first
         if image_data.startswith("http"):
-            import urllib.request
             with urllib.request.urlopen(image_data) as response:
                 image_data = base64.b64encode(response.read()).decode("utf-8")
         
-        # Use Claude 3 Sonnet for vision analysis
-        prompt = """You are an expert candle refill estimator.
+        # Analyze with Amazon Nova Lite
+        return analyze_image_with_nova(image_data)
+    
+    except Exception as e:
+        logger.error(f"Detection error: {str(e)}")
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": str(e)}),
+            "headers": {"Content-Type": "application/json"},
+        }
 
-Analyze the uploaded photo and detect ALL possible vessels that could hold candle wax (mugs, cups, bowls, jars, glasses, etc.).
+
+def analyze_image_with_nova(image_bytes):
+    """Analyze candle container image using Amazon Nova Lite."""
+    try:
+        image_base64 = image_bytes
+        
+        prompt = """You are an expert at estimating candle vessel volumes.
+
+A standard 12 oz soda can (4.83 inches tall, 2.6 inches diameter) is placed in the photo for scale reference.
+
+Your task:
+1. Identify the 12 oz soda can.
+2. Identify ALL other containers/vessels meant for candles (mugs, jars, bowls, glasses, etc.).
+3. Ignore the soda can.
+4. Estimate the volume in fluid ounces for EACH candle vessel.
+5. Return the TOTAL volume of all candle vessels combined.
 
 Rules:
-- A vessel is valid even if it has some liquid or residue.
-- Prefer empty or mostly empty vessels.
-- If multiple vessels are present, describe the best one(s) for refilling.
-- Estimate volume in ounces or ml if possible.
-- Always return structured JSON.
-
-Output format:
+- Focus only on empty or mostly empty candle-appropriate vessels.
+- Be reasonable with estimates. Typical candle containers are 4–24 oz each.
+- If multiple vessels are present, sum their estimated volumes.
+- Respond with ONLY a JSON object in this exact format:
 {
-  "vessels_detected": true,
-  "vessels": [
-    {
-      "type": "white ceramic mug",
-      "estimated_volume_oz": 12,
-      "confidence": 0.85,
-      "notes": "Contains some liquid - still usable after cleaning"
-    }
-  ],
-  "recommendation": "..."
+  "success": true,
+  "container_detected": true,
+  "estimated_ounces": 18.5,
+  "confidence": 0.82,
+  "container_type": "Multiple vessels",
+  "explanation": "One 8oz mug + one 10.5oz jar"
 }
+"""
 
-If no vessel is found with high confidence, still return a helpful fallback instead of "No Vessel Detected"."""
-
-        # Call Bedrock Claude with vision
-        response = bedrock_client.invoke_model(
-            modelId="anthropic.claude-3-sonnet-20240229-v1:0",
-            contentType="application/json",
-            accept="application/json",
+        response = bedrock_runtime.invoke_model(
+            modelId='amazon.nova-lite-v1:0',
+            contentType='application/json',
+            accept='application/json',
             body=json.dumps({
-                "anthropic_version": "bedrock-2023-06-01",
-                "max_tokens": 1024,
                 "messages": [
                     {
                         "role": "user",
                         "content": [
                             {
-                                "type": "image",
-                                "source": {
-                                    "type": "base64",
-                                    "media_type": "image/jpeg",
-                                    "data": image_data
+                                "image": {
+                                    "format": "jpeg",
+                                    "source": {"bytes": image_base64}
                                 }
                             },
-                            {
-                                "type": "text",
-                                "text": prompt
-                            }
+                            {"text": prompt}
                         ]
                     }
-                ]
+                ],
+                "inferenceConfig": {
+                    "max_new_tokens": 300,
+                    "temperature": 0.1
+                }
             })
         )
         
-        # Parse response - handle different response formats
-        try:
-            response_body = response.get("body")
-            if response_body:
-                if hasattr(response_body, 'read'):
-                    content = response_body.read().decode("utf-8")
-                else:
-                    content = response_body.decode("utf-8") if isinstance(response_body, bytes) else str(response_body)
-                response_body = json.loads(content)
-            else:
-                response_body = json.loads(response["body"].read().decode("utf-8")) if "body" in response else {}
-        except Exception as e:
-            logger.error(f"Failed to parse response: {str(e)}")
-            return {
-                "statusCode": 500,
-                "body": json.dumps({"error": "Failed to parse AI response"}),
-                "headers": {"Content-Type": "application/json"},
-            }
+        # Parse Bedrock response with robust JSON handling
+        response_body = json.loads(response.get('body').read())
         
-        content = response_body.get("content", [{}])[0].get("text", "")
+        result = None
+        if 'output' in response_body and 'message' in response_body['output']:
+            content = response_body['output']['message']['content'][0]
+            if 'text' in content:
+                text = content['text'].strip()
+                
+                # Extract JSON from possible markdown or extra text
+                json_match = re.search(r'\{.*\}', text, re.DOTALL)
+                if json_match:
+                    try:
+                        result = json.loads(json_match.group(0))
+                    except:
+                        pass
+                
+                # Fallback: try direct parse
+                if not result:
+                    try:
+                        result = json.loads(text)
+                    except:
+                        pass
         
-        # Try to extract JSON from response
-        try:
-            # Find JSON in the response
-            start_idx = content.find("{")
-            end_idx = content.rfind("}") + 1
-            if start_idx > -1 and end_idx > 0:
-                result = json.loads(content[start_idx:end_idx])
-            else:
-                result = {
-                    "vessels_detected": False,
-                    "vessels": [],
-                    "recommendation": "Could not parse AI response"
-}
-        except json.JSONDecodeError:
+        # Default fallback if parsing fails
+        if not result:
             result = {
-                "vessels_detected": False,
-                "vessels": [],
-                "recommendation": "Could not parse AI response"
+                "success": False,
+                "container_detected": False,
+                "confidence": 0.0,
+                "error": "Failed to parse AI response"
             }
         
-        # Check for vessels_detected or legacy container_detected
-        vessels_detected = result.get("vessels_detected", result.get("container_detected", False))
-        vessels = result.get("vessels", [])
-        
-        # Filter out non-candle containers (soda cans, etc.) and calculate total volume
-        # Specifically ignore "Alani" or similar beverage containers
-        valid_vessels = []
-        for v in vessels:
-            vessel_type = v.get("type", "").lower()
-            # Skip beverage cans, soda cans, etc.
-            skip_phrases = ["alani", "soda can", "energy drink", "cola", "pepsi", "coke", "beverage can"]
-            if any(phrase in vessel_type for phrase in skip_phrases):
-                continue
-            valid_vessels.append(v)
-        
-        if vessels_detected and len(valid_vessels) > 0:
-            # Calculate total volume from all valid vessels
-            total_volume_oz = sum(v.get("estimated_volume_oz", 12) for v in valid_vessels)
-            
-            # Use the first/best vessel as primary
-            best_vessel = valid_vessels[0]
-            vessel_type = best_vessel.get("type", "Unknown")
-            estimated_ounces = best_vessel.get("estimated_volume_oz", 12)
-            confidence = best_vessel.get("confidence", 0.7)
-            notes = best_vessel.get("notes", "")
-            
+        if result.get("success") and result.get("container_detected"):
             return {
                 "statusCode": 200,
                 "body": json.dumps({
                     "success": True,
                     "container_detected": True,
-                    "container_type": vessel_type,
-                    "confidence": confidence,
-                    "estimated_ounces": estimated_ounces,
-                    "total_volume_oz": total_volume_oz,
-                    "vessels": valid_vessels,
-                    "notes": notes,
-                    "recommendation": result.get("recommendation", "")
+                    "estimated_ounces": result.get("estimated_ounces", 12),
+                    "confidence": result.get("confidence", 0.5),
+                    "container_type": result.get("container_type", "Unknown"),
+                    "total_volume_oz": result.get("estimated_ounces", 12),
+                    "notes": result.get("explanation", ""),
+                    "recommendation": result.get("explanation", "")
                 }),
                 "headers": {"Content-Type": "application/json"},
             }
         else:
-            # No vessel detected - provide helpful fallback
+            # No vessel detected
             return {
                 "statusCode": 200,
                 "body": json.dumps({
@@ -231,7 +206,7 @@ If no vessel is found with high confidence, still return a helpful fallback inst
             }
     
     except Exception as e:
-        logger.error(f"Detection error: {str(e)}")
+        logger.error(f"Nova analysis error: {str(e)}")
         return {
             "statusCode": 500,
             "body": json.dumps({"error": str(e)}),

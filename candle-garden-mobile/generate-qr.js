@@ -1,6 +1,6 @@
 const QRCode = require('qrcode');
 
-const url = process.argv[2] || 'exp://ziwk7aw-anonymous-8081.exp.direct';
+const url = process.argv[2] || 'exp://localhost:8081';
 
 console.log('Generating QR code for:', url);
 console.log('');

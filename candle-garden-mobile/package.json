@@ -16,6 +16,7 @@
     "@react-navigation/stack": "^7.9.1",
     "expo": "~54.0.0",
     "expo-camera": "~17.0.10",
+    "expo-dev-client": "~6.0.21",
     "expo-image-picker": "~17.0.11",
     "expo-status-bar": "~3.0.9",
     "qrcode": "^1.5.4",
@@ -26,8 +27,7 @@
     "react-native-screens": "~4.16.0"
   },
   "devDependencies": {
-    "@babel/core": "^7.20.0",
-    "eas-cli": "^18.10.0"
+    "@babel/core": "^7.20.0"
   },
   "private": true
 }
