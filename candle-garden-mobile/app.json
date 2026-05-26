@@ -6,7 +6,6 @@
     "assetBundlePatterns": [
       "**/*"
     ],
-
     "web": {
       "favicon": "./assets/favicon.png"
     },
