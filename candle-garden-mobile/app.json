@@ -9,15 +9,6 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": [
-      [
-        "expo-camera",
-        {
-          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to take photos of your candle containers."
-        }
-      ],
-      "expo-image-picker"
-    ],
     "experiments": {
       "typedRoutes": true
     },
