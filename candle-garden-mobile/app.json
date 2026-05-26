@@ -6,13 +6,7 @@
     "assetBundlePatterns": [
       "**/*"
     ],
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.michaeljameswalshiii.candlegarden"
-    },
-    "android": {
-      "package": "com.michaeljameswalshiii.candlegarden"
-    },
+
     "web": {
       "favicon": "./assets/favicon.png"
     },
