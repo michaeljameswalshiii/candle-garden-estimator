@@ -1,4 +1,4 @@
-package com.anonymous.candlegardenestimator
+package com.michaeljameswalshiii.candlegarden
 
 import android.os.Build
 import android.os.Bundle

@@ -3,34 +3,14 @@
     "name": "Candle Garden Estimator",
     "slug": "candle-garden-estimator",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.michaeljameswalshiii.candlegarden",
-      "infoPlist": {
-        "NSCameraUsageDescription": "Allow $(PRODUCT_NAME) to access your camera to take photos of your candle containers.",
-        "ITSAppUsesNonExemptEncryption": false
-      }
+      "bundleIdentifier": "com.michaeljameswalshiii.candlegarden"
     },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FFFFFF"
-      },
-      "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
-      ],
       "package": "com.michaeljameswalshiii.candlegarden"
     },
     "web": {

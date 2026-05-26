@@ -1,4 +1,4 @@
-package com.anonymous.candlegardenestimator
+package com.michaeljameswalshiii.candlegarden
 
 import android.app.Application
 import android.content.res.Configuration
