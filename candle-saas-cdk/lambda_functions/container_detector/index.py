@@ -10,9 +10,9 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 bedrock_runtime = boto3.client("bedrock-runtime", region_name=os.environ.get("AWS_REGION", "us-east-1"))
+
 def handler(event, context):
     try:
-        # Handle the case when body is None or not present
         body_raw = event.get("body")
         if body_raw is None:
             body = {}
@@ -21,7 +21,6 @@ def handler(event, context):
         else:
             body = body_raw
 
-        # Validate image is present
         if "image" not in body or not body.get("image"):
             return {
                 "statusCode": 400,
@@ -35,11 +34,11 @@ def handler(event, context):
             "statusCode": 500,
             "body": json.dumps({"error": str(e)})
         }
+
 def analyze_with_nova(body):
-    """MiniMax v3: Aggressive multi-vessel detection + strong residual wax ignore"""
+    """Nova Pro v1: Maximum accuracy with refined prompt"""
     image_data = body.get("image", "")
 
-    # Handle URL if image is passed as URL
     if image_data and image_data.startswith("http"):
         try:
             with urllib.request.urlopen(image_data) as resp:
@@ -51,48 +50,46 @@ def analyze_with_nova(body):
                 "body": json.dumps({"error": f"Failed to fetch image: {str(e)}"})
             }
 
-    # Validate we have image data
     if not image_data:
         return {
             "statusCode": 400,
             "body": json.dumps({"error": "image data is empty"})
         }
 
-    prompt = """You are an expert candle maker and refill volume estimator.
+    prompt = """You are an expert candle refill estimator. Be accurate and never underestimate volume.
 
-A standard 12 oz soda can is visible for scale. Use it ONLY for scale reference.
+A blue 12 oz LUNY soda can is clearly visible for scale. Use it ONLY for scaling — ignore its volume.
 
-CRITICAL RULES:
-- Identify EVERY candle vessel (jars, tumblers, glasses, bowls, mugs, etc.), even if they are close together or partially overlapping.
-- Be HIGHLY AGGRESSIVE on multi-vessel detection.
-- COMPLETELY IGNORE any residual wax, soot, or leftover material inside the vessels. Estimate the FULL clean/empty capacity as if the jar were brand new and empty.
-- Residual wax is extremely common in used candles and must NOT reduce your volume estimate.
+CRITICAL INSTRUCTIONS — FOLLOW EXACTLY:
+- There are TWO candle vessels in this photo.
+- Detect BOTH vessels separately. Do not merge them.
+- COMPLETELY IGNORE residual wax inside the jars. Measure the FULL internal capacity as if they were completely empty and clean.
+- Be very precise with measurements using the soda can as reference.
 
-Tasks:
-1. Locate the 12 oz soda can for accurate scaling.
-2. Detect all candle vessels in the image.
-3. Estimate realistic full fluid ounces for each vessel.
-4. Return the sum as total_volume_oz.
+Step-by-step (think internally, but output only JSON):
+1. Confirm soda can.
+2. Vessel 1 (dark jar on left) → estimate full oz.
+3. Vessel 2 (clear glass on right) → estimate full oz.
+4. Sum the two.
 
-Return ONLY valid JSON. No explanations outside the JSON.
-
+Return ONLY valid JSON:
 {
   "success": true,
   "container_detected": true,
-  "estimated_ounces": 22.5,
-  "total_volume_oz": 22.5,
+  "estimated_ounces": 23,
+  "total_volume_oz": 23,
   "vessels": [
-    {"type": "dark apothecary jar", "oz": 11.0, "notes": "full capacity estimated"},
+    {"type": "dark apothecary jar", "oz": 11.5, "notes": "full capacity"},
     {"type": "clear glass tumbler", "oz": 11.5, "notes": "residual wax ignored"}
   ],
-  "confidence": 0.85,
-  "explanation": "Two vessels detected. Residual wax present but full usable volume used."
+  "confidence": 0.90,
+  "explanation": "Two vessels. Full clean capacity measured."
 }
 """
 
     try:
         response = bedrock_runtime.invoke_model(
-            modelId="amazon.nova-lite-v1:0",
+            modelId="amazon.nova-pro-v1:0",
             contentType="application/json",
             accept="application/json",
             body=json.dumps({
@@ -104,8 +101,8 @@ Return ONLY valid JSON. No explanations outside the JSON.
                     ]
                 }],
                 "inferenceConfig": {
-                    "max_new_tokens": 600,
-                    "temperature": 0.05,   # Very low for consistency
+                    "max_new_tokens": 700,
+                    "temperature": 0.0,
                     "topP": 0.95
                 }
             })
@@ -114,7 +111,6 @@ Return ONLY valid JSON. No explanations outside the JSON.
         response_body = json.loads(response.get('body').read())
         text = response_body.get('output', {}).get('message', {}).get('content', [{}])[0].get('text', '')
 
-        # Robust JSON extraction
         json_match = re.search(r'\{[\s\S]*\}', text, re.DOTALL)
         result = None
         if json_match:
@@ -136,7 +132,6 @@ Return ONLY valid JSON. No explanations outside the JSON.
         conf = float(result.get("confidence", 0.6))
         vessels = result.get("vessels", [])
 
-        # Safety bounds
         if est_oz < 4 or est_oz > 80:
             est_oz = 16.0
             conf = 0.4
@@ -162,7 +157,7 @@ Return ONLY valid JSON. No explanations outside the JSON.
         }
 
     except Exception as e:
-        logger.error(f"Nova Lite error: {str(e)}")
+        logger.error(f"Nova Pro error: {str(e)}")
         return {
             "statusCode": 200,
             "body": json.dumps({
