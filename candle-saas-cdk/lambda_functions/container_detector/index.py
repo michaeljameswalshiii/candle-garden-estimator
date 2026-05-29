@@ -70,34 +70,34 @@ def analyze_with_nova(body):
             "body": json.dumps({"error": "image data is empty"})
         }
 
-    prompt = """You are an expert candle refill estimator. Be accurate and never underestimate volume.
+prompt = """You are an expert candle refill estimator. Be accurate and never underestimate volume.
 
 A blue 12 oz LUNY soda can is clearly visible for scale. Use it ONLY for scaling — ignore its volume.
 
 CRITICAL INSTRUCTIONS — FOLLOW EXACTLY:
-- There are TWO candle vessels in this photo.
-- Detect BOTH vessels separately. Do not merge them.
+- There may be ANY number of candle vessels/containers in this photo (1, 2, 3, 4, or more). There is no limit.
+- Detect EVERY vessel separately. Do not merge them.
 - COMPLETELY IGNORE residual wax inside the jars. Measure the FULL internal capacity as if they were completely empty and clean.
 - Be very precise with measurements using the soda can as reference.
 
 Step-by-step (think internally, but output only JSON):
-1. Confirm soda can.
-2. Vessel 1 (dark jar on left) → estimate full oz.
-3. Vessel 2 (clear glass on right) → estimate full oz.
-4. Sum the two.
+1. Confirm the soda can is present for scale.
+2. Identify and measure each vessel individually.
+3. Sum all vessels for the total.
 
 Return ONLY valid JSON:
 {
   "success": true,
   "container_detected": true,
-  "estimated_ounces": 23,
-  "total_volume_oz": 23,
+  "estimated_ounces": 42,
+  "total_volume_oz": 42,
   "vessels": [
-    {"type": "dark apothecary jar", "oz": 11.5, "notes": "full capacity"},
-    {"type": "clear glass tumbler", "oz": 11.5, "notes": "residual wax ignored"}
+    {"type": "dark apothecary jar", "oz": 12.5, "notes": "full capacity"},
+    {"type": "clear glass tumbler", "oz": 16.0, "notes": "residual wax ignored"},
+    {"type": "small tealight holder", "oz": 2.5, "notes": ""}
   ],
-  "confidence": 0.90,
-  "explanation": "Two vessels. Full clean capacity measured."
+  "confidence": 0.88,
+  "explanation": "Three vessels detected. Full clean capacities measured using soda can scale."
 }
 """
 
