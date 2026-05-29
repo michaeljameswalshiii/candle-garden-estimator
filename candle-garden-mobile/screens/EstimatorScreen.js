@@ -43,7 +43,7 @@ export default function EstimatorScreen() {
   };
 
 // Deployed Lambda Function URL (updated endpoint)
-const DETECTOR_URL = 'https://9rrii5xmt5.execute-api.us-east-1.amazonaws.com/prod/detect';
+const DETECTOR_URL = 'https://yg1ec20ucf.execute-api.us-east-1.amazonaws.com/prod/detect';
 
 // Pick image from gallery
   const pickImage = async () => {
