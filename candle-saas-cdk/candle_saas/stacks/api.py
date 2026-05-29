@@ -16,6 +16,8 @@ from constructs import Construct
 
 def _get_db_endpoint(db):
     """Helper to get database host and port from either DatabaseInstance or DatabaseCluster."""
+    if db is None:
+        return "localhost", 5432
     if isinstance(db, rds.DatabaseCluster):
         return db.cluster_endpoint.address, db.cluster_endpoint.port
     else:
@@ -31,11 +33,15 @@ class APIStack(Stack):
         id: str,
         vpc: ec2.Vpc,
         lambda_sg: ec2.SecurityGroup,
-        database,
-        s3_bucket: s3.Bucket,
+        database = None,
+        s3_bucket: s3.Bucket = None,
         **kwargs
     ):
         super().__init__(scope, id, **kwargs)
+        
+        # Store database and s3 references (can be None)
+        self._database = database
+        self._s3_bucket = s3_bucket
         
         # Create shared IAM execution role for Lambda
         lambda_execution_role = iam.Role(
@@ -49,12 +55,13 @@ class APIStack(Stack):
             iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaVPCAccessExecutionRole")
         )
         
-# Add permissions for database access
-        # Note: For imported DB instances, we must specify the db_user
-        database.grant_connect(lambda_execution_role, "candleadmin")
+        # Add permissions for database access (only if database exists)
+        if database is not None:
+            database.grant_connect(lambda_execution_role, "candleadmin")
         
-        # Add permissions for S3 bucket
-        s3_bucket.grant_read_write(lambda_execution_role)
+        # Add permissions for S3 bucket (only if bucket exists)
+        if s3_bucket is not None:
+            s3_bucket.grant_read_write(lambda_execution_role)
         
         # Add permissions for Bedrock
         lambda_execution_role.add_to_policy(

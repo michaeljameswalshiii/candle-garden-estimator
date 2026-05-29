@@ -22,23 +22,25 @@ env = cdk.Environment(
 # Create network stack
 network_stack = NetworkStack(app, "CandleSaasNetworkStack", env=env)
 
-# Create database stack - imports existing RDS database
-database_stack = DatabaseStack(
-    app, "CandleSaasDatabaseStack", 
-    vpc=network_stack.vpc,
-    database_sg=network_stack.database_sg,
-    env=env
-)
-
 # Create storage stack
 storage_stack = StorageStack(app, "CandleSaasStorageStack", env=env)
 
-# Create API stack with Lambda functions
+# Create database stack - commented out for now since RDS creation is failing
+# Uncomment after fixing database provisioning
+# database_stack = DatabaseStack(
+#     app, "CandleSaasDatabaseStack",
+#     vpc=network_stack.vpc,
+#     database_sg=network_stack.database_sg,
+#     env=env
+# )
+
+# Create API stack with Lambda functions (without database for now)
+# The container_detector works without DB - only product_manager/order_processor need it
 api_stack = APIStack(
     app, "CandleSaasAPIStack",
     vpc=network_stack.vpc,
     lambda_sg=network_stack.lambda_sg,
-    database=database_stack.database,
+    database=None,  # Temporarily None - no RDS available
     s3_bucket=storage_stack.image_bucket,
     env=env
 )

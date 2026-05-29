@@ -41,18 +41,27 @@ def handler(event, context):
     - GET /products/{id} - Get product details
     - PUT /products/{id} - Update product
     - DELETE /products/{id} - Delete product
-    """
+"""
     try:
         http_method = event.get("httpMethod", "").upper()
         path_parameters = event.get("pathParameters", {}) or {}
         body = event.get("body", "{}")
         
-        # Parse body if string
+        # Robust body parsing: handle both string and dict inputs
         if isinstance(body, str):
             try:
-                body = json.loads(body) if body else {}
+                body = json.loads(body) if body.strip() else {}
             except json.JSONDecodeError:
                 body = {}
+        elif isinstance(body, dict):
+            # Already parsed as dict - use directly
+            body = body
+        else:
+            body = {}
+        
+        # Ensure body is always a dict
+        if not isinstance(body, dict):
+            body = {}
         
         product_id = path_parameters.get("id")
         

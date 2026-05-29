@@ -14,12 +14,26 @@ bedrock_runtime = boto3.client("bedrock-runtime", region_name=os.environ.get("AW
 def handler(event, context):
     try:
         body_raw = event.get("body")
+        
+        # Robust body parsing: handle both string and dict inputs
+        # API Gateway may pass body as string (real requests) or dict (test feature/Gateway v2)
         if body_raw is None:
             body = {}
         elif isinstance(body_raw, str):
-            body = json.loads(body_raw) if body_raw else {}
+            # Try parsing as JSON string
+            try:
+                body = json.loads(body_raw) if body_raw.strip() else {}
+            except json.JSONDecodeError:
+                # If string parsing fails, try treating as raw input
+                # This handles edge cases where body might be incorrectly formatted
+                body = body_raw
         else:
+            # Already a dict/object - use directly
             body = body_raw
+        
+        # Ensure body is always a dictionary for .get() to work
+        if not isinstance(body, dict):
+            body = {"raw": str(body)}
 
         if "image" not in body or not body.get("image"):
             return {
