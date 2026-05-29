@@ -42,8 +42,8 @@ export default function EstimatorScreen() {
     }
   };
 
-// Deployed Lambda Function URL
-const DETECTOR_URL = 'https://9vewi8siei.execute-api.us-east-1.amazonaws.com/prod/detect';
+// Deployed Lambda Function URL (updated endpoint)
+const DETECTOR_URL = 'https://9rrii5xmt5.execute-api.us-east-1.amazonaws.com/prod/detect';
 
 // Pick image from gallery
   const pickImage = async () => {
@@ -137,8 +137,8 @@ const estimateCandle = async () => {
 
       const detectData = await detectResponse.json();
       
-// Check if vessel detected with sufficient confidence
-      if (!detectData.success || !detectData.container_detected || detectData.confidence < 0.35) {
+// Accept any successful response - use the estimate if available
+      if (!detectData.success || !detectData.estimated_ounces) {
         // Show helpful fallback with tips
         const tips = detectData.tips || [
           'Make sure the vessel is well-lit',

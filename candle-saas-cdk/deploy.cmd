@@ -10,7 +10,7 @@ if "%ENVIRONMENT%"=="" set ENVIRONMENT=dev
 echo Deploying Candle SaaS CDK - %ENVIRONMENT% environment
 
 if "%ENVIRONMENT%"=="dev" (
-    set ACCOUNT_ID=123456789012
+    set ACCOUNT_ID=635449373837
     set REGION=us-east-1
 ) else if "%ENVIRONMENT%"=="staging" (
     set ACCOUNT_ID=234567890123

@@ -15,14 +15,14 @@ app = cdk.App()
 
 # Get configuration from context
 env = cdk.Environment(
-    account=app.node.try_get_context("account") or "123456789012",
+    account=app.node.try_get_context("account") or "635449373837",
     region=app.node.try_get_context("region") or "us-east-1"
 )
 
 # Create network stack
 network_stack = NetworkStack(app, "CandleSaasNetworkStack", env=env)
 
-# Create database stack
+# Create database stack - imports existing RDS database
 database_stack = DatabaseStack(
     app, "CandleSaasDatabaseStack", 
     vpc=network_stack.vpc,

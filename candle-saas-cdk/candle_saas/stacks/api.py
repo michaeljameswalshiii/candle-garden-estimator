@@ -9,8 +9,17 @@ from aws_cdk import (
     aws_s3 as s3,
     aws_rds as rds,
     Duration,
+    Size,
 )
 from constructs import Construct
+
+
+def _get_db_endpoint(db):
+    """Helper to get database host and port from either DatabaseInstance or DatabaseCluster."""
+    if isinstance(db, rds.DatabaseCluster):
+        return db.cluster_endpoint.address, db.cluster_endpoint.port
+    else:
+        return db.db_instance_endpoint_address, 5432
 
 
 class APIStack(Stack):
@@ -22,7 +31,7 @@ class APIStack(Stack):
         id: str,
         vpc: ec2.Vpc,
         lambda_sg: ec2.SecurityGroup,
-        database: rds.DatabaseInstance,
+        database,
         s3_bucket: s3.Bucket,
         **kwargs
     ):
@@ -40,8 +49,9 @@ class APIStack(Stack):
             iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaVPCAccessExecutionRole")
         )
         
-        # Add permissions for database access
-        database.grant_connect(lambda_execution_role)
+# Add permissions for database access
+        # Note: For imported DB instances, we must specify the db_user
+        database.grant_connect(lambda_execution_role, "candleadmin")
         
         # Add permissions for S3 bucket
         s3_bucket.grant_read_write(lambda_execution_role)
@@ -122,9 +132,11 @@ class APIStack(Stack):
         self._setup_detect_endpoint(api, container_detector_fn)
     
     def _create_product_manager_function(
-        self, role: iam.Role, vpc: ec2.Vpc, sg: ec2.SecurityGroup, db: rds.DatabaseInstance
+        self, role: iam.Role, vpc: ec2.Vpc, sg: ec2.SecurityGroup, db
     ) -> lambda_.Function:
         """Create Lambda function for product management."""
+        db_host, db_port = _get_db_endpoint(db)
+        
         fn = lambda_.Function(
             self, "ProductManagerFunction",
             code=lambda_.Code.from_asset(
@@ -136,8 +148,8 @@ class APIStack(Stack):
             vpc=vpc,
             security_groups=[sg],
             environment={
-                "DB_HOST": db.db_instance_endpoint_address,
-                "DB_PORT": "5432",
+                "DB_HOST": db_host,
+                "DB_PORT": str(db_port),
                 "DB_NAME": "candledb",
             },
             timeout=Duration.seconds(60),
@@ -147,9 +159,11 @@ class APIStack(Stack):
         return fn
     
     def _create_order_processor_function(
-        self, role: iam.Role, vpc: ec2.Vpc, sg: ec2.SecurityGroup, db: rds.DatabaseInstance
+        self, role: iam.Role, vpc: ec2.Vpc, sg: ec2.SecurityGroup, db
     ) -> lambda_.Function:
         """Create Lambda function for order processing."""
+        db_host, db_port = _get_db_endpoint(db)
+        
         fn = lambda_.Function(
             self, "OrderProcessorFunction",
             code=lambda_.Code.from_asset(
@@ -161,8 +175,8 @@ class APIStack(Stack):
             vpc=vpc,
             security_groups=[sg],
             environment={
-                "DB_HOST": db.db_instance_endpoint_address,
-                "DB_PORT": "5432",
+                "DB_HOST": db_host,
+                "DB_PORT": str(db_port),
                 "DB_NAME": "candledb",
             },
             timeout=Duration.seconds(60),
@@ -172,9 +186,11 @@ class APIStack(Stack):
         return fn
     
     def _create_ai_recommendations_function(
-        self, role: iam.Role, vpc: ec2.Vpc, sg: ec2.SecurityGroup, db: rds.DatabaseInstance
+        self, role: iam.Role, vpc: ec2.Vpc, sg: ec2.SecurityGroup, db
     ) -> lambda_.Function:
         """Create Lambda function for AI recommendations using Bedrock."""
+        db_host, db_port = _get_db_endpoint(db)
+        
         fn = lambda_.Function(
             self, "AIRecommendationsFunction",
             code=lambda_.Code.from_asset(
@@ -186,8 +202,8 @@ class APIStack(Stack):
             vpc=vpc,
             security_groups=[sg],
             environment={
-                "DB_HOST": db.db_instance_endpoint_address,
-                "DB_PORT": "5432",
+                "DB_HOST": db_host,
+                "DB_PORT": str(db_port),
                 "DB_NAME": "candledb",
             },
             timeout=Duration.seconds(120),
@@ -212,7 +228,7 @@ class APIStack(Stack):
             security_groups=[sg],
             timeout=Duration.seconds(120),
             memory_size=1024,
-            ephemeral_storage=512,
+            ephemeral_storage_size=Size.mebibytes(512),
             log_retention=logs.RetentionDays.TWO_WEEKS,
         )
         return fn
@@ -233,7 +249,7 @@ class APIStack(Stack):
             security_groups=[sg],
             timeout=Duration.seconds(120),
             memory_size=1024,
-            ephemeral_storage=512,
+            ephemeral_storage_size=Size.mebibytes(512),
             log_retention=logs.RetentionDays.TWO_WEEKS,
         )
         return fn

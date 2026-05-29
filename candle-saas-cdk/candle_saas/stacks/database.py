@@ -1,82 +1,45 @@
-import json
 from aws_cdk import (
     Stack,
     aws_rds as rds,
     aws_ec2 as ec2,
     aws_secretsmanager as secretsmanager,
-    RemovalPolicy,
 )
 from constructs import Construct
 
 
 class DatabaseStack(Stack):
-    """Stack for RDS PostgreSQL database."""
+    """Stack for RDS PostgreSQL database - imports existing DB."""
+    
+    # DB instance identifier
+    DB_INSTANCE_ID = "candlesaasdatabasestack-candlesaasdb00f6dcb4-3oykflbwbhay"
     
     def __init__(self, scope: Construct, id: str, vpc: ec2.Vpc, database_sg: ec2.SecurityGroup = None, **kwargs):
         super().__init__(scope, id, **kwargs)
         
-        # Create security group if not provided
+        # Import existing security group if not provided
         if database_sg is None:
-            database_sg = ec2.SecurityGroup(
+            database_sg = ec2.SecurityGroup.from_security_group_id(
                 self, "DBSecurityGroup",
-                vpc=vpc,
-                description="Security group for RDS",
-                allow_all_outbound=True,
+                security_group_id="sg-070d91f4f4492199a",  # From previous deployment
             )
         
-        # Create database subnet group
-        db_subnet_group = rds.SubnetGroup(
-            self, "CandleDBSubnetGroup",
-            description="Subnet group for candle SaaS database",
-            vpc=vpc,
-            vpc_subnets=ec2.SubnetSelection(
-                subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS
-            ),
-        )
-        
-        # Create database credentials secret
-        db_credentials_secret = secretsmanager.Secret(
-            self, "DBCredentialsSecret",
-            secret_name="candlesaas/db/credentials",
-            generate_secret_string=secretsmanager.SecretStringGenerator(
-                secret_string_template=json.dumps({
-                    "username": "candleadmin"
-                }),
-                generate_string_key="password",
-                password_length=32,
-                exclude_characters="/@\\"
-            ),
-        )
-        
-        # Create RDS instance
-        self.database = rds.DatabaseInstance(
+        # Import existing RDS DB instance using from_database_instance_attributes
+        # Include instance_resource_id to enable grant_connect()
+        self.database = rds.DatabaseInstance.from_database_instance_attributes(
             self, "CandleSaasDB",
-            engine=rds.DatabaseInstanceEngine.postgres(
-                version=rds.PostgresEngineVersion.VER_14_6
-            ),
-            instance_type=ec2.InstanceType.of(
-                ec2.InstanceClass.T3,
-                ec2.InstanceSize.SMALL
-            ),
-            allocated_storage=20,
-            storage_type=rds.StorageType.GP2,
-            vpc=vpc,
-            vpc_subnets=ec2.SubnetSelection(
-                subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS
-            ),
+            instance_endpoint_address="candlesaasdatabasestack-candlesaasdb00f6dcb4-3oykflbwbhay.cgrcay6k6hkd.us-east-1.rds.amazonaws.com",
+            instance_identifier=self.DB_INSTANCE_ID,
+            port=5432,
             security_groups=[database_sg],
-            subnet_group=db_subnet_group,
-            database_name="candledb",
-            credentials=rds.Credentials.from_secret(db_credentials_secret),
-            deletion_protection=False,
-            removal_policy=RemovalPolicy.DESTROY,
-            iam_authentication=True,
-            backup_retention=None,
-            delete_automated_backups=True,
-            publicly_accessible=False,
-            multi_az=False,
+            instance_resource_id=self.DB_INSTANCE_ID,
         )
         
-        # Store database endpoint and secret
+        # Import existing secret for credentials
+        self.db_secret = secretsmanager.Secret.from_secret_name_v2(
+            self, "DBCredentialsSecret",
+            secret_name="candlesaas/db/credentials"
+        )
+        
+        # Store references
+        self.database_sg = database_sg
         self.db_endpoint = self.database.db_instance_endpoint_address
-        self.db_secret = db_credentials_secret
