@@ -70,16 +70,19 @@ def analyze_with_nova(body):
             "body": json.dumps({"error": "image data is empty"})
         }
 
-    prompt = """You are an expert candle refill estimator. Analyze this image carefully for The Candle Garden studio.
+    prompt = """You are an expert candle refill estimator for The Candle Garden studio.
 
-Task: Detect any candle jars/vessels and estimate how much wax is needed for a full refill.
+Analyze the image and detect ALL possible candle vessels (jars, glasses, mugs, or any containers that appear to hold or have held candle wax).
 
-Key instructions:
-- Focus ONLY on candle containers (jars, vessels). Ignore beer cans, coffee mugs, drinking glasses, boxes, and other objects unless they contain candle wax.
-- The main target is the brown amber glass jar on the left with the "Hot Show" / "Malicious Women" label.
-- Estimate current wax level (low/medium/high or percentage).
-- Use nearby objects (Athletic Brewing can, white mug) for rough scale — the can is ~12oz / 355ml for reference.
-- Be realistic about jar size: typical 8-12oz candle jars.
+Important rules:
+- Use the blue Athletic Brewing beer can (standard 12 oz / 355 ml can) **only as a scale reference**. Do NOT count the beer can itself as a candle vessel.
+- Ignore coffee mugs with liquid, drinking glasses, boxes, plastic containers, and other non-candle items unless they clearly contain candle wax.
+- For each detected candle vessel, estimate:
+  - Description (color, material, any visible brand/label)
+  - Approximate full capacity in ounces
+  - Current wax remaining (%)
+  - Wax needed for a full refill (in oz and grams)
+- Be conservative and realistic with estimates.
 
 Return ONLY valid JSON, no other text:
 
@@ -88,23 +91,23 @@ Return ONLY valid JSON, no other text:
   "container_detected": true,
   "vessels": [
     {
-      "description": "Amber glass jar - Malicious Women Candle Co. 'Hot Show'",
+      "description": "Brief description of the vessel and any visible brand",
       "full_capacity_oz": 9,
       "current_wax_percent": 20,
       "wax_needed_oz": 7.2,
       "wax_needed_grams": 205,
-      "notes": "Very low wax remaining. Excellent candidate for refill."
+      "notes": "Any additional observations"
     }
   ],
   "total_wax_needed_oz": 7.2,
   "total_wax_needed_grams": 205,
-  "confidence": 0.88,
-  "explanation": "Clear amber candle jar detected with low wax. Used beer can for scale reference.",
+  "confidence": 0.85,
+  "explanation": "Brief summary of what was detected and scale used",
   "refill_recommendations": {
     "soy_wax_grams": 205,
     "fragrance_ml": "12-16 (6-8% load)",
-    "wick_size": "CD-6 or similar",
-    "suggested_price": "$22-26"
+    "suggested_price": "$20-26",
+    "priority": "Any recommendations"
   }
 }
 """
