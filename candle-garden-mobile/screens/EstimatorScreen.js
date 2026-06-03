@@ -138,7 +138,8 @@ const estimateCandle = async () => {
       const detectData = await detectResponse.json();
       
 // Accept any successful response - use the estimate if available
-      if (!detectData.success || !detectData.estimated_ounces) {
+      // Lowered threshold: now accepts any response with estimated_ounces (even lower confidence)
+      if (!detectData.estimated_ounces) {
         // Show helpful fallback with tips
         const tips = detectData.tips || [
           'Make sure the vessel is well-lit',
