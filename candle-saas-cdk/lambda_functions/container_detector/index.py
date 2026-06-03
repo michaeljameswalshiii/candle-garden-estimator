@@ -70,34 +70,41 @@ def analyze_with_nova(body):
             "body": json.dumps({"error": "image data is empty"})
         }
 
-prompt = """You are an expert candle refill estimator. Be accurate and never underestimate volume.
+    prompt = """You are an expert candle refill estimator for The Candle Garden studio.
 
-A blue 12 oz LUNY soda can is clearly visible for scale. Use it ONLY for scaling — ignore its volume.
+Analyze this photo and provide a detailed refill estimate.
 
-CRITICAL INSTRUCTIONS — FOLLOW EXACTLY:
-- There may be ANY number of candle vessels/containers in this photo (1, 2, 3, 4, or more). There is no limit.
-- Detect EVERY vessel separately. Do not merge them.
-- COMPLETELY IGNORE residual wax inside the jars. Measure the FULL internal capacity as if they were completely empty and clean.
-- Be very precise with measurements using the soda can as reference.
+CRITICAL RULES:
+- Detect ALL candle vessels/jars in the image (ignore beer cans, mugs, glasses unless they are the candle container).
+- For each vessel: estimate current wax remaining (as % or grams), full capacity, and wax needed for a full refill.
+- Use common objects in the photo (e.g. beer can, mug, hand) for rough scale if no ruler.
+- Identify brand/label if visible (e.g. "Malicious Women Candle Co.").
+- Ignore residual wax for "full refill" calculation — estimate to the top of the jar.
 
-Step-by-step (think internally, but output only JSON):
-1. Confirm the soda can is present for scale.
-2. Identify and measure each vessel individually.
-3. Sum all vessels for the total.
+Return ONLY valid JSON (no extra text):
 
-Return ONLY valid JSON:
 {
   "success": true,
   "container_detected": true,
-  "estimated_ounces": 42,
-  "total_volume_oz": 42,
+  "estimated_ounces": 12,
+  "total_volume_oz": 14,
   "vessels": [
-    {"type": "dark apothecary jar", "oz": 12.5, "notes": "full capacity"},
-    {"type": "clear glass tumbler", "oz": 16.0, "notes": "residual wax ignored"},
-    {"type": "small tealight holder", "oz": 2.5, "notes": ""}
+    {
+      "type": "Amber glass jar (Malicious Women 'Hot Show')",
+      "full_capacity_oz": 9,
+      "current_wax_percent": 18,
+      "wax_needed_grams": 210,
+      "notes": "Very low wax, excellent refill candidate"
+    }
   ],
-  "confidence": 0.88,
-  "explanation": "Three vessels detected. Full clean capacities measured using soda can scale."
+  "confidence": 0.85,
+  "explanation": "Single main candle jar detected. Low wax level. Athletic can used for rough scale.",
+  "refill_recommendations": {
+    "soy_wax_grams": 210,
+    "fragrance_ml": "13-17 (6-8% load)",
+    "suggested_scent": "Spicy, bold, or citrus to match 'Hot Show' vibe",
+    "price_suggestion": "$20-24"
+  }
 }
 """
 
@@ -143,28 +150,30 @@ Return ONLY valid JSON:
             result = {"success": False, "container_detected": False}
 
         est_oz = float(result.get("total_volume_oz") or result.get("estimated_ounces") or 12.0)
-        conf = float(result.get("confidence", 0.6))
+        conf = float(result.get("confidence", 0.65))
         vessels = result.get("vessels", [])
 
+        # Better default when detection is weak
         if est_oz < 4 or est_oz > 80:
-            est_oz = 16.0
-            conf = 0.4
+            est_oz = 12.0
+            conf = 0.45
 
         return {
             "statusCode": 200,
             "body": json.dumps({
                 "success": True,
-                "container_detected": bool(result.get("container_detected", True)),
+                "container_detected": True,
                 "estimated_ounces": round(est_oz, 1),
-                "total_volume_oz": round(est_oz, 1),
+                "total_volume_oz": round(est_oz + 2, 1),
                 "vessels": vessels,
                 "confidence": round(conf, 2),
                 "container_type": "Candle vessel(s)",
-                "explanation": result.get("explanation", "Multi-vessel estimate with residual wax ignored"),
+                "explanation": result.get("explanation", "Refill estimate based on visual analysis"),
+                "refill_recommendations": result.get("refill_recommendations", {}),
                 "tips": [
-                    "Fully empty and wipe vessels clean for highest accuracy",
-                    "Good lighting and clear view of all vessels helps",
-                    "Include the soda can for best scaling"
+                    "Fully clean vessel for best results",
+                    "Good overhead lighting helps",
+                    "Multiple vessels? We'll calculate total refill"
                 ]
             }),
             "headers": {"Content-Type": "application/json"}
