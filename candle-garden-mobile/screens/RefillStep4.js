@@ -1,6 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import {
+  BOX_PRICING,
+  calculateCost,
+  recommendBox,
+  WAX_PRICE_PER_OZ,
+} from '../lib/pricing';
 
 // Custom Button component
 function CustomButton({ title, onPress, disabled, color }) {
@@ -26,79 +32,77 @@ function CustomButton({ title, onPress, disabled, color }) {
 export default function RefillStep4() {
   const navigation = useNavigation();
   const route = useRoute();
-  const { ounces = 12, containerType = 'Unknown' } = route.params || {};
-  
+  const {
+    ounces = 12,
+    containerType = 'Unknown',
+    boxKey: initialBoxKey,
+  } = route.params || {};
+
+  const recommendedBox = initialBoxKey || recommendBox(ounces);
   const [quantity, setQuantity] = useState(1);
-  const [selectedBox, setSelectedBox] = useState('medium');
-  
-  // Calculate prices
-  const waxPricePerOz = 0.50;
-  const boxPricing = {
-    small: { cost: 8.99, maxOz: 8, name: 'Small Box' },
-    medium: { cost: 12.99, maxOz: 16, name: 'Medium Box' },
-    large: { cost: 15.99, maxOz: 32, name: 'Large Box' }
-  };
-  
-  // Determine recommended box based on ounces
-  const recommendedBox = ounces <= 8 ? 'small' : ounces <= 16 ? 'medium' : 'large';
-  
-  const waxCost = ounces * waxPricePerOz * quantity;
-  const shippingCost = boxPricing[selectedBox].cost * quantity;
-  const totalCost = waxCost + shippingCost;
-  
+  const [selectedBox, setSelectedBox] = useState(recommendedBox);
+
+  const cost = useMemo(
+    () => calculateCost(ounces, { quantity, boxKey: selectedBox }),
+    [ounces, quantity, selectedBox]
+  );
+
   const increaseQuantity = () => {
     if (quantity < 10) setQuantity(quantity + 1);
   };
-  
+
   const decreaseQuantity = () => {
     if (quantity > 1) setQuantity(quantity - 1);
   };
-  
+
   const handleAddToCart = () => {
     Alert.alert(
       'Add to Cart',
-      `Adding ${quantity} candle(s) to cart for $${totalCost.toFixed(2)}?`,
+      `Adding ${quantity} candle(s) to cart for $${cost.total_cost}?`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Add to Cart', 
+        {
+          text: 'Add to Cart',
           onPress: () => {
             Alert.alert('Success', 'Items added to cart!');
             navigation.goBack();
-          }
-        }
+          },
+        },
       ]
     );
   };
-  
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Shipping & Quantity</Text>
-      
+
       {/* Order Summary */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Order Summary</Text>
         <Text style={styles.infoText}>Container: {containerType}</Text>
         <Text style={styles.infoText}>Volume: {ounces} oz per candle</Text>
+        <Text style={styles.infoText}>
+          Rate: ${WAX_PRICE_PER_OZ.toFixed(2)}/oz
+        </Text>
         <Text style={styles.totalText}>
-          Wax Needed: {(ounces * quantity)} oz (${waxCost.toFixed(2)})
+          Wax Needed: {(ounces * quantity).toFixed(1)} oz (${cost.wax_cost})
         </Text>
       </View>
-      
+
       {/* Quantity Selector */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Quantity</Text>
         <View style={styles.quantityContainer}>
-          <TouchableOpacity 
-            style={styles.quantityButton} 
+          <TouchableOpacity
+            style={styles.quantityButton}
             onPress={decreaseQuantity}
             disabled={quantity <= 1}
           >
             <Text style={styles.quantityButtonText}>-</Text>
           </TouchableOpacity>
           <Text style={styles.quantityText}>{quantity}</Text>
-          <TouchableOpacity 
-            style={styles.quantityButton} 
+          <TouchableOpacity
+            style={styles.quantityButton}
             onPress={increaseQuantity}
             disabled={quantity >= 10}
           >
@@ -107,18 +111,21 @@ export default function RefillStep4() {
         </View>
         <Text style={styles.hintText}>Max 10 candles per order</Text>
       </View>
-      
+
       {/* Box Selection */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Select Shipping Box</Text>
-        
-        {Object.entries(boxPricing).map(([key, box]) => (
+        <Text style={styles.hintText}>
+          Shipping is charged once per order (not per candle).
+        </Text>
+
+        {Object.entries(BOX_PRICING).map(([key, box]) => (
           <TouchableOpacity
             key={key}
             style={[
               styles.boxOption,
               selectedBox === key && styles.boxOptionSelected,
-              key === recommendedBox && !selectedBox && styles.boxOptionRecommended
+              key === recommendedBox && selectedBox !== key && styles.boxOptionRecommended,
             ]}
             onPress={() => setSelectedBox(key)}
           >
@@ -133,27 +140,20 @@ export default function RefillStep4() {
           </TouchableOpacity>
         ))}
       </View>
-      
+
       {/* Total */}
       <View style={styles.totalSection}>
         <Text style={styles.totalLabel}>Total</Text>
-        <Text style={styles.totalAmount}>${totalCost.toFixed(2)}</Text>
+        <Text style={styles.totalAmount}>${cost.total_cost}</Text>
         <Text style={styles.totalBreakdown}>
-          Wax: ${waxCost.toFixed(2)} + Shipping: ${(boxPricing[selectedBox].cost * quantity).toFixed(2)}
+          Wax: ${cost.wax_cost} + Shipping: ${cost.shipping_cost}
         </Text>
       </View>
-      
+
       {/* Add to Cart Button */}
       <View style={styles.buttonContainer}>
-        <CustomButton 
-          title="Add to Cart" 
-          onPress={handleAddToCart}
-        />
-        <CustomButton 
-          title="Back" 
-          onPress={() => navigation.goBack()}
-          color="#666"
-        />
+        <CustomButton title="Add to Cart" onPress={handleAddToCart} />
+        <CustomButton title="Back" onPress={() => navigation.goBack()} color="#666" />
       </View>
     </ScrollView>
   );
@@ -224,6 +224,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
     textAlign: 'center',
+    marginBottom: 8,
   },
   boxOption: {
     flexDirection: 'row',

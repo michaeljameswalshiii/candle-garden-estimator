@@ -2,6 +2,11 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Alert, Image, ScrollView, TextInput } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
+import {
+  calculateCost,
+  isValidOunces,
+  isAcceptableDetection,
+} from '../lib/pricing';
 
 // Custom Button component to avoid Fabric boolean prop issues
 function CustomButton({ title, onPress, disabled, color }) {
@@ -35,17 +40,18 @@ export default function EstimatorScreen() {
   // Continue to shipping/quantity screen
   const continueToShipping = () => {
     if (result && result.estimated_ounces) {
-      navigation.navigate('RefillStep4', { 
+      navigation.navigate('RefillStep4', {
         ounces: result.estimated_ounces,
-        containerType: result.container_type 
+        containerType: result.container_type,
+        boxKey: result.box_key,
       });
     }
   };
 
-// Deployed Lambda Function URL (updated endpoint)
-const DETECTOR_URL = 'https://yg1ec20ucf.execute-api.us-east-1.amazonaws.com/prod/detect';
+  // Deployed Lambda Function URL (updated endpoint)
+  const DETECTOR_URL = 'https://yg1ec20ucf.execute-api.us-east-1.amazonaws.com/prod/detect';
 
-// Pick image from gallery
+  // Pick image from gallery
   const pickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -67,7 +73,7 @@ const DETECTOR_URL = 'https://yg1ec20ucf.execute-api.us-east-1.amazonaws.com/pro
   const takePhoto = async () => {
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
-      
+
       if (permission.status !== 'granted') {
         Alert.alert('Permission Required', 'Please grant camera permission to take photos');
         return;
@@ -87,126 +93,103 @@ const DETECTOR_URL = 'https://yg1ec20ucf.execute-api.us-east-1.amazonaws.com/pro
     }
   };
 
-const calculateCost = (ounces) => {
-  // Pricing: $0.50 per ounce for wax + shipping based on box type
-  const waxCost = ounces * 0.50;
-  let shippingCost = 0;
-  let boxType = 'Small';
-  
-  if (ounces <= 8) {
-    shippingCost = 8.99;
-    boxType = 'Small Box';
-  } else if (ounces <= 16) {
-    shippingCost = 12.99;
-    boxType = 'Medium Box';
-  } else {
-    shippingCost = 15.99;
-    boxType = 'Large Box';
-  }
-  
-  return {
-    wax_cost: waxCost.toFixed(2),
-    shipping_cost: shippingCost.toFixed(2),
-    box_type: boxType,
-    total_cost: (waxCost + shippingCost).toFixed(2)
+  const promptManualFallback = (tips) => {
+    const tipList = tips && tips.length
+      ? tips.map((t) => `• ${t}`).join('\n')
+      : '• Make sure the vessel is well-lit\n• Take photo from above or side\n• Empty the vessel if possible';
+
+    Alert.alert(
+      'Could Not Auto-Estimate',
+      `${tipList}\n\nEnter the volume manually for an accurate quote.`,
+      [
+        { text: 'Try Again', style: 'cancel' },
+        { text: 'Enter Manually', onPress: () => setShowManualEntry(true) },
+      ]
+    );
   };
-};
 
-const estimateCandle = async () => {
-  if (!image) {
-    Alert.alert('Error', 'Please select or take a photo first');
-    return;
-  }
+  const estimateCandle = async () => {
+    if (!image) {
+      Alert.alert('Error', 'Please select or take a photo first');
+      return;
+    }
 
-  setLoading(true);
-  try {
-    const imgResponse = await fetch(image);
-    const imgBlob = await imgResponse.blob();
-    const reader = new FileReader();
-    reader.readAsDataURL(imgBlob);
-    
-    reader.onloadend = async () => {
-      const base64data = reader.result.split(',')[1];
-      
-      // Detect if image contains a candle container
-      const detectResponse = await fetch(DETECTOR_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: base64data }),
-      });
+    setLoading(true);
+    try {
+      const imgResponse = await fetch(image);
+      const imgBlob = await imgResponse.blob();
+      const reader = new FileReader();
+      reader.readAsDataURL(imgBlob);
 
-      const detectData = await detectResponse.json();
-      
-// Accept any successful response - use the estimate if available
-      // Lowered threshold: now accepts any response with estimated_ounces (even lower confidence)
-      if (!detectData.estimated_ounces) {
-        // Show helpful fallback with tips
-        const tips = detectData.tips || [
-          'Make sure the vessel is well-lit',
-          'Take photo from above or side',
-          'Empty the vessel if possible',
-          'Try a different angle'
-        ];
-        
-        Alert.alert(
-          'Vessel Not Clearly Detected',
-          tips.join('\n• '),
-          [
-            { text: 'Try Again', onPress: () => {} },
-            { text: 'Enter Manually', onPress: () => setShowManualEntry(true) }
-          ]
-        );
-        setLoading(false);
-        return;
-      }
-      
-      // Get estimated ounces from detection
-      const estimatedOunces = detectData.estimated_ounces || 12;
-      
-      // Validate the estimation results
-      // Must have realistic candle container sizes (4-32 oz typical)
-      if (estimatedOunces >= 4 && estimatedOunces <= 32) {
-        const costData = calculateCost(estimatedOunces);
-        setResult({
-          estimated_ounces: estimatedOunces,
-          container_type: detectData.container_type || 'Unknown',
-          confidence: detectData.confidence || 0,
-          ...costData
-        });
-      } else {
-        Alert.alert(
-          'Unable to Determine',
-          'We are unable to make a determination on this photo. Please try again. If this continues to be a problem please let us know via the contact icon and we will assist. Thank you.'
-        );
-      }
+      reader.onloadend = async () => {
+        try {
+          const base64data = reader.result.split(',')[1];
+
+          const detectResponse = await fetch(DETECTOR_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: base64data }),
+          });
+
+          let detectData;
+          try {
+            detectData = await detectResponse.json();
+          } catch {
+            promptManualFallback(['Server returned an invalid response']);
+            setLoading(false);
+            return;
+          }
+
+          // Fail closed: require success + detection + confidence + valid oz
+          const check = isAcceptableDetection(detectData);
+          if (!check.ok) {
+            promptManualFallback(check.tips || detectData.tips);
+            setLoading(false);
+            return;
+          }
+
+          const costData = calculateCost(check.ounces);
+          setResult({
+            estimated_ounces: check.ounces,
+            container_type: check.container_type,
+            confidence: check.confidence,
+            ...costData,
+          });
+        } catch (err) {
+          Alert.alert('Error', 'Failed to process estimate: ' + err.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+    } catch (error) {
+      Alert.alert('Error', 'Failed to process image: ' + error.message);
       setLoading(false);
-    };
-  } catch (error) {
-    Alert.alert('Error', 'Failed to process image: ' + error.message);
-    setLoading(false);
-  }
-};
+    }
+  };
 
-// Manual entry submission
-const submitManualEntry = () => {
-  const ounces = parseInt(manualOunces);
-  if (!ounces || ounces < 4 || ounces > 32) {
-    Alert.alert('Invalid Input', 'Please enter a volume between 4 and 32 ounces');
-    return;
-  }
-  
-  const costData = calculateCost(ounces);
-  setResult({
-    estimated_ounces: ounces,
-    container_type: 'Manual Entry',
-    confidence: 1.0,
-    ...costData
-  });
-  setShowManualEntry(false);
-  setManualOunces('');
-};
+  // Manual entry submission (supports half-ounces via parseFloat)
+  const submitManualEntry = () => {
+    const ounces = parseFloat(manualOunces);
+    if (!isValidOunces(ounces)) {
+      Alert.alert(
+        'Invalid Input',
+        'Please enter a positive volume in ounces (e.g. 8, 12.5, 40)'
+      );
+      return;
+    }
 
-return (
+    const costData = calculateCost(ounces);
+    setResult({
+      estimated_ounces: ounces,
+      container_type: 'Manual Entry',
+      confidence: 1.0,
+      ...costData,
+    });
+    setShowManualEntry(false);
+    setManualOunces('');
+  };
+
+  return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Refill Estimator</Text>
       <Text style={styles.instruction}>
@@ -225,19 +208,19 @@ return (
       <View style={styles.buttonContainer}>
         <CustomButton title="Take Photo" onPress={takePhoto} />
         <CustomButton title="Pick from Gallery" onPress={pickImage} />
-        
+
         {image && (
           <>
-            <CustomButton 
-              title="Clear Photo" 
+            <CustomButton
+              title="Clear Photo"
               onPress={() => {
                 setImage(null);
                 setResult(null);
-              }} 
-              color="#ff3b30" 
+              }}
+              color="#ff3b30"
             />
             <CustomButton
-              title={loading ? "Estimating..." : "Get Estimate"}
+              title={loading ? 'Estimating...' : 'Get Estimate'}
               onPress={estimateCandle}
               disabled={loading}
             />
@@ -249,14 +232,16 @@ return (
       {showManualEntry && (
         <View style={styles.manualEntryContainer}>
           <Text style={styles.manualEntryTitle}>Enter Volume Manually</Text>
-          <Text style={styles.manualEntryHint}>Enter the volume in ounces (4-32 oz)</Text>
+          <Text style={styles.manualEntryHint}>
+            Enter the wax volume needed in ounces (any positive amount)
+          </Text>
           <View style={styles.inputRow}>
             <View style={styles.inputContainer}>
               <TextInput
                 style={styles.input}
                 value={manualOunces}
                 onChangeText={setManualOunces}
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
                 placeholder="12"
                 placeholderTextColor="#999"
               />
@@ -270,15 +255,22 @@ return (
         </View>
       )}
 
-{result && (
+      {result && (
         <View style={styles.result}>
           <Text style={styles.resultTitle}>Estimate Results:</Text>
           <Text style={styles.resultText}>Volume: {result.estimated_ounces} oz</Text>
+          {result.confidence != null && result.confidence < 1 && (
+            <Text style={styles.resultText}>
+              Confidence: {Math.round(result.confidence * 100)}%
+            </Text>
+          )}
           <Text style={styles.resultText}>Wax Cost: ${result.wax_cost}</Text>
-          <Text style={styles.resultText}>Shipping: ${result.shipping_cost} ({result.box_type})</Text>
+          <Text style={styles.resultText}>
+            Shipping: ${result.shipping_cost} ({result.box_type})
+          </Text>
           <Text style={styles.total}>Total: ${result.total_cost}</Text>
-          <CustomButton 
-            title="Continue to Shipping & Quantity" 
+          <CustomButton
+            title="Continue to Shipping & Quantity"
             onPress={continueToShipping}
           />
         </View>
@@ -375,13 +367,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 5,
   },
-total: {
+  total: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#2e7d32',
     marginTop: 10,
   },
-  // Manual entry styles
   manualEntryContainer: {
     backgroundColor: '#f5f5f5',
     padding: 20,

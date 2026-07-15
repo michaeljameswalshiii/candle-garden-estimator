@@ -63,7 +63,8 @@ class APIStack(Stack):
         if s3_bucket is not None:
             s3_bucket.grant_read_write(lambda_execution_role)
         
-        # Add permissions for Bedrock
+        # Bedrock: Claude (primary detector + recommendations) and Nova (fallback).
+        # Include foundation models + inference profiles (required for newer Claude on-demand).
         lambda_execution_role.add_to_policy(
             iam.PolicyStatement(
                 actions=[
@@ -71,9 +72,26 @@ class APIStack(Stack):
                     "bedrock:InvokeModelWithResponseStream",
                 ],
                 resources=[
-                    f"arn:aws:bedrock:{self.region}::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0",
-                    f"arn:aws:bedrock:{self.region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0",
+                    # Foundation models (any region account-less ARN)
+                    f"arn:aws:bedrock:{self.region}::foundation-model/anthropic.*",
+                    f"arn:aws:bedrock:{self.region}::foundation-model/amazon.nova*",
+                    "arn:aws:bedrock:*::foundation-model/anthropic.*",
+                    "arn:aws:bedrock:*::foundation-model/amazon.nova*",
+                    # Inference profiles (cross-region / on-demand routing)
+                    f"arn:aws:bedrock:{self.region}:{self.account}:inference-profile/*",
+                    f"arn:aws:bedrock:*:{self.account}:inference-profile/*",
                 ],
+            )
+        )
+        # Newer Claude models require marketplace subscribe/view for first-time enablement
+        lambda_execution_role.add_to_policy(
+            iam.PolicyStatement(
+                actions=[
+                    "aws-marketplace:ViewSubscriptions",
+                    "aws-marketplace:Subscribe",
+                    "aws-marketplace:Unsubscribe",
+                ],
+                resources=["*"],
             )
         )
         
@@ -254,6 +272,12 @@ class APIStack(Stack):
             role=role,
             vpc=vpc,
             security_groups=[sg],
+            environment={
+                # Claude Sonnet 4.5 primary (US inference profile); Nova Pro fallback
+                "CLAUDE_MODEL_ID": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+                "NOVA_MODEL_ID": "amazon.nova-pro-v1:0",
+                "MIN_CONFIDENCE": "0.5",
+            },
             timeout=Duration.seconds(120),
             memory_size=1024,
             ephemeral_storage_size=Size.mebibytes(512),
