@@ -24,30 +24,37 @@ SUPPORTED_FORMATS = {"jpeg", "jpg", "png", "gif", "webp"}
 
 VISION_PROMPT = """You are an expert candle refill estimator for The Candle Garden studio.
 
-Analyze the image and detect ALL candle vessels that need a wax refill.
+Customers photograph one or more containers they want REFILLED with soy wax. Your job is to estimate wax needed for EVERY refillable container in the photo, then SUM them.
 
-What COUNTS as a candle vessel:
-- Glass jars, amber jars, tumblers, votives, mugs that clearly held CANDLE WAX
-- Signs of candle use: solidified wax pool, wax on walls, soot, wick stump/tab, fragrance residue, "used candle" look
-- Empty or mostly empty vessels that still show wax film or frosting
+## ONLY exclude (never list as a vessel)
+- The blue Athletic Brewing beer can (or any soda/beer aluminum can) used as a **scale reference only**
+  - Treat it as a standard **12 fl oz / 355 ml** can for size comparison
+  - Do NOT include it in vessels[] and do NOT add its volume to totals
 
-What does NOT count:
-- Blue Athletic Brewing beer can (or any soda/beer can) — use ONLY as a 12 oz / 355 ml scale reference
-- Coffee/tea mugs that currently contain a beverage (liquid, foam, latte)
-- Drinking glasses with ice or a pour of liquid (not wax)
-- Boxes, bins, packaging, random clutter
+## INCLUDE as candle vessels (always estimate when present)
+Count EVERY other open container that can hold candle wax, including:
+- Glass jars, amber/apothecary jars, metal tins
+- Ceramic/porcelain mugs (even if they currently show liquid, latte foam, or residue — customers reuse mugs as candle vessels)
+- Drinking glasses, tumblers, rocks glasses, stemless glasses (even if cloudy, frosted, sooty, or with ice-like residue — that is often spent wax)
+- Votives, bowls used as candles, novelty vessels
 
-Multi-vessel photos:
-- Detect EVERY candle vessel in frame
-- Sum wax needed into total_wax_needed_oz / total_wax_needed_grams
-- Use the 12 oz can height/width as scale when present
+When in doubt whether something is a candle vessel vs trash: if it is a jar, mug, or glass container next to the scale can, INCLUDE it.
 
-For each vessel estimate:
-- description, full_capacity_oz, current_wax_percent, wax_needed_oz, wax_needed_grams, notes
+## Do NOT include
+- Cardboard boxes, plastic storage bins, bags, furniture, food packaging
+- Closed bottles with screw caps of liquor/water (not candle jars)
+- The scale can (see above)
 
-Be realistic. Prefer detecting a real jar with residue over returning container_detected=false.
-There is no min/max vessel size.
+## Multi-container rules (critical)
+- If the photo shows N jars/mugs/glasses + 1 scale can → return N vessels (not 1)
+- Estimate each vessel separately with wax_needed_oz
+- total_wax_needed_oz = SUM of all vessels' wax_needed_oz
+- total_wax_needed_grams = SUM of all vessels' wax_needed_grams (or oz * 28.35)
+- Use the 12 oz can for relative diameter/height of each vessel
+- current_wax_percent: remaining usable wax still in the vessel (0–100)
+- wax_needed_oz ≈ full_capacity_oz * (1 - current_wax_percent/100)
 
+## Output
 Return ONLY valid JSON, no markdown, no other text:
 
 {
@@ -55,25 +62,28 @@ Return ONLY valid JSON, no markdown, no other text:
   "container_detected": true,
   "vessels": [
     {
-      "description": "Brief description",
+      "description": "Brief description of vessel (color, material, label if any)",
       "full_capacity_oz": 9,
-      "current_wax_percent": 20,
-      "wax_needed_oz": 7.2,
-      "wax_needed_grams": 205,
-      "notes": "observations"
+      "current_wax_percent": 15,
+      "wax_needed_oz": 7.7,
+      "wax_needed_grams": 218,
+      "notes": "Any observations"
     }
   ],
-  "total_wax_needed_oz": 7.2,
-  "total_wax_needed_grams": 205,
+  "total_wax_needed_oz": 22.5,
+  "total_wax_needed_grams": 638,
   "confidence": 0.85,
-  "explanation": "What was detected and how scale was used",
+  "explanation": "List each vessel counted and confirm the beer can was used only as scale",
   "refill_recommendations": {
-    "soy_wax_grams": 205,
-    "fragrance_ml": "12-16 (6-8% load)",
-    "suggested_price": "$20-26",
+    "soy_wax_grams": 638,
+    "fragrance_ml": "estimate 6-8% load",
+    "suggested_price": "optional range",
     "priority": "notes"
   }
 }
+
+If ZERO vessels other than the scale can: set container_detected false and vessels to [].
+There is no min/max vessel size.
 """
 
 MEDIA_TYPES = {
@@ -344,21 +354,35 @@ def _build_success_response(result, model_used):
     container_detected = bool(result.get("container_detected", bool(vessels)))
     conf = float(result.get("confidence", 0.0) or 0.0)
 
-    raw_oz = (
+    # Prefer SUM of per-vessel wax_needed (multi-container photos) over a single total
+    vessels_sum = None
+    if vessels:
+        try:
+            vessels_sum = sum(float(v.get("wax_needed_oz") or 0) for v in vessels)
+            if vessels_sum <= 0:
+                vessels_sum = None
+        except (TypeError, ValueError):
+            vessels_sum = None
+
+    model_total = (
         result.get("total_wax_needed_oz")
         or result.get("total_volume_oz")
         or result.get("estimated_ounces")
     )
-    if raw_oz is None and vessels:
-        try:
-            total = sum(float(v.get("wax_needed_oz") or 0) for v in vessels)
-            raw_oz = total if total > 0 else None
-        except (TypeError, ValueError):
-            raw_oz = None
+    try:
+        model_total = float(model_total) if model_total is not None else None
+    except (TypeError, ValueError):
+        model_total = None
 
-    # If vessels list has items but totals missing, still try sum
-    if raw_oz is None and vessels:
-        return None
+    # If vessels present, use their sum (and re-sync total fields)
+    if vessels_sum is not None:
+        raw_oz = vessels_sum
+        # If model total is way lower than vessel sum, vessel sum wins (missed multi-vessel total)
+        if model_total is not None and model_total > vessels_sum * 1.15:
+            # Model total higher — keep model total only if vessels look incomplete
+            raw_oz = model_total
+    else:
+        raw_oz = model_total
 
     if not container_detected or raw_oz is None:
         tips = result.get("tips") or [

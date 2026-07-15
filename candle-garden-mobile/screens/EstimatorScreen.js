@@ -218,7 +218,7 @@ export default function EstimatorScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Refill Estimator</Text>
-      <Text style={styles.buildTag}>build: jpeg-v3</Text>
+      <Text style={styles.buildTag}>build: multi-vessel-v4</Text>
       <Text style={styles.instruction}>
         Take a clear photo of your empty (or mostly empty) candle vessel from above or the side. Good examples: mugs, jars, bowls, glasses.
       </Text>
@@ -284,7 +284,22 @@ export default function EstimatorScreen() {
       {result && (
         <View style={styles.result}>
           <Text style={styles.resultTitle}>Estimate Results:</Text>
-          <Text style={styles.resultText}>Volume: {result.estimated_ounces} oz</Text>
+          <Text style={styles.resultText}>
+            Total wax needed: {result.estimated_ounces} oz
+            {result.vessels?.length
+              ? ` (${result.vessels.length} container${result.vessels.length === 1 ? '' : 's'})`
+              : ''}
+          </Text>
+          {Array.isArray(result.vessels) && result.vessels.length > 0 && (
+            <View style={styles.vesselList}>
+              {result.vessels.map((v, i) => (
+                <Text key={i} style={styles.vesselLine}>
+                  • {v.description || `Vessel ${i + 1}`}:{' '}
+                  {v.wax_needed_oz != null ? `${v.wax_needed_oz} oz` : '—'}
+                </Text>
+              ))}
+            </View>
+          )}
           {result.confidence != null && result.confidence < 1 && (
             <Text style={styles.resultText}>
               Confidence: {Math.round(result.confidence * 100)}%
@@ -397,6 +412,17 @@ const styles = StyleSheet.create({
   resultText: {
     fontSize: 16,
     marginBottom: 5,
+  },
+  vesselList: {
+    width: '100%',
+    marginBottom: 10,
+    paddingHorizontal: 8,
+  },
+  vesselLine: {
+    fontSize: 13,
+    color: '#444',
+    marginBottom: 4,
+    textAlign: 'left',
   },
   total: {
     fontSize: 24,
