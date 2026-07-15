@@ -22,7 +22,13 @@
       }
     },
     "ios": {
-      "bundleIdentifier": "com.michaeljameswalshiii.candlegarden"
+      "bundleIdentifier": "com.michaeljameswalshiii.candlegarden",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Take photos of candle vessels to estimate refill volume.",
+        "NSPhotoLibraryUsageDescription": "Choose photos of candle vessels to estimate refill volume.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.michaeljameswalshiii.candlegarden"
