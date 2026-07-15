@@ -3,6 +3,10 @@
     "name": "Candle Garden Estimator",
     "slug": "candle-garden-estimator",
     "version": "1.0.0",
+    "runtimeVersion": "1.0.0",
+    "updates": {
+      "url": "https://u.expo.dev/7769d138-60fb-46b1-92dc-90cdcdac10d3"
+    },
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -16,6 +20,12 @@
       "eas": {
         "projectId": "7769d138-60fb-46b1-92dc-90cdcdac10d3"
       }
+    },
+    "ios": {
+      "bundleIdentifier": "com.michaeljameswalshiii.candlegarden"
+    },
+    "android": {
+      "package": "com.michaeljameswalshiii.candlegarden"
     }
   }
 }
