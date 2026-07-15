@@ -7,6 +7,7 @@ import {
   isValidOunces,
   isAcceptableDetection,
 } from '../lib/pricing';
+import { prepareImageForDetect } from '../lib/prepareImage';
 
 // Custom Button component to avoid Fabric boolean prop issues
 function CustomButton({ title, onPress, disabled, color }) {
@@ -37,7 +38,6 @@ export default function EstimatorScreen() {
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [manualOunces, setManualOunces] = useState('');
 
-  // Continue to shipping/quantity screen
   const continueToShipping = () => {
     if (result && result.estimated_ounces) {
       navigation.navigate('RefillStep4', {
@@ -48,20 +48,20 @@ export default function EstimatorScreen() {
     }
   };
 
-  // Deployed Lambda Function URL (updated endpoint)
   const DETECTOR_URL = 'https://yg1ec20ucf.execute-api.us-east-1.amazonaws.com/prod/detect';
 
-  // Pick image from gallery
   const pickImage = async () => {
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
+      const pickerResult = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: false,
-        quality: 0.8,
+        quality: 1,
+        // Prefer JPEG when the platform supports it (iOS 11+ still often returns HEIC)
+        exif: false,
       });
 
-      if (!result.canceled) {
-        setImage(result.assets[0].uri);
+      if (!pickerResult.canceled) {
+        setImage(pickerResult.assets[0].uri);
         setResult(null);
       }
     } catch (error) {
@@ -69,7 +69,6 @@ export default function EstimatorScreen() {
     }
   };
 
-  // Take photo with camera
   const takePhoto = async () => {
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -79,13 +78,14 @@ export default function EstimatorScreen() {
         return;
       }
 
-      const result = await ImagePicker.launchCameraAsync({
+      const cameraResult = await ImagePicker.launchCameraAsync({
         allowsEditing: false,
-        quality: 0.8,
+        quality: 1,
+        exif: false,
       });
 
-      if (!result.canceled) {
-        setImage(result.assets[0].uri);
+      if (!cameraResult.canceled) {
+        setImage(cameraResult.assets[0].uri);
         setResult(null);
       }
     } catch (error) {
@@ -116,58 +116,60 @@ export default function EstimatorScreen() {
 
     setLoading(true);
     try {
-      const imgResponse = await fetch(image);
-      const imgBlob = await imgResponse.blob();
-      const reader = new FileReader();
-      reader.readAsDataURL(imgBlob);
+      // Critical: convert HEIC → JPEG and resize so Bedrock can process iPhone photos
+      const prepared = await prepareImageForDetect(image);
 
-      reader.onloadend = async () => {
-        try {
-          const base64data = reader.result.split(',')[1];
+      const detectResponse = await fetch(DETECTOR_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: prepared.base64 }),
+      });
 
-          const detectResponse = await fetch(DETECTOR_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ image: base64data }),
-          });
+      const rawText = await detectResponse.text();
+      let detectData;
+      try {
+        detectData = JSON.parse(rawText);
+      } catch {
+        promptManualFallback([
+          detectResponse.ok
+            ? 'Server returned an invalid response'
+            : `Server error (${detectResponse.status}) — photo may be too large or network failed`,
+        ]);
+        return;
+      }
 
-          let detectData;
-          try {
-            detectData = await detectResponse.json();
-          } catch {
-            promptManualFallback(['Server returned an invalid response']);
-            setLoading(false);
-            return;
-          }
+      if (!detectResponse.ok && !detectData.estimated_ounces) {
+        promptManualFallback(
+          detectData.tips || [detectData.error || `Request failed (${detectResponse.status})`]
+        );
+        return;
+      }
 
-          // Fail closed: require success + detection + confidence + valid oz
-          const check = isAcceptableDetection(detectData);
-          if (!check.ok) {
-            promptManualFallback(check.tips || detectData.tips);
-            setLoading(false);
-            return;
-          }
+      const check = isAcceptableDetection(detectData);
+      if (!check.ok) {
+        promptManualFallback(check.tips || detectData.tips);
+        return;
+      }
 
-          const costData = calculateCost(check.ounces);
-          setResult({
-            estimated_ounces: check.ounces,
-            container_type: check.container_type,
-            confidence: check.confidence,
-            ...costData,
-          });
-        } catch (err) {
-          Alert.alert('Error', 'Failed to process estimate: ' + err.message);
-        } finally {
-          setLoading(false);
-        }
-      };
+      const costData = calculateCost(check.ounces);
+      setResult({
+        estimated_ounces: check.ounces,
+        container_type: check.container_type,
+        confidence: check.confidence,
+        explanation: detectData.explanation,
+        vessels: detectData.vessels,
+        ...costData,
+      });
     } catch (error) {
-      Alert.alert('Error', 'Failed to process image: ' + error.message);
+      Alert.alert(
+        'Error',
+        'Failed to process image: ' + (error.message || String(error))
+      );
+    } finally {
       setLoading(false);
     }
   };
 
-  // Manual entry submission (supports half-ounces via parseFloat)
   const submitManualEntry = () => {
     const ounces = parseFloat(manualOunces);
     if (!isValidOunces(ounces)) {
@@ -228,7 +230,6 @@ export default function EstimatorScreen() {
         )}
       </View>
 
-      {/* Manual Entry Form */}
       {showManualEntry && (
         <View style={styles.manualEntryContainer}>
           <Text style={styles.manualEntryTitle}>Enter Volume Manually</Text>

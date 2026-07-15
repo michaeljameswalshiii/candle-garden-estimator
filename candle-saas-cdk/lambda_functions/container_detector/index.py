@@ -12,58 +12,66 @@ logger.setLevel(logging.INFO)
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 bedrock_runtime = boto3.client("bedrock-runtime", region_name=AWS_REGION)
 
-# Primary: Claude Sonnet 4.5 (best vision accuracy on Bedrock for this task)
-# Use US inference profile when available (on-demand routing for newer Claude models).
 CLAUDE_MODEL_ID = os.environ.get(
     "CLAUDE_MODEL_ID",
     "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
 )
-# Fallback: Nova Pro (cheaper/faster if Claude fails or is unavailable)
 NOVA_MODEL_ID = os.environ.get("NOVA_MODEL_ID", "amazon.nova-pro-v1:0")
-
-# No min/max volume caps — accept any positive finite ounce estimate.
 MIN_CONFIDENCE = float(os.environ.get("MIN_CONFIDENCE", "0.5"))
+
+# Bedrock vision accepts jpeg/png/gif/webp — not HEIC/HEIF (iPhone default).
+SUPPORTED_FORMATS = {"jpeg", "jpg", "png", "gif", "webp"}
 
 VISION_PROMPT = """You are an expert candle refill estimator for The Candle Garden studio.
 
-Analyze the image and detect ALL possible candle vessels (jars, glasses, mugs, or any containers that appear to hold or have held candle wax).
+Analyze the image and detect ALL candle vessels that need a wax refill.
 
-Important rules:
-- Use the blue Athletic Brewing beer can (standard 12 oz / 355 ml can) **only as a scale reference**. Do NOT count the beer can itself as a candle vessel.
-- Ignore coffee mugs with liquid, drinking glasses, boxes, plastic containers, and other non-candle items unless they clearly contain candle wax.
-- For each detected candle vessel, estimate:
-  - Description (color, material, any visible brand/label)
-  - Approximate full capacity in ounces
-  - Current wax remaining (%)
-  - Wax needed for a full refill (in oz and grams)
-- Be conservative and realistic with estimates.
-- If you cannot confidently detect a candle vessel, set container_detected to false and confidence low.
-- There is no minimum or maximum vessel size — estimate the true volume for small tealights through large multi-wick vessels.
+What COUNTS as a candle vessel:
+- Glass jars, amber jars, tumblers, votives, mugs that clearly held CANDLE WAX
+- Signs of candle use: solidified wax pool, wax on walls, soot, wick stump/tab, fragrance residue, "used candle" look
+- Empty or mostly empty vessels that still show wax film or frosting
 
-Return ONLY valid JSON, no other text:
+What does NOT count:
+- Blue Athletic Brewing beer can (or any soda/beer can) — use ONLY as a 12 oz / 355 ml scale reference
+- Coffee/tea mugs that currently contain a beverage (liquid, foam, latte)
+- Drinking glasses with ice or a pour of liquid (not wax)
+- Boxes, bins, packaging, random clutter
+
+Multi-vessel photos:
+- Detect EVERY candle vessel in frame
+- Sum wax needed into total_wax_needed_oz / total_wax_needed_grams
+- Use the 12 oz can height/width as scale when present
+
+For each vessel estimate:
+- description, full_capacity_oz, current_wax_percent, wax_needed_oz, wax_needed_grams, notes
+
+Be realistic. Prefer detecting a real jar with residue over returning container_detected=false.
+There is no min/max vessel size.
+
+Return ONLY valid JSON, no markdown, no other text:
 
 {
   "success": true,
   "container_detected": true,
   "vessels": [
     {
-      "description": "Brief description of the vessel and any visible brand",
+      "description": "Brief description",
       "full_capacity_oz": 9,
       "current_wax_percent": 20,
       "wax_needed_oz": 7.2,
       "wax_needed_grams": 205,
-      "notes": "Any additional observations"
+      "notes": "observations"
     }
   ],
   "total_wax_needed_oz": 7.2,
   "total_wax_needed_grams": 205,
   "confidence": 0.85,
-  "explanation": "Brief summary of what was detected and scale used",
+  "explanation": "What was detected and how scale was used",
   "refill_recommendations": {
     "soy_wax_grams": 205,
     "fragrance_ml": "12-16 (6-8% load)",
     "suggested_price": "$20-26",
-    "priority": "Any recommendations"
+    "priority": "notes"
   }
 }
 """
@@ -76,12 +84,20 @@ MEDIA_TYPES = {
     "gif": "image/gif",
 }
 
+HEIF_BRANDS = {
+    b"heic", b"heix", b"hevc", b"hevx", b"heim", b"heis",
+    b"mif1", b"msf1", b"avic", b"hevm", b"hevs",
+}
+
 
 def _json_response(status_code, payload):
     return {
         "statusCode": status_code,
         "body": json.dumps(payload),
-        "headers": {"Content-Type": "application/json"},
+        "headers": {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+        },
     }
 
 
@@ -102,21 +118,35 @@ def _fail_closed(tips=None, error=None, status_code=200):
     return _json_response(status_code, body)
 
 
+def _is_heif(raw: bytes) -> bool:
+    """Detect HEIC/HEIF (iPhone photos) via ISO BMFF ftyp brands."""
+    if len(raw) < 12 or raw[4:8] != b"ftyp":
+        return False
+    brands = {raw[8:12]}
+    for i in range(16, min(len(raw), 64), 4):
+        brands.add(raw[i : i + 4])
+    return bool(brands & HEIF_BRANDS)
+
+
 def _detect_format_from_bytes(raw: bytes) -> str:
-    """Detect image format from magic bytes."""
+    """Detect image format from magic bytes. Returns 'heic' for unsupported HEIF."""
+    if not raw:
+        return "unknown"
     if raw.startswith(b"\x89PNG\r\n\x1a\n"):
         return "png"
     if raw.startswith(b"\xff\xd8\xff"):
         return "jpeg"
     if raw.startswith(b"GIF87a") or raw.startswith(b"GIF89a"):
         return "gif"
-    if raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
+    if raw[:4] == b"RIFF" and len(raw) >= 12 and raw[8:12] == b"WEBP":
         return "webp"
-    return "jpeg"
+    if _is_heif(raw):
+        return "heic"
+    return "unknown"
 
 
 def _normalize_image(body):
-    """Return (base64_bytes_str, format, error_response_or_None)."""
+    """Return (base64_str, format, error_response_or_None)."""
     image_data = body.get("image", "")
 
     if image_data and isinstance(image_data, str) and image_data.startswith("http"):
@@ -125,7 +155,7 @@ def _normalize_image(body):
                 raw = resp.read()
                 image_format = _detect_format_from_bytes(raw)
                 image_data = base64.b64encode(raw).decode("utf-8")
-                return image_data, image_format, None
+                return _validate_format(image_data, image_format)
         except Exception as e:
             logger.error(f"Failed to fetch image from URL: {e}")
             return None, None, _json_response(400, {
@@ -133,36 +163,72 @@ def _normalize_image(body):
                 "error": f"Failed to fetch image: {str(e)}",
             })
 
-    if not image_data:
+    if not image_data or not isinstance(image_data, str):
         return None, None, _json_response(400, {
             "success": False,
             "error": "image data is empty",
         })
 
-    image_format = None
-    if isinstance(image_data, str) and image_data.startswith("data:"):
+    header_format = None
+    if image_data.startswith("data:"):
         try:
             header, image_data = image_data.split(",", 1)
-            if "png" in header:
-                image_format = "png"
-            elif "webp" in header:
-                image_format = "webp"
-            elif "gif" in header:
-                image_format = "gif"
-            else:
-                image_format = "jpeg"
+            header_l = header.lower()
+            if "heic" in header_l or "heif" in header_l:
+                header_format = "heic"
+            elif "png" in header_l:
+                header_format = "png"
+            elif "webp" in header_l:
+                header_format = "webp"
+            elif "gif" in header_l:
+                header_format = "gif"
+            elif "jpeg" in header_l or "jpg" in header_l:
+                header_format = "jpeg"
         except Exception:
             pass
 
-    # Detect from magic bytes when prefix is missing (mobile sends raw base64)
-    if image_format is None:
-        try:
-            raw = base64.b64decode(image_data)
-            image_format = _detect_format_from_bytes(raw)
-        except Exception:
-            image_format = "jpeg"
+    try:
+        raw = base64.b64decode(image_data, validate=False)
+    except Exception:
+        return None, None, _json_response(400, {
+            "success": False,
+            "error": "image is not valid base64",
+        })
 
+    magic_format = _detect_format_from_bytes(raw)
+    # Prefer magic bytes over header / defaults — HEIC often mislabeled as jpeg
+    image_format = magic_format if magic_format != "unknown" else (header_format or "unknown")
+
+    return _validate_format(image_data, image_format)
+
+
+def _validate_format(image_data, image_format):
     logger.info(f"Normalized image format={image_format}")
+
+    if image_format == "heic":
+        return None, None, _fail_closed(
+            error="unsupported_image_format_heic",
+            tips=[
+                "iPhone HEIC photos are not supported by the vision API",
+                "The app should convert to JPEG automatically — update/reload the app",
+                "Or export the photo as JPEG and try again",
+                "Or enter volume manually",
+            ],
+        )
+
+    if image_format not in SUPPORTED_FORMATS and image_format != "jpg":
+        return None, None, _fail_closed(
+            error=f"unsupported_image_format_{image_format}",
+            tips=[
+                "Unsupported image format — please use JPEG or PNG",
+                "Or enter volume manually",
+            ],
+        )
+
+    # Normalize alias
+    if image_format == "jpg":
+        image_format = "jpeg"
+
     return image_data, image_format, None
 
 
@@ -171,7 +237,11 @@ def _parse_model_json(text):
     if not text:
         return None
 
-    json_match = re.search(r"\{[\s\S]*\}", text, re.DOTALL)
+    # Strip markdown fences if present
+    cleaned = re.sub(r"^```(?:json)?\s*", "", text.strip(), flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s*```$", "", cleaned)
+
+    json_match = re.search(r"\{[\s\S]*\}", cleaned, re.DOTALL)
     if json_match:
         try:
             return json.loads(json_match.group(0))
@@ -179,7 +249,7 @@ def _parse_model_json(text):
             pass
 
     try:
-        return json.loads(text.strip())
+        return json.loads(cleaned.strip())
     except json.JSONDecodeError:
         return None
 
@@ -187,15 +257,10 @@ def _parse_model_json(text):
 def _invoke_claude(image_data, image_format):
     """Call Claude (Anthropic Messages API on Bedrock). Returns response text."""
     media_type = MEDIA_TYPES.get(image_format, "image/jpeg")
-    # Claude is pickier about formats; fall back jpeg media type for unknown
-    if image_format == "webp":
-        # Some Claude endpoints reject webp — still try; fallback path handles failure
-        media_type = "image/webp"
 
     body = {
-        # Required for Claude 3/4 on Bedrock (Sonnet 4.5 rejects bedrock-2023-06-01)
         "anthropic_version": "bedrock-2023-05-31",
-        "max_tokens": 1024,
+        "max_tokens": 1200,
         "temperature": 0.0,
         "messages": [
             {
@@ -209,10 +274,7 @@ def _invoke_claude(image_data, image_format):
                             "data": image_data,
                         },
                     },
-                    {
-                        "type": "text",
-                        "text": VISION_PROMPT,
-                    },
+                    {"type": "text", "text": VISION_PROMPT},
                 ],
             }
         ],
@@ -229,7 +291,6 @@ def _invoke_claude(image_data, image_format):
     for block in content:
         if isinstance(block, dict) and block.get("type") == "text":
             return block.get("text", "")
-    # Older shapes
     if content and isinstance(content[0], dict):
         return content[0].get("text", "")
     return ""
@@ -237,6 +298,7 @@ def _invoke_claude(image_data, image_format):
 
 def _invoke_nova(image_data, image_format):
     """Call Amazon Nova Pro. Returns response text."""
+    fmt = "jpeg" if image_format in ("jpg", "jpeg") else image_format
     response = bedrock_runtime.invoke_model(
         modelId=NOVA_MODEL_ID,
         contentType="application/json",
@@ -245,13 +307,12 @@ def _invoke_nova(image_data, image_format):
             "messages": [{
                 "role": "user",
                 "content": [
-                    {"image": {"format": image_format if image_format != "jpg" else "jpeg",
-                               "source": {"bytes": image_data}}},
+                    {"image": {"format": fmt, "source": {"bytes": image_data}}},
                     {"text": VISION_PROMPT},
                 ],
             }],
             "inferenceConfig": {
-                "max_new_tokens": 800,
+                "max_new_tokens": 1000,
                 "temperature": 0.0,
                 "topP": 0.95,
             },
@@ -272,9 +333,9 @@ def _build_success_response(result, model_used):
 
     Returns:
       - dict API response on success
-      - ("not_detected", tips) when model clearly found no vessel
-      - ("low_confidence", tips) when volume present but confidence too low
-      - None when parse/shape is unusable (caller may try fallback model)
+      - ("not_detected", tips) when model found no vessel
+      - ("low_confidence", tips) when confidence too low
+      - None when parse/shape is unusable
     """
     if not result or not isinstance(result, dict):
         return None
@@ -295,8 +356,11 @@ def _build_success_response(result, model_used):
         except (TypeError, ValueError):
             raw_oz = None
 
+    # If vessels list has items but totals missing, still try sum
+    if raw_oz is None and vessels:
+        return None
+
     if not container_detected or raw_oz is None:
-        # Explicit no-vessel is a valid model answer — do not treat as parse failure
         tips = result.get("tips") or [
             "No candle vessel clearly detected",
             "Make sure the vessel is well-lit",
@@ -312,7 +376,6 @@ def _build_success_response(result, model_used):
     except (TypeError, ValueError):
         return None
 
-    # Accept any positive volume — no min/max cap; reject NaN
     if not (est_oz > 0) or est_oz != est_oz:
         return None
 
@@ -330,7 +393,6 @@ def _build_success_response(result, model_used):
         est_grams = float(est_grams) if est_grams is not None else est_oz * 28.35
     except (TypeError, ValueError):
         est_grams = est_oz * 28.35
-
     if est_grams < 1:
         est_grams = est_oz * 28.35
 
@@ -355,11 +417,7 @@ def _build_success_response(result, model_used):
 
 
 def analyze_image(body):
-    """
-    Primary: Claude Sonnet vision.
-    Fallback: Amazon Nova Pro if Claude errors or returns unusable output.
-    Fail closed: never invent a default ounce quote.
-    """
+    """Primary Claude; Nova fallback. Fail closed — no invented ounce defaults."""
     image_data, image_format, err = _normalize_image(body)
     if err:
         return err
@@ -368,10 +426,9 @@ def analyze_image(body):
     models_tried = []
 
     def _handle_built(built, model_label, raw_text):
-        """Map _build_success_response outcome to response or None (continue)."""
         if built is None:
             logger.warning(
-                f"{model_label} unusable output (first 300 chars): {(raw_text or '')[:300]}"
+                f"{model_label} unusable output (first 400 chars): {(raw_text or '')[:400]}"
             )
             return None
         if isinstance(built, tuple):
@@ -381,7 +438,6 @@ def analyze_image(body):
             return built
         return None
 
-    # --- Primary: Claude ---
     try:
         logger.info(f"Invoking Claude model: {CLAUDE_MODEL_ID}")
         text = _invoke_claude(image_data, image_format)
@@ -399,7 +455,6 @@ def analyze_image(body):
         last_error = str(e)
         logger.error(f"Claude invoke failed: {e}")
 
-    # --- Fallback: Nova Pro ---
     try:
         logger.info(f"Invoking Nova fallback: {NOVA_MODEL_ID}")
         text = _invoke_nova(image_data, image_format)
@@ -419,10 +474,12 @@ def analyze_image(body):
 
     tips = [
         "Vision analysis could not produce a reliable estimate",
-        "Try a clearer photo or enter volume manually",
+        "Try a clearer JPEG photo or enter volume manually",
     ]
     if models_tried:
         tips.append(f"Models tried: {', '.join(models_tried)}")
+    if last_error and "heic" in last_error.lower():
+        tips.insert(0, "Photo may still be HEIC — reload the app so it converts to JPEG")
 
     return _fail_closed(
         error=last_error or "No usable vision result",
@@ -432,7 +489,16 @@ def analyze_image(body):
 
 def handler(event, context):
     try:
+        # CORS preflight
+        if (event.get("httpMethod") or event.get("requestContext", {}).get("http", {}).get("method", "")).upper() == "OPTIONS":
+            return _json_response(200, {"ok": True})
+
         body_raw = event.get("body")
+        if event.get("isBase64Encoded") and isinstance(body_raw, str):
+            try:
+                body_raw = base64.b64decode(body_raw).decode("utf-8")
+            except Exception:
+                pass
 
         if body_raw is None:
             body = {}
@@ -440,12 +506,12 @@ def handler(event, context):
             try:
                 body = json.loads(body_raw) if body_raw.strip() else {}
             except json.JSONDecodeError:
-                body = body_raw
+                body = {}
         else:
             body = body_raw
 
         if not isinstance(body, dict):
-            body = {"raw": str(body)}
+            body = {}
 
         if "image" not in body or not body.get("image"):
             return _json_response(400, {
