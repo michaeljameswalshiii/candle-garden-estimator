@@ -50,15 +50,20 @@ export default function EstimatorScreen() {
 
   const DETECTOR_URL = 'https://yg1ec20ucf.execute-api.us-east-1.amazonaws.com/prod/detect';
 
+  const pickerOptions = {
+    mediaTypes: ['images'],
+    allowsEditing: false,
+    quality: 0.85,
+    exif: false,
+    // iOS: ask Photos to hand us a compatible (JPEG) representation instead of HEIC
+    preferredAssetRepresentationMode:
+      ImagePicker.UIImagePickerPreferredAssetRepresentationMode?.Compatible
+      ?? 'compatible',
+  };
+
   const pickImage = async () => {
     try {
-      const pickerResult = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: false,
-        quality: 1,
-        // Prefer JPEG when the platform supports it (iOS 11+ still often returns HEIC)
-        exif: false,
-      });
+      const pickerResult = await ImagePicker.launchImageLibraryAsync(pickerOptions);
 
       if (!pickerResult.canceled) {
         setImage(pickerResult.assets[0].uri);
@@ -78,11 +83,7 @@ export default function EstimatorScreen() {
         return;
       }
 
-      const cameraResult = await ImagePicker.launchCameraAsync({
-        allowsEditing: false,
-        quality: 1,
-        exif: false,
-      });
+      const cameraResult = await ImagePicker.launchCameraAsync(pickerOptions);
 
       if (!cameraResult.canceled) {
         setImage(cameraResult.assets[0].uri);
@@ -116,8 +117,18 @@ export default function EstimatorScreen() {
 
     setLoading(true);
     try {
-      // Critical: convert HEIC → JPEG and resize so Bedrock can process iPhone photos
-      const prepared = await prepareImageForDetect(image);
+      // Critical: HEIC → JPEG + resize before upload (Bedrock rejects HEIC)
+      let prepared;
+      try {
+        prepared = await prepareImageForDetect(image);
+      } catch (convErr) {
+        promptManualFallback([
+          convErr.message || 'Could not convert photo to JPEG',
+          'Try: Settings → Camera → Formats → Most Compatible',
+          'Or export the photo as JPEG from Photos and pick again',
+        ]);
+        return;
+      }
 
       const detectResponse = await fetch(DETECTOR_URL, {
         method: 'POST',
@@ -134,6 +145,19 @@ export default function EstimatorScreen() {
           detectResponse.ok
             ? 'Server returned an invalid response'
             : `Server error (${detectResponse.status}) — photo may be too large or network failed`,
+        ]);
+        return;
+      }
+
+      // If server still sees HEIC, conversion failed — surface that clearly
+      if (
+        detectData.error === 'unsupported_image_format_heic'
+        || (Array.isArray(detectData.tips) && detectData.tips.some((t) => /heic/i.test(t)))
+      ) {
+        promptManualFallback([
+          'Photo was still HEIC after conversion',
+          'Close Expo Go completely and reopen the project URL',
+          'Or Settings → Camera → Formats → Most Compatible, then retake',
         ]);
         return;
       }
@@ -194,6 +218,7 @@ export default function EstimatorScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Refill Estimator</Text>
+      <Text style={styles.buildTag}>build: jpeg-v3</Text>
       <Text style={styles.instruction}>
         Take a clear photo of your empty (or mostly empty) candle vessel from above or the side. Good examples: mugs, jars, bowls, glasses.
       </Text>
@@ -291,8 +316,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 10,
+    marginBottom: 4,
     color: '#2e7d32',
+  },
+  buildTag: {
+    fontSize: 11,
+    color: '#999',
+    marginBottom: 10,
   },
   instruction: {
     fontSize: 14,
