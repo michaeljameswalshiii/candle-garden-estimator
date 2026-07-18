@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, Alert } from 'react-native';
+import { colors, fonts, radii, spacing } from '../lib/theme';
 
-// Custom Switch component to avoid Fabric boolean prop issues with built-in Switch
 function CustomSwitch({ value, onValueChange }) {
   const isOn = Boolean(value);
   return (
@@ -43,7 +43,7 @@ export default function ProfileScreen() {
   return (
     <ScrollView style={styles.container}>
       <Text style={styles.title}>Profile</Text>
-      
+
       <View style={styles.avatarContainer}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>👤</Text>
@@ -53,7 +53,7 @@ export default function ProfileScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Personal Information</Text>
-        
+
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Name</Text>
           <TextInput
@@ -62,6 +62,7 @@ export default function ProfileScreen() {
             onChangeText={setName}
             editable={Boolean(isEditing)}
             placeholder="Enter your name"
+            placeholderTextColor={colors.textFaint}
           />
         </View>
 
@@ -74,6 +75,7 @@ export default function ProfileScreen() {
             keyboardType="email-address"
             editable={Boolean(isEditing)}
             placeholder="Enter your email"
+            placeholderTextColor={colors.textFaint}
           />
         </View>
 
@@ -86,12 +88,14 @@ export default function ProfileScreen() {
             keyboardType="phone-pad"
             editable={Boolean(isEditing)}
             placeholder="Enter your phone"
+            placeholderTextColor={colors.textFaint}
           />
         </View>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.button}
           onPress={isEditing ? handleSave : () => setIsEditing(true)}
+          activeOpacity={0.8}
         >
           <Text style={styles.buttonText}>
             {isEditing ? 'Save Changes' : 'Edit Profile'}
@@ -101,7 +105,7 @@ export default function ProfileScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Preferences</Text>
-        
+
         <View style={styles.settingRow}>
           <View>
             <Text style={styles.settingLabel}>Push Notifications</Text>
@@ -116,32 +120,33 @@ export default function ProfileScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Account</Text>
-        
+
         <TouchableOpacity style={styles.menuItem}>
           <Text style={styles.menuText}>📦 Order History</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity style={styles.menuItem}>
           <Text style={styles.menuText}>💳 Payment Methods</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity style={styles.menuItem}>
           <Text style={styles.menuText}>📍 Shipping Addresses</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity style={styles.menuItem}>
           <Text style={styles.menuText}>❓ Help & Support</Text>
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity 
+      <TouchableOpacity
         style={[styles.button, styles.logoutButton]}
         onPress={handleLogout}
+        activeOpacity={0.8}
       >
         <Text style={[styles.buttonText, styles.logoutText]}>Logout</Text>
       </TouchableOpacity>
 
-      <Text style={styles.version}>Version 1.0.0</Text>
+      <Text style={styles.version}>Version 1.0.0 · The Candle Garden</Text>
     </ScrollView>
   );
 }
@@ -149,15 +154,17 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-    padding: 16,
+    backgroundColor: colors.white,
+    padding: spacing.md,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontFamily: fonts.heading,
+    fontSize: 26,
+    fontWeight: '400',
     textAlign: 'center',
     marginBottom: 20,
     marginTop: 10,
+    color: colors.primary,
   },
   avatarContainer: {
     alignItems: 'center',
@@ -167,56 +174,68 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#eee',
+    backgroundColor: colors.lightAccent,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 10,
+    borderWidth: 2,
+    borderColor: colors.primary,
   },
   avatarText: {
     fontSize: 36,
   },
   avatarName: {
+    fontFamily: fonts.heading,
     fontSize: 20,
-    fontWeight: '600',
+    fontWeight: '400',
+    color: colors.darkAccent,
   },
   section: {
     marginBottom: 24,
-    padding: 16,
-    backgroundColor: '#f9f9f9',
-    borderRadius: 10,
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   sectionTitle: {
+    fontFamily: fonts.heading,
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '400',
     marginBottom: 16,
+    color: colors.primary,
   },
   inputGroup: {
     marginBottom: 16,
   },
   label: {
+    fontFamily: fonts.body,
     fontSize: 14,
-    color: '#666',
+    color: colors.textMuted,
     marginBottom: 6,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
+    borderColor: colors.borderStrong,
+    borderRadius: radii.sm,
     padding: 12,
     fontSize: 16,
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
+    color: colors.text,
+    fontFamily: fonts.body,
   },
   button: {
-    backgroundColor: '#2e7d32',
+    backgroundColor: colors.primary,
     padding: 14,
-    borderRadius: 8,
+    borderRadius: radii.sm,
     alignItems: 'center',
     marginTop: 10,
   },
   buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    color: colors.white,
+    fontSize: 15,
+    fontWeight: '500',
+    letterSpacing: 1.2,
   },
   settingRow: {
     flexDirection: 'row',
@@ -225,36 +244,41 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   settingLabel: {
+    fontFamily: fonts.body,
     fontSize: 16,
     fontWeight: '500',
+    color: colors.text,
   },
   settingDescription: {
+    fontFamily: fonts.body,
     fontSize: 12,
-    color: '#666',
+    color: colors.textMuted,
     marginTop: 2,
   },
   menuItem: {
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: colors.border,
   },
   menuText: {
+    fontFamily: fonts.body,
     fontSize: 16,
+    color: colors.text,
   },
   logoutButton: {
-    backgroundColor: '#ff3b30',
+    backgroundColor: colors.danger,
     marginTop: 20,
   },
   logoutText: {
-    color: '#fff',
+    color: colors.white,
   },
   version: {
+    fontFamily: fonts.body,
     textAlign: 'center',
-    color: '#999',
+    color: colors.textFaint,
     marginTop: 20,
     marginBottom: 40,
   },
-  // Custom Switch styles
   switch: {
     width: 60,
     height: 30,
@@ -263,16 +287,16 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   switchOn: {
-    backgroundColor: '#2e7d32',
+    backgroundColor: colors.primary,
   },
   switchOff: {
-    backgroundColor: '#ccc',
+    backgroundColor: colors.disabled,
   },
   switchThumb: {
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -285,6 +309,6 @@ const styles = StyleSheet.create({
   switchText: {
     fontSize: 10,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.text,
   },
 });

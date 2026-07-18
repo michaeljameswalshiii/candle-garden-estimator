@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { colors, fonts, radii, spacing } from '../lib/theme';
 
-// Products API - deployed and working
 const PRODUCTS_API = 'https://horywm2kdi.execute-api.us-east-1.amazonaws.com/prod/products';
 
 export default function ProductsScreen() {
@@ -31,20 +31,22 @@ export default function ProductsScreen() {
   };
 
   const renderProduct = ({ item }) => (
-    <TouchableOpacity style={styles.productCard}>
+    <TouchableOpacity style={styles.productCard} activeOpacity={0.85}>
       <View style={styles.productImageContainer}>
         <Text style={styles.placeholderImage}>🕯️</Text>
       </View>
       <Text style={styles.productName}>{item.name}</Text>
       <Text style={styles.productDescription}>{item.description}</Text>
-<Text style={styles.productPrice}>${item.price ? item.price.toFixed(2) : '0.00'}</Text>
+      <Text style={styles.productPrice}>
+        ${item.price ? item.price.toFixed(2) : '0.00'}
+      </Text>
     </TouchableOpacity>
   );
 
   if (loading) {
     return (
       <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color="#2e7d32" />
+        <ActivityIndicator size="large" color={colors.primary} />
         <Text style={styles.loadingText}>Loading products...</Text>
       </View>
     );
@@ -62,6 +64,7 @@ export default function ProductsScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Our Candles</Text>
+      <Text style={styles.subtitle}>Signature scents from The Candle Garden</Text>
       <FlatList
         data={products}
         keyExtractor={(item) => item.id || item.name}
@@ -81,7 +84,7 @@ export default function ProductsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     padding: 10,
   },
   centered: {
@@ -90,16 +93,19 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 10,
-    color: '#666',
+    color: colors.textMuted,
+    fontFamily: fonts.body,
   },
   errorText: {
     fontSize: 18,
-    color: '#d32f2f',
+    color: colors.danger,
     fontWeight: 'bold',
+    fontFamily: fonts.body,
   },
   errorDetail: {
-    color: '#666',
+    color: colors.textMuted,
     marginTop: 5,
+    fontFamily: fonts.body,
   },
   emptyContainer: {
     flex: 1,
@@ -109,14 +115,24 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: '#666',
+    color: colors.textMuted,
+    fontFamily: fonts.body,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontFamily: fonts.heading,
+    fontSize: 26,
+    fontWeight: '400',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 4,
     marginTop: 10,
+    color: colors.primary,
+  },
+  subtitle: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginBottom: spacing.md,
   },
   list: {
     paddingBottom: 20,
@@ -125,16 +141,18 @@ const styles = StyleSheet.create({
     flex: 1,
     margin: 8,
     padding: 12,
-    backgroundColor: '#f9f9f9',
-    borderRadius: 10,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
     alignItems: 'center',
     maxWidth: '47%',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   productImageContainer: {
     width: 100,
     height: 100,
-    backgroundColor: '#eee',
-    borderRadius: 8,
+    backgroundColor: colors.lightAccent,
+    borderRadius: radii.sm,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
@@ -143,20 +161,24 @@ const styles = StyleSheet.create({
     fontSize: 40,
   },
   productName: {
-    fontSize: 16,
+    fontFamily: fonts.body,
+    fontSize: 15,
     fontWeight: '600',
     textAlign: 'center',
+    color: colors.text,
   },
   productDescription: {
+    fontFamily: fonts.body,
     fontSize: 12,
-    color: '#666',
+    color: colors.textMuted,
     textAlign: 'center',
     marginTop: 4,
   },
   productPrice: {
+    fontFamily: fonts.body,
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#2e7d32',
+    color: colors.primary,
     marginTop: 8,
   },
 });

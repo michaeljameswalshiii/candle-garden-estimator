@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View, FlatList, TouchableOpacity } from 'react-native';
+import { colors, fonts, radii, spacing } from '../lib/theme';
 
-// Sample orders data - replace with API call in production
 const SAMPLE_ORDERS = [
   { id: 'ORD-001', date: '2024-01-15', status: 'Delivered', total: 49.98, items: 2 },
   { id: 'ORD-002', date: '2024-01-20', status: 'Shipped', total: 24.99, items: 1 },
@@ -11,17 +11,17 @@ const SAMPLE_ORDERS = [
 
 const getStatusColor = (status) => {
   switch (status) {
-    case 'Delivered': return '#2e7d32';
-    case 'Shipped': return '#1976d2';
-    case 'Processing': return '#ffa000';
-    case 'Pending': return '#757575';
-    default: return '#666';
+    case 'Delivered': return colors.primary;
+    case 'Shipped': return colors.info;
+    case 'Processing': return colors.warning;
+    case 'Pending': return colors.textMuted;
+    default: return colors.textMuted;
   }
 };
 
 export default function OrdersScreen() {
   const renderOrder = ({ item }) => (
-    <TouchableOpacity style={styles.orderCard}>
+    <TouchableOpacity style={styles.orderCard} activeOpacity={0.85}>
       <View style={styles.orderHeader}>
         <Text style={styles.orderId}>{item.id}</Text>
         <Text style={[styles.status, { color: getStatusColor(item.status) }]}>
@@ -31,7 +31,9 @@ export default function OrdersScreen() {
       <Text style={styles.orderDate}>Order Date: {item.date}</Text>
       <View style={styles.orderDetails}>
         <Text style={styles.orderItems}>{item.items} item(s)</Text>
-<Text style={styles.orderTotal}>${item.total ? item.total.toFixed(2) : '0.00'}</Text>
+        <Text style={styles.orderTotal}>
+          ${item.total ? item.total.toFixed(2) : '0.00'}
+        </Text>
       </View>
     </TouchableOpacity>
   );
@@ -58,24 +60,28 @@ export default function OrdersScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-    padding: 16,
+    backgroundColor: colors.white,
+    padding: spacing.md,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontFamily: fonts.heading,
+    fontSize: 26,
+    fontWeight: '400',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: spacing.md,
     marginTop: 10,
+    color: colors.primary,
   },
   list: {
     paddingBottom: 20,
   },
   orderCard: {
-    backgroundColor: '#f9f9f9',
-    borderRadius: 10,
-    padding: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    padding: spacing.md,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   orderHeader: {
     flexDirection: 'row',
@@ -84,16 +90,20 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   orderId: {
+    fontFamily: fonts.body,
     fontSize: 16,
     fontWeight: 'bold',
+    color: colors.text,
   },
   status: {
+    fontFamily: fonts.body,
     fontSize: 14,
     fontWeight: '600',
   },
   orderDate: {
+    fontFamily: fonts.body,
     fontSize: 14,
-    color: '#666',
+    color: colors.textMuted,
     marginBottom: 8,
   },
   orderDetails: {
@@ -102,12 +112,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   orderItems: {
+    fontFamily: fonts.body,
     fontSize: 14,
-    color: '#666',
+    color: colors.textMuted,
   },
   orderTotal: {
+    fontFamily: fonts.body,
     fontSize: 16,
     fontWeight: 'bold',
+    color: colors.primary,
   },
   emptyContainer: {
     flex: 1,
@@ -116,13 +129,15 @@ const styles = StyleSheet.create({
     paddingTop: 60,
   },
   emptyText: {
+    fontFamily: fonts.body,
     fontSize: 18,
     fontWeight: '600',
-    color: '#666',
+    color: colors.textMuted,
   },
   emptySubtext: {
+    fontFamily: fonts.body,
     fontSize: 14,
-    color: '#999',
+    color: colors.textFaint,
     marginTop: 8,
   },
 });

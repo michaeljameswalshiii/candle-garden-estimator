@@ -8,6 +8,7 @@ import {
   isAcceptableDetection,
 } from '../lib/pricing';
 import { prepareImageForDetect } from '../lib/prepareImage';
+import { colors, fonts, radii, spacing } from '../lib/theme';
 
 // Custom Button component to avoid Fabric boolean prop issues
 function CustomButton({ title, onPress, disabled, color }) {
@@ -244,7 +245,7 @@ export default function EstimatorScreen() {
                 setImage(null);
                 setResult(null);
               }}
-              color="#ff3b30"
+              color={colors.danger}
             />
             <CustomButton
               title={loading ? 'Estimating...' : 'Get Estimate'}
@@ -269,13 +270,13 @@ export default function EstimatorScreen() {
                 onChangeText={setManualOunces}
                 keyboardType="decimal-pad"
                 placeholder="12"
-                placeholderTextColor="#999"
+                placeholderTextColor={colors.textFaint}
               />
             </View>
             <Text style={styles.inputSuffix}>oz</Text>
           </View>
           <View style={styles.manualButtons}>
-            <CustomButton title="Cancel" onPress={() => setShowManualEntry(false)} color="#666" />
+            <CustomButton title="Cancel" onPress={() => setShowManualEntry(false)} color={colors.textMuted} />
             <CustomButton title="Submit" onPress={submitManualEntry} />
           </View>
         </View>
@@ -323,45 +324,49 @@ export default function EstimatorScreen() {
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 20,
+    padding: spacing.md + 4,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontFamily: fonts.heading,
+    fontSize: 26,
+    fontWeight: '400',
     marginBottom: 4,
-    color: '#2e7d32',
+    color: colors.primary,
   },
   buildTag: {
+    fontFamily: fonts.body,
     fontSize: 11,
-    color: '#999',
+    color: colors.textFaint,
     marginBottom: 10,
   },
   instruction: {
+    fontFamily: fonts.body,
     fontSize: 14,
     textAlign: 'center',
     marginBottom: 20,
-    color: '#666',
+    color: colors.textMuted,
     paddingHorizontal: 20,
+    lineHeight: 20,
   },
   image: {
     width: 280,
     height: 280,
     marginBottom: 20,
-    borderRadius: 10,
+    borderRadius: radii.md,
   },
   placeholderContainer: {
     width: 280,
     height: 280,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 10,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
     borderWidth: 2,
-    borderColor: '#ddd',
+    borderColor: colors.borderStrong,
     borderStyle: 'dashed',
   },
   placeholderText: {
@@ -369,8 +374,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   placeholderHint: {
+    fontFamily: fonts.body,
     fontSize: 16,
-    color: '#999',
+    color: colors.textFaint,
   },
   buttonContainer: {
     alignItems: 'center',
@@ -378,40 +384,47 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   button: {
-    backgroundColor: '#2e7d32',
+    backgroundColor: colors.primary,
     paddingVertical: 14,
     paddingHorizontal: 30,
-    borderRadius: 8,
+    borderRadius: radii.sm,
     minWidth: 200,
     alignItems: 'center',
   },
   buttonDisabled: {
-    backgroundColor: '#ccc',
+    backgroundColor: colors.disabled,
   },
   buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    color: colors.white,
+    fontSize: 15,
+    fontWeight: '500',
+    letterSpacing: 1.2,
   },
   buttonTextDisabled: {
-    color: '#888',
+    color: colors.textFaint,
   },
   result: {
-    backgroundColor: '#f0f8ff',
+    backgroundColor: colors.lightAccent,
     padding: 20,
-    borderRadius: 10,
+    borderRadius: radii.md,
     marginTop: 20,
     alignItems: 'center',
     width: '100%',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   resultTitle: {
+    fontFamily: fonts.heading,
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '400',
     marginBottom: 10,
+    color: colors.primary,
   },
   resultText: {
+    fontFamily: fonts.body,
     fontSize: 16,
     marginBottom: 5,
+    color: colors.textSecondary,
   },
   vesselList: {
     width: '100%',
@@ -419,35 +432,43 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   vesselLine: {
+    fontFamily: fonts.body,
     fontSize: 13,
-    color: '#444',
+    color: colors.textSecondary,
     marginBottom: 4,
     textAlign: 'left',
   },
   total: {
+    fontFamily: fonts.body,
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#2e7d32',
+    color: colors.primary,
     marginTop: 10,
+    marginBottom: 12,
   },
   manualEntryContainer: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.surface,
     padding: 20,
-    borderRadius: 10,
+    borderRadius: radii.md,
     marginTop: 20,
     alignItems: 'center',
     width: '100%',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   manualEntryTitle: {
+    fontFamily: fonts.heading,
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '400',
     marginBottom: 10,
-    color: '#2e7d32',
+    color: colors.primary,
   },
   manualEntryHint: {
+    fontFamily: fonts.body,
     fontSize: 14,
-    color: '#666',
+    color: colors.textMuted,
     marginBottom: 15,
+    textAlign: 'center',
   },
   inputRow: {
     flexDirection: 'row',
@@ -455,22 +476,25 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   inputContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
+    backgroundColor: colors.white,
+    borderRadius: radii.sm,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: colors.borderStrong,
     paddingHorizontal: 15,
     paddingVertical: 10,
   },
   input: {
+    fontFamily: fonts.body,
     fontSize: 18,
     width: 80,
     textAlign: 'center',
+    color: colors.text,
   },
   inputSuffix: {
+    fontFamily: fonts.body,
     fontSize: 18,
     marginLeft: 10,
-    color: '#666',
+    color: colors.textMuted,
   },
   manualButtons: {
     flexDirection: 'row',

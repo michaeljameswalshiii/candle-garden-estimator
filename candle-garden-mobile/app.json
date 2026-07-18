@@ -32,6 +32,10 @@
     },
     "android": {
       "package": "com.michaeljameswalshiii.candlegarden"
-    }
+    },
+    "splash": {
+      "backgroundColor": "#103831"
+    },
+    "primaryColor": "#103831"
   }
 }

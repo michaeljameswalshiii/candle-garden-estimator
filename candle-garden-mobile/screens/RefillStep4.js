@@ -7,6 +7,7 @@ import {
   recommendBox,
   WAX_PRICE_PER_OZ,
 } from '../lib/pricing';
+import { colors, fonts, radii, spacing } from '../lib/theme';
 
 // Custom Button component
 function CustomButton({ title, onPress, disabled, color }) {
@@ -153,7 +154,7 @@ export default function RefillStep4() {
       {/* Add to Cart Button */}
       <View style={styles.buttonContainer}>
         <CustomButton title="Add to Cart" onPress={handleAddToCart} />
-        <CustomButton title="Back" onPress={() => navigation.goBack()} color="#666" />
+        <CustomButton title="Back" onPress={() => navigation.goBack()} color={colors.textMuted} />
       </View>
     </ScrollView>
   );
@@ -162,38 +163,44 @@ export default function RefillStep4() {
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    backgroundColor: '#fff',
-    padding: 20,
+    backgroundColor: colors.white,
+    padding: spacing.md + 4,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontFamily: fonts.heading,
+    fontSize: 26,
+    fontWeight: '400',
     marginBottom: 20,
-    color: '#2e7d32',
+    color: colors.primary,
     textAlign: 'center',
   },
   section: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.surface,
     padding: 15,
-    borderRadius: 10,
+    borderRadius: radii.md,
     marginBottom: 15,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   sectionTitle: {
+    fontFamily: fonts.heading,
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '400',
     marginBottom: 10,
-    color: '#333',
+    color: colors.darkAccent,
   },
   infoText: {
+    fontFamily: fonts.body,
     fontSize: 14,
     marginBottom: 5,
-    color: '#666',
+    color: colors.textMuted,
   },
   totalText: {
+    fontFamily: fonts.body,
     fontSize: 16,
     fontWeight: 'bold',
     marginTop: 10,
-    color: '#2e7d32',
+    color: colors.primary,
   },
   quantityContainer: {
     flexDirection: 'row',
@@ -204,25 +211,27 @@ const styles = StyleSheet.create({
   quantityButton: {
     width: 50,
     height: 50,
-    backgroundColor: '#2e7d32',
+    backgroundColor: colors.primary,
     borderRadius: 25,
     justifyContent: 'center',
     alignItems: 'center',
   },
   quantityButtonText: {
     fontSize: 24,
-    color: '#fff',
+    color: colors.white,
     fontWeight: 'bold',
   },
   quantityText: {
+    fontFamily: fonts.body,
     fontSize: 32,
     fontWeight: 'bold',
     marginHorizontal: 30,
-    color: '#333',
+    color: colors.text,
   },
   hintText: {
+    fontFamily: fonts.body,
     fontSize: 12,
-    color: '#999',
+    color: colors.textFaint,
     textAlign: 'center',
     marginBottom: 8,
   },
@@ -230,86 +239,95 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 15,
-    backgroundColor: '#fff',
-    borderRadius: 8,
+    backgroundColor: colors.white,
+    borderRadius: radii.sm,
     marginBottom: 10,
     borderWidth: 2,
-    borderColor: '#ddd',
+    borderColor: colors.borderStrong,
   },
   boxOptionSelected: {
-    borderColor: '#2e7d32',
-    backgroundColor: '#e8f5e9',
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft,
   },
   boxOptionRecommended: {
-    borderColor: '#ff9800',
+    borderColor: colors.warning,
   },
   boxInfo: {
     flex: 1,
   },
   boxName: {
+    fontFamily: fonts.body,
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.text,
   },
   boxDetails: {
+    fontFamily: fonts.body,
     fontSize: 12,
-    color: '#666',
+    color: colors.textMuted,
   },
   boxPrice: {
+    fontFamily: fonts.body,
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#2e7d32',
+    color: colors.primary,
   },
   recommendedBadge: {
     position: 'absolute',
     top: 5,
     right: 5,
     fontSize: 10,
-    color: '#ff9800',
+    color: colors.warning,
     fontWeight: 'bold',
   },
   totalSection: {
-    backgroundColor: '#e8f5e9',
+    backgroundColor: colors.lightAccent,
     padding: 20,
-    borderRadius: 10,
+    borderRadius: radii.md,
     alignItems: 'center',
     marginVertical: 15,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   totalLabel: {
+    fontFamily: fonts.body,
     fontSize: 18,
-    color: '#666',
+    color: colors.textMuted,
   },
   totalAmount: {
+    fontFamily: fonts.heading,
     fontSize: 32,
-    fontWeight: 'bold',
-    color: '#2e7d32',
+    fontWeight: '400',
+    color: colors.primary,
     marginVertical: 5,
   },
   totalBreakdown: {
+    fontFamily: fonts.body,
     fontSize: 12,
-    color: '#666',
+    color: colors.textMuted,
   },
   buttonContainer: {
     gap: 12,
     marginTop: 20,
   },
   button: {
-    backgroundColor: '#2e7d32',
+    backgroundColor: colors.primary,
     paddingVertical: 14,
     paddingHorizontal: 30,
-    borderRadius: 8,
+    borderRadius: radii.sm,
     minWidth: 200,
     alignItems: 'center',
   },
   buttonDisabled: {
-    backgroundColor: '#ccc',
+    backgroundColor: colors.disabled,
   },
   buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    color: colors.white,
+    fontSize: 15,
+    fontWeight: '500',
+    letterSpacing: 1.2,
   },
   buttonTextDisabled: {
-    color: '#888',
+    color: colors.textFaint,
   },
 });
