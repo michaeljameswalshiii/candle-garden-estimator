@@ -1,0 +1,355 @@
+[
+    {
+        "id":  "65faf809b85f1d19a61c8374",
+        "name":  "Atlantic Beach",
+        "price":  34,
+        "priceMax":  39,
+        "soldOut":  false,
+        "description":  "Scent notes: Amber, Sea salt, Orange, Ozone, Freesia, Light Musk",
+        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1712778217308-W4FIBXLU016C1C9ZAQ5E/TheCandleGardenCo_Spring2024_3636.jpg",
+        "url":  "https://www.thecandlegarden.co/shop/p/atlantic-beach-soy-candle",
+        "sizes":  [
+                      "10oz",
+                      "18oz"
+                  ],
+        "categories":  [
+                           "classic"
+                       ]
+    },
+    {
+        "id":  "68e6cd88ac7af54391a3e33b",
+        "name":  "Bills Candle",
+        "price":  40,
+        "priceMax":  40,
+        "soldOut":  false,
+        "description":  "Scent notes: oak, cedar, light tobacco, vanilla, bourbon...smells like we'll get em next year! 10oz pure soy candle with gold screen print",
+        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/a2f1761a-ce78-47d0-97af-9bfb6d055d7d/IMG_6068.JPG",
+        "url":  "https://www.thecandlegarden.co/shop/p/buffalo-bills-soy-candle-hand-poured-show-girl-ealdj-2x37n",
+        "sizes":  [
+
+                  ],
+        "categories":  [
+                           "classic"
+                       ]
+    },
+    {
+        "id":  "698656bffffb05166e409a96",
+        "name":  "Black Currant \u0026 Jasmine",
+        "price":  34,
+        "priceMax":  39,
+        "soldOut":  false,
+        "description":  "Scent notes: citrus, red currant, black currant, jasmine, peach, black tea, amber, anise, tonka bean",
+        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/203472bf-05df-498b-a8ff-4e64a41e2936/TCGSPRINGLAUNCH-44.jpg",
+        "url":  "https://www.thecandlegarden.co/shop/p/black-currant-soy-candle-the-candle-garden-jasmine",
+        "sizes":  [
+                      "10oz",
+                      "18oz"
+                  ],
+        "categories":  [
+                           "spring"
+                       ]
+    },
+    {
+        "id":  "69862c301a06235655c4c079",
+        "name":  "Blueberry Fizz",
+        "price":  34,
+        "priceMax":  39,
+        "soldOut":  false,
+        "description":  "Scent notes: strawberry, blueberry, apple, raspberry, honey, cinnamon, bourbon, smoke, oak, caramel",
+        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/86b8ee6b-1f89-4d2c-b96d-2dfb54b4df38/TCGSPRINGLAUNCH-37.jpg",
+        "url":  "https://www.thecandlegarden.co/shop/p/blueberry-fizz-soy-candle-the-candle-garden-l3kyw",
+        "sizes":  [
+                      "10oz",
+                      "18oz"
+                  ],
+        "categories":  [
+                           "spring"
+                       ]
+    },
+    {
+        "id":  "65faf809b85f1d19a61c836f",
+        "name":  "Bougie Bougie",
+        "price":  135,
+        "priceMax":  135,
+        "soldOut":  false,
+        "description":  "Over 110 hour burn time! The Bougie Bougie is the perfect center piece for a night in, hosting an event, and of course would make a great bougie gift...for someone else or yourself ;) Grapefruit Spice â€” Grapefruit, Orange peel, Mangosteen, Nutmeg and Cinnamon Oakmoss \u0026 Amber â€” Oak Moss, Amber, Lavender, Sage, Orange and Grapefruit Atlantic Beach â€” Amber, Sea salt, Orange, Ozone, Freesia, and Light Musk Ponte Vedra â€” Cardamom, Orange peel, Sea salt, Palm, Light Musk, and Ozone Jax Beach â€” Bergamot, Tangerine, Coconut, and Lemon VerbenaÂ Neptune Beach â€” Sandalwood, Musk, Amber, and Coriander Santal Coconut â€” Coconut Milk, Coconut, Sandalwood, Cedar, Tonka Bean and Amyris Oh, Christmas Tree â€” Pine, Eucalyptus, Cypress, Tonka Bean and White Birch Juniper â€” Ozone, Red Currant, Berry, Juniper, Pear, Citrus, Sage and Cherry Blossom The Grinch â€” Bergamot, Spruce, Cypress, Sage, Palo Santo and Musk",
+        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1711112110589-UP7WLYR0K8U2OHWH2JDA/CandleGardenWinter2024-18.jpg",
+        "url":  "https://www.thecandlegarden.co/shop/p/bougie-bougie-large-luxury-candle",
+        "sizes":  [
+
+                  ],
+        "categories":  [
+                           "classic"
+                       ]
+    },
+    {
+        "id":  "67016d8629123a302136428f",
+        "name":  "But First, Coffee",
+        "price":  34,
+        "priceMax":  39,
+        "soldOut":  false,
+        "description":  "Scent notes: coffee, sugar, caramel, vanilla...but really strong coffee :)",
+        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/b4984e16-0c8c-45ed-bf0f-8584f2b2f7a9/TCGSPRINGLAUNCH-162.jpg",
+        "url":  "https://www.thecandlegarden.co/shop/p/but-first-soy-candle-fall-45zxk-c4eka-coffee",
+        "sizes":  [
+                      "10oz",
+                      "18oz"
+                  ],
+        "categories":  [
+                           "classic",
+                           "spring"
+                       ]
+    },
+    {
+        "id":  "65fd8faf6b87b67fd11cd873",
+        "name":  "Conrad New York Downtown Signature Candle",
+        "price":  45,
+        "priceMax":  45,
+        "soldOut":  true,
+        "description":  "Scent notes: Â Bergamot, White tea, Violet florals, Aromatic Thyme and AmberÂ",
+        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1711116240270-WTPE93VM3U2WLS4ZS138/IMG_1591.jpeg",
+        "url":  "https://www.thecandlegarden.co/shop/p/conrad-new-york-downtown-signature-candle",
+        "sizes":  [
+                      "16oz"
+                  ],
+        "categories":  [
+                           "classic"
+                       ]
+    },
+    {
+        "id":  "69862a1612099a65f951f050",
+        "name":  "English Garden",
+        "price":  34,
+        "priceMax":  39,
+        "soldOut":  false,
+        "description":  "Scent notes: lily of the valley, green leaves, pear, rose, jasmine, lilac, vanilla, carnation",
+        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/b3fec193-ccb4-4a5c-bdfc-6c16365b91d2/TCGSPRINGLAUNCH-153.jpg",
+        "url":  "https://www.thecandlegarden.co/shop/p/english-garden-soy-candle-the-candle-garden-candle-classes-jacksonville",
+        "sizes":  [
+                      "10oz",
+                      "18oz"
+                  ],
+        "categories":  [
+                           "spring"
+                       ]
+    },
+    {
+        "id":  "698662d183d7eb240f008750",
+        "name":  "Flaky Croissant",
+        "price":  34,
+        "priceMax":  39,
+        "soldOut":  false,
+        "description":  "Scent notes: sugar, honey, lemon, butter, walnut, almond, caramel",
+        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/4e541144-92a1-48bf-887e-834bc8ee0b8f/TCGSPRINGLAUNCH-46.jpg",
+        "url":  "https://www.thecandlegarden.co/shop/p/flaky-croissant-soy-candle-the-candle-garden-jasmine-js6rk",
+        "sizes":  [
+                      "10oz",
+                      "18oz"
+                  ],
+        "categories":  [
+                           "spring"
+                       ]
+    },
+    {
+        "id":  "698625c1ed96482fd6f97ccb",
+        "name":  "Fruit Loops",
+        "price":  34,
+        "priceMax":  39,
+        "soldOut":  false,
+        "description":  "Scent notes: lemon, lime, citrus, cereal, milk, vanilla, sandalwood",
+        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/f9393b8e-3577-47b3-8b1e-0b34db0eaf35/TCGSPRINGLAUNCH-66.jpg",
+        "url":  "https://www.thecandlegarden.co/shop/p/fruit-loop-soy-candle-the-candle-garden",
+        "sizes":  [
+                      "10oz",
+                      "18oz"
+                  ],
+        "categories":  [
+                           "spring"
+                       ]
+    },
+    {
+        "id":  "6986648057d9071c7117378e",
+        "name":  "Garden Mint",
+        "price":  34,
+        "priceMax":  39,
+        "soldOut":  false,
+        "description":  "Scent notes: spearmint, eucalyptus, tomato leaf, anise, mint, wood",
+        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/e9af3da4-d4b8-43f9-8062-f18f166aea82/TCGSPRINGLAUNCH-81.jpg",
+        "url":  "https://www.thecandlegarden.co/shop/p/garden-mint-candle-the-candle-garden-soy-jacksonville",
+        "sizes":  [
+                      "10oz",
+                      "18oz"
+                  ],
+        "categories":  [
+                           "spring"
+                       ]
+    },
+    {
+        "id":  "65fd8e7d0f8af918b3add37d",
+        "name":  "Grapefruit Spice",
+        "price":  34,
+        "priceMax":  39,
+        "soldOut":  false,
+        "description":  "Scent notes: Grapefruit, Orange peel, Mangosteen, Nutmeg, Cinnamon.",
+        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1711115923886-WRABU9GGIHRCLHKRDAY1/3-19_TheCandleGardenCo_6517.jpg",
+        "url":  "https://www.thecandlegarden.co/shop/p/grapefruit-spice",
+        "sizes":  [
+                      "10oz",
+                      "18oz"
+                  ],
+        "categories":  [
+                           "classic"
+                       ]
+    },
+    {
+        "id":  "6985173d4a57a338fec1f5d8",
+        "name":  "High Tea",
+        "price":  34,
+        "priceMax":  39,
+        "soldOut":  false,
+        "description":  "Scent notes: black tea, bergamot, lemon, lavender, amber, musk",
+        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/6c25f3ff-fe94-4574-a8ff-5854a002aeee/TCGSPRINGLAUNCH-20.jpg",
+        "url":  "https://www.thecandlegarden.co/shop/p/high-tea-soy-candle-spring-amber-musk-garden",
+        "sizes":  [
+                      "10oz",
+                      "18oz"
+                  ],
+        "categories":  [
+                           "spring"
+                       ]
+    },
+    {
+        "id":  "65fd8c62aa1d0858f5af58fc",
+        "name":  "Jax Beach",
+        "price":  34,
+        "priceMax":  39,
+        "soldOut":  false,
+        "description":  "Scent notes: Bergamot, Tangerine, Coconut, Lemon verbenaÂ",
+        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1712794791402-UU4C7FA4GH04LH5XN84S/TheCandleGardenCo_Spring2024_3661.jpg",
+        "url":  "https://www.thecandlegarden.co/shop/p/jax-beach",
+        "sizes":  [
+                      "10oz",
+                      "18oz"
+                  ],
+        "categories":  [
+                           "classic"
+                       ]
+    },
+    {
+        "id":  "65faf809b85f1d19a61c835f",
+        "name":  "Neptune Beach",
+        "price":  34,
+        "priceMax":  39,
+        "soldOut":  false,
+        "description":  "Scent notes: Sandalwood, Musk, Amber, Coriander",
+        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1712778258843-Z6A4CH64U9U3BRRIXLD3/TheCandleGardenCo_Spring2024_3655.jpg",
+        "url":  "https://www.thecandlegarden.co/shop/p/neptune-beach-soy-candle",
+        "sizes":  [
+                      "10oz",
+                      "18oz"
+                  ],
+        "categories":  [
+                           "classic"
+                       ]
+    },
+    {
+        "id":  "65fd810c0f8af918b3adcd09",
+        "name":  "Ponte Vedra",
+        "price":  34,
+        "priceMax":  39,
+        "soldOut":  false,
+        "description":  "Scent notes: Cardamom, Orange peel, Sea salt, Palm, Light musk, Ozone",
+        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1712794728487-LAEDKEWIUXZJLT3IA6MP/TheCandleGardenCo_Spring2024_3692.jpg",
+        "url":  "https://www.thecandlegarden.co/shop/p/ponte-vedra",
+        "sizes":  [
+                      "10oz",
+                      "18oz"
+                  ],
+        "categories":  [
+                           "classic"
+                       ]
+    },
+    {
+        "id":  "698655601adae41bc202106e",
+        "name":  "Red Currant",
+        "price":  34,
+        "priceMax":  39,
+        "soldOut":  false,
+        "description":  "Scent notes: red currant, green leaves, peppercorn, blackberry, blueberry, moss, cedar",
+        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1a5a56e3-5ade-4d47-af5f-0fdcb09b070e/TCGSPRINGLAUNCH-23.jpg",
+        "url":  "https://www.thecandlegarden.co/shop/p/red-currant-soy-candle-the-candle-garden-l3kyw-n49bb",
+        "sizes":  [
+                      "10oz",
+                      "18oz"
+                  ],
+        "categories":  [
+                           "spring"
+                       ]
+    },
+    {
+        "id":  "679afc5295c73d498dbd92b8",
+        "name":  "Six Month Candle Subscription",
+        "price":  29,
+        "priceMax":  29,
+        "soldOut":  false,
+        "description":  "Get your 10oz candle worry-free and delivered right to your door, every 30 days. You will receive a different scent every month. Your scent will be seasonally-appropriate, meaning, we won't send you Pumpkin Chai in March! Great to gift yourself, or a loved one. Enter the recipient's address upon checkout. Billed monthly for six months.",
+        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/707e93c2-2087-460b-8325-d15785434ed0/3-19_TheCandleGardenCo_7592.jpg",
+        "url":  "https://www.thecandlegarden.co/shop/p/candlesubscription-box",
+        "sizes":  [
+
+                  ],
+        "categories":  [
+                           "subscription"
+                       ]
+    },
+    {
+        "id":  "679aef77dd4a13259b697e22",
+        "name":  "Three Month Candle Subscription",
+        "price":  30,
+        "priceMax":  30,
+        "soldOut":  false,
+        "description":  "Get your 10oz candle worry-free and delivered right to your door, every 30 days. You will receive a different scent every month. Your scent will be seasonally-appropriate, meaning, we won't send you Pumpkin Chai in March! Great to gift yourself, or a loved one. Enter the recipient's address upon checkout. Billed monthly for three months.",
+        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/027d296d-949d-4c01-bda9-4038c3e84e72/3-19_TheCandleGardenCo_6563.jpg",
+        "url":  "https://www.thecandlegarden.co/shop/p/three-month-candle-subscription",
+        "sizes":  [
+
+                  ],
+        "categories":  [
+                           "subscription"
+                       ]
+    },
+    {
+        "id":  "67e2ee805aa0cc72ac4264f7",
+        "name":  "Tomato Vine",
+        "price":  34,
+        "priceMax":  39,
+        "soldOut":  false,
+        "description":  "Scent notes: Tomato Leaf, Lemon, Lemongrass, Thyme, Basil",
+        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/d5ed7f37-440d-4b3e-9437-28833e2acf43/tomato2.jpeg",
+        "url":  "https://www.thecandlegarden.co/shop/p/tomato-vine-garden-soy-candle-the-candle-garden",
+        "sizes":  [
+                      "10oz",
+                      "18oz"
+                  ],
+        "categories":  [
+                           "classic"
+                       ]
+    },
+    {
+        "id":  "69851563cd26bc38d7731832",
+        "name":  "White Tea \u0026 Blood Orange",
+        "price":  34,
+        "priceMax":  39,
+        "soldOut":  false,
+        "description":  "Scent notes: mandarin, lemon, bergamot, ginger, blood orange, jasmine, white tea",
+        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/eea450a8-2af8-43c2-8fce-45853f8dde80/TCGSPRINGLAUNCH-24.jpg",
+        "url":  "https://www.thecandlegarden.co/shop/p/white-tea-soy-candle-spring-blood-orange-coffee-s2k8k-zde4x-fk3kr",
+        "sizes":  [
+                      "10oz",
+                      "18oz"
+                  ],
+        "categories":  [
+                           "spring"
+                       ]
+    }
+]

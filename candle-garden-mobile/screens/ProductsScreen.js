@@ -1,92 +1,147 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  FlatList,
+  TouchableOpacity,
+  Image,
+  Linking,
+  ScrollView,
+  Dimensions,
+} from 'react-native';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 import { lifestyle } from '../lib/images';
+import {
+  SHOP_CATEGORIES,
+  SHOP_BASE,
+  filterProducts,
+  formatPrice,
+} from '../lib/shopCatalog';
 
-const PRODUCTS_API = 'https://horywm2kdi.execute-api.us-east-1.amazonaws.com/prod/products';
+const { width: SCREEN_W } = Dimensions.get('window');
+const H_PAD = 10;
+const CARD_GAP = 10;
+const CARD_W = (SCREEN_W - H_PAD * 2 - CARD_GAP) / 2;
 
 export default function ProductsScreen() {
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [category, setCategory] = useState('all');
 
-  useEffect(() => {
-    fetchProducts();
-  }, []);
+  const items = useMemo(() => filterProducts(category), [category]);
+  const activeMeta = SHOP_CATEGORIES.find((c) => c.id === category) || SHOP_CATEGORIES[0];
 
-  const fetchProducts = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(PRODUCTS_API);
-      const data = await response.json();
-      if (Array.isArray(data)) {
-        setProducts(data);
-      } else {
-        setProducts([data]);
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+  const openProduct = (product) => {
+    const url = product.url || `${SHOP_BASE}/shop`;
+    Linking.openURL(url).catch(() => {});
   };
 
-  const renderProduct = ({ item }) => (
-    <TouchableOpacity style={styles.productCard} activeOpacity={0.85}>
-      <View style={styles.productImageContainer}>
-        <Text style={styles.placeholderImage}>🕯️</Text>
-      </View>
-      <Text style={styles.productName}>{item.name}</Text>
-      <Text style={styles.productDescription}>{item.description}</Text>
-      <Text style={styles.productPrice}>
-        ${item.price ? item.price.toFixed(2) : '0.00'}
-      </Text>
-    </TouchableOpacity>
-  );
+  const openCollection = () => {
+    Linking.openURL(`${SHOP_BASE}${activeMeta.sitePath}`).catch(() => {});
+  };
 
-  if (loading) {
-    return (
-      <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loadingText}>Loading products...</Text>
-      </View>
-    );
-  }
+  const renderProduct = ({ item }) => {
+    const priceLabel = formatPrice(item);
+    const sizeLabel =
+      Array.isArray(item.sizes) && item.sizes.length > 0
+        ? item.sizes.join(' · ')
+        : null;
 
-  if (error) {
     return (
-      <View style={[styles.container, styles.centered]}>
-        <Text style={styles.errorText}>Error loading products</Text>
-        <Text style={styles.errorDetail}>{error}</Text>
-      </View>
+      <TouchableOpacity
+        style={styles.productCard}
+        activeOpacity={0.88}
+        onPress={() => openProduct(item)}
+      >
+        <View style={styles.imageWrap}>
+          {item.image ? (
+            <Image source={{ uri: item.image }} style={styles.productImage} resizeMode="cover" />
+          ) : (
+            <View style={styles.imagePlaceholder}>
+              <Text style={styles.placeholderEmoji}>🕯️</Text>
+            </View>
+          )}
+          {item.soldOut ? (
+            <View style={styles.soldBadge}>
+              <Text style={styles.soldBadgeText}>Sold out</Text>
+            </View>
+          ) : null}
+        </View>
+        <Text style={styles.productName} numberOfLines={2}>
+          {item.name}
+        </Text>
+        {item.description ? (
+          <Text style={styles.productDescription} numberOfLines={2}>
+            {item.description}
+          </Text>
+        ) : null}
+        {sizeLabel ? <Text style={styles.sizeLabel}>{sizeLabel}</Text> : null}
+        {priceLabel ? <Text style={styles.productPrice}>{priceLabel}</Text> : null}
+        <Text style={styles.shopLink}>View on site →</Text>
+      </TouchableOpacity>
     );
-  }
+  };
 
   return (
     <View style={styles.container}>
       <FlatList
-        data={products}
+        data={items}
         keyExtractor={(item) => item.id || item.name}
         renderItem={renderProduct}
         numColumns={2}
+        columnWrapperStyle={styles.row}
         contentContainerStyle={styles.list}
+        showsVerticalScrollIndicator={false}
         ListHeaderComponent={
-          <View style={styles.header}>
-            <Image
-              source={lifestyle.scentMoment}
-              style={styles.headerImage}
-              resizeMode="cover"
-            />
-            <View style={styles.headerOverlay} />
-            <Text style={styles.headerTitle}>Our Candles</Text>
-            <Text style={styles.headerSubtitle}>
-              Signature scents from The Candle Garden
-            </Text>
+          <View>
+            <View style={styles.header}>
+              <Image
+                source={lifestyle.scentMoment}
+                style={styles.headerImage}
+                resizeMode="cover"
+              />
+              <View style={styles.headerOverlay} />
+              <Text style={styles.headerTitle}>Shop</Text>
+              <Text style={styles.headerSubtitle}>
+                The same collections as thecandlegarden.co
+              </Text>
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.chips}
+            >
+              {SHOP_CATEGORIES.map((cat) => {
+                const active = cat.id === category;
+                return (
+                  <TouchableOpacity
+                    key={cat.id}
+                    style={[styles.chip, active && styles.chipActive]}
+                    onPress={() => setCategory(cat.id)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                      {cat.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <View style={styles.metaRow}>
+              <Text style={styles.countText}>
+                {items.length} product{items.length === 1 ? '' : 's'}
+                {category !== 'all' ? ` · ${activeMeta.label}` : ''}
+              </Text>
+              <TouchableOpacity onPress={openCollection}>
+                <Text style={styles.browseSite}>Open on website</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No products available</Text>
+            <Text style={styles.emptyText}>No products in this collection</Text>
           </View>
         }
       />
@@ -98,41 +153,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white,
-    padding: 10,
   },
-  centered: {
-    justifyContent: 'center',
-    alignItems: 'center',
+  list: {
+    paddingHorizontal: H_PAD,
+    paddingBottom: 28,
   },
-  loadingText: {
-    marginTop: 10,
-    color: colors.textMuted,
-    fontFamily: fonts.body,
-  },
-  errorText: {
-    fontSize: 18,
-    color: colors.danger,
-    fontWeight: 'bold',
-    fontFamily: fonts.body,
-  },
-  errorDetail: {
-    color: colors.textMuted,
-    marginTop: 5,
-    fontFamily: fonts.body,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: colors.textMuted,
-    fontFamily: fonts.body,
+  row: {
+    justifyContent: 'space-between',
+    marginBottom: CARD_GAP,
   },
   header: {
-    height: 170,
+    height: 160,
     borderRadius: radii.lg,
     overflow: 'hidden',
     marginBottom: spacing.md,
@@ -147,11 +178,11 @@ const styles = StyleSheet.create({
   },
   headerOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(16, 56, 49, 0.38)',
+    backgroundColor: 'rgba(16, 56, 49, 0.4)',
   },
   headerTitle: {
     fontFamily: fonts.heading,
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '400',
     color: colors.white,
     paddingHorizontal: 16,
@@ -166,51 +197,137 @@ const styles = StyleSheet.create({
     marginTop: 4,
     zIndex: 1,
   },
-  list: {
-    paddingBottom: 20,
+  chips: {
+    paddingBottom: spacing.sm,
+    gap: 8,
+  },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginRight: 4,
+  },
+  chipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  chipText: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.primary,
+    letterSpacing: 0.3,
+  },
+  chipTextActive: {
+    color: colors.white,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+    paddingHorizontal: 2,
+  },
+  countText: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.textMuted,
+  },
+  browseSite: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.primary,
   },
   productCard: {
-    flex: 1,
-    margin: 8,
-    padding: 12,
+    width: CARD_W,
     backgroundColor: colors.surface,
     borderRadius: radii.md,
-    alignItems: 'center',
-    maxWidth: '47%',
+    padding: 10,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  productImageContainer: {
-    width: 100,
-    height: 100,
-    backgroundColor: colors.lightAccent,
+  imageWrap: {
+    width: '100%',
+    aspectRatio: 0.85,
     borderRadius: radii.sm,
-    justifyContent: 'center',
-    alignItems: 'center',
+    overflow: 'hidden',
+    backgroundColor: colors.lightAccent,
     marginBottom: 8,
   },
-  placeholderImage: {
-    fontSize: 40,
+  productImage: {
+    width: '100%',
+    height: '100%',
+  },
+  imagePlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  placeholderEmoji: {
+    fontSize: 36,
+  },
+  soldBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: 'rgba(14,14,14,0.75)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radii.pill,
+  },
+  soldBadgeText: {
+    color: colors.white,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
   productName: {
-    fontFamily: fonts.body,
+    fontFamily: fonts.heading,
     fontSize: 15,
-    fontWeight: '600',
-    textAlign: 'center',
+    fontWeight: '400',
     color: colors.text,
+    marginBottom: 4,
+    minHeight: 36,
   },
   productDescription: {
     fontFamily: fonts.body,
-    fontSize: 12,
+    fontSize: 11,
     color: colors.textMuted,
-    textAlign: 'center',
-    marginTop: 4,
+    lineHeight: 15,
+    marginBottom: 4,
+  },
+  sizeLabel: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: colors.primaryMid,
+    marginBottom: 4,
   },
   productPrice: {
     fontFamily: fonts.body,
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 15,
+    fontWeight: '700',
     color: colors.primary,
-    marginTop: 8,
+    marginTop: 2,
+  },
+  shopLink: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.darkAccent,
+    marginTop: 6,
+  },
+  emptyContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: colors.textMuted,
+    fontFamily: fonts.body,
   },
 });
