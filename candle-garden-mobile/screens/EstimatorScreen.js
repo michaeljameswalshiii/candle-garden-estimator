@@ -7,7 +7,7 @@ import {
   isValidOunces,
   isAcceptableDetection,
 } from '../lib/pricing';
-import { prepareImageForDetect } from '../lib/prepareImage';
+import { prepareImageForDetect, isImageManipulatorAvailable } from '../lib/prepareImage';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 
 // Custom Button component to avoid Fabric boolean prop issues
@@ -38,6 +38,7 @@ export default function EstimatorScreen() {
   const [loading, setLoading] = useState(false);
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [manualOunces, setManualOunces] = useState('');
+  const manipulatorOk = isImageManipulatorAvailable();
 
   const continueToShipping = () => {
     if (result && result.estimated_ounces) {
@@ -223,6 +224,19 @@ export default function EstimatorScreen() {
       <Text style={styles.instruction}>
         Take a clear photo of your empty (or mostly empty) candle vessel from above or the side. Good examples: mugs, jars, bowls, glasses.
       </Text>
+      {!manipulatorOk ? (
+        <View style={styles.warnBanner}>
+          <Text style={styles.warnTitle}>Limited photo conversion in this client</Text>
+          <Text style={styles.warnBody}>
+            Update Expo Go to the latest version, or use the TestFlight app for full HEIC
+            support. JPEG photos may still work — or enter ounces manually below.
+          </Text>
+          <CustomButton
+            title="Enter ounces manually"
+            onPress={() => setShowManualEntry(true)}
+          />
+        </View>
+      ) : null}
 
       {image ? (
         <Image source={{ uri: image }} style={styles.image} />
@@ -499,5 +513,29 @@ const styles = StyleSheet.create({
   manualButtons: {
     flexDirection: 'row',
     gap: 12,
+  },
+  warnBanner: {
+    width: '100%',
+    backgroundColor: colors.lightAccent,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 14,
+    marginBottom: 16,
+    alignItems: 'center',
+    gap: 10,
+  },
+  warnTitle: {
+    fontFamily: fonts.heading,
+    fontSize: 15,
+    color: colors.primary,
+    textAlign: 'center',
+  },
+  warnBody: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });

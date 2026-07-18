@@ -1,19 +1,37 @@
 // App.js
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
+import { ActivityIndicator, View, Text, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 
 import HomeScreen from './screens/HomeScreen';
-import EstimatorScreen from './screens/EstimatorScreen';
 import ProductsScreen from './screens/ProductsScreen';
 import OrdersScreen from './screens/OrdersScreen';
 import ClassScheduleScreen from './screens/ClassScheduleScreen';
 import ProfileScreen from './screens/ProfileScreen';
-import { colors, navigationTheme } from './lib/theme';
+import { colors, navigationTheme, fonts } from './lib/theme';
+
+// Lazy-load Estimator so expo-image-picker / prepareImage are not required at app start
+const EstimatorScreen = lazy(() => import('./screens/EstimatorScreen'));
 
 const Tab = createBottomTabNavigator();
+
+function EstimatorSuspense() {
+  return (
+    <Suspense
+      fallback={
+        <View style={styles.fallback}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.fallbackText}>Loading estimator…</Text>
+        </View>
+      }
+    >
+      <EstimatorScreen />
+    </Suspense>
+  );
+}
 
 export default function App() {
   return (
@@ -60,7 +78,11 @@ export default function App() {
         })}
       >
         <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'The Candle Garden' }} />
-        <Tab.Screen name="Estimator" component={EstimatorScreen} options={{ title: 'Refill Estimator' }} />
+        <Tab.Screen
+          name="Estimator"
+          component={EstimatorSuspense}
+          options={{ title: 'Refill Estimator' }}
+        />
         <Tab.Screen name="Products" component={ProductsScreen} options={{ title: 'Shop' }} />
         <Tab.Screen name="Orders" component={OrdersScreen} options={{ title: 'Orders' }} />
         <Tab.Screen name="Classes" component={ClassScheduleScreen} options={{ title: 'Classes' }} />
@@ -69,3 +91,18 @@ export default function App() {
     </NavigationContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  fallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.white,
+    gap: 12,
+  },
+  fallbackText: {
+    fontFamily: fonts.body,
+    color: colors.textMuted,
+    fontSize: 14,
+  },
+});
