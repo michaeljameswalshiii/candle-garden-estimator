@@ -1,6 +1,7 @@
 import React from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, Alert } from 'react-native';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, Alert, Image, ScrollView } from 'react-native';
 import { colors, fonts, radii, spacing } from '../lib/theme';
+import { classHero, classStrip } from '../lib/images';
 
 const SAMPLE_CLASSES = [
   {
@@ -109,14 +110,34 @@ export default function ClassScheduleScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Class Schedule</Text>
-      <Text style={styles.subtitle}>Join one of our candle making classes!</Text>
-
       <FlatList
         data={SAMPLE_CLASSES}
         keyExtractor={(item) => item.id}
         renderItem={renderClass}
         contentContainerStyle={styles.list}
+        ListHeaderComponent={
+          <View>
+            <View style={styles.hero}>
+              <Image source={classHero} style={styles.heroImage} resizeMode="cover" />
+              <View style={styles.heroOverlay} />
+              <Text style={styles.heroTitle}>Candle classes</Text>
+              <Text style={styles.heroSubtitle}>
+                Pour, blend, and take your creation home
+              </Text>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.strip}
+            >
+              {classStrip.map((src, i) => (
+                <Image key={i} source={src} style={styles.stripImage} resizeMode="cover" />
+              ))}
+            </ScrollView>
+            <Text style={styles.title}>Class Schedule</Text>
+            <Text style={styles.subtitle}>Join one of our candle making classes!</Text>
+          </View>
+        }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No classes scheduled</Text>
@@ -131,15 +152,59 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white,
-    padding: spacing.md,
+    paddingHorizontal: spacing.md,
+  },
+  hero: {
+    height: 200,
+    borderRadius: radii.lg,
+    overflow: 'hidden',
+    marginTop: spacing.sm,
+    marginBottom: spacing.md,
+    justifyContent: 'flex-end',
+    backgroundColor: colors.surface,
+  },
+  heroImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
+  },
+  heroOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(16, 56, 49, 0.4)',
+  },
+  heroTitle: {
+    fontFamily: fonts.heading,
+    fontSize: 26,
+    color: colors.white,
+    paddingHorizontal: 16,
+    zIndex: 1,
+  },
+  heroSubtitle: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.92)',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    marginTop: 4,
+    zIndex: 1,
+  },
+  strip: {
+    gap: 10,
+    paddingBottom: spacing.md,
+  },
+  stripImage: {
+    width: 120,
+    height: 120,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface,
   },
   title: {
     fontFamily: fonts.heading,
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: '400',
     textAlign: 'center',
     marginBottom: 5,
-    marginTop: 10,
+    marginTop: 4,
     color: colors.primary,
   },
   subtitle: {
@@ -147,10 +212,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textMuted,
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   list: {
-    paddingBottom: 20,
+    paddingBottom: 28,
   },
   classCard: {
     backgroundColor: colors.surface,

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
 import { colors, fonts, radii, spacing } from '../lib/theme';
+import { lifestyle } from '../lib/images';
 
 const PRODUCTS_API = 'https://horywm2kdi.execute-api.us-east-1.amazonaws.com/prod/products';
 
@@ -63,14 +64,26 @@ export default function ProductsScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Our Candles</Text>
-      <Text style={styles.subtitle}>Signature scents from The Candle Garden</Text>
       <FlatList
         data={products}
         keyExtractor={(item) => item.id || item.name}
         renderItem={renderProduct}
         numColumns={2}
         contentContainerStyle={styles.list}
+        ListHeaderComponent={
+          <View style={styles.header}>
+            <Image
+              source={lifestyle.scentMoment}
+              style={styles.headerImage}
+              resizeMode="cover"
+            />
+            <View style={styles.headerOverlay} />
+            <Text style={styles.headerTitle}>Our Candles</Text>
+            <Text style={styles.headerSubtitle}>
+              Signature scents from The Candle Garden
+            </Text>
+          </View>
+        }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No products available</Text>
@@ -118,21 +131,40 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontFamily: fonts.body,
   },
-  title: {
+  header: {
+    height: 170,
+    borderRadius: radii.lg,
+    overflow: 'hidden',
+    marginBottom: spacing.md,
+    marginTop: 6,
+    justifyContent: 'flex-end',
+    backgroundColor: colors.surface,
+  },
+  headerImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
+  },
+  headerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(16, 56, 49, 0.38)',
+  },
+  headerTitle: {
     fontFamily: fonts.heading,
     fontSize: 26,
     fontWeight: '400',
-    textAlign: 'center',
-    marginBottom: 4,
-    marginTop: 10,
-    color: colors.primary,
+    color: colors.white,
+    paddingHorizontal: 16,
+    zIndex: 1,
   },
-  subtitle: {
+  headerSubtitle: {
     fontFamily: fonts.body,
     fontSize: 13,
-    color: colors.textMuted,
-    textAlign: 'center',
-    marginBottom: spacing.md,
+    color: 'rgba(255,255,255,0.92)',
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    marginTop: 4,
+    zIndex: 1,
   },
   list: {
     paddingBottom: 20,
