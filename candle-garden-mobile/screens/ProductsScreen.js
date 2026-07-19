@@ -9,6 +9,7 @@ import {
   Linking,
   ScrollView,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 import { lifestyle } from '../lib/images';
@@ -18,6 +19,7 @@ import {
   filterProducts,
   formatPrice,
 } from '../lib/shopCatalog';
+import { useCart } from '../lib/cart';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const H_PAD = 10;
@@ -26,6 +28,7 @@ const CARD_W = (SCREEN_W - H_PAD * 2 - CARD_GAP) / 2;
 
 export default function ProductsScreen() {
   const [category, setCategory] = useState('all');
+  const { addItem, itemCount } = useCart();
 
   const items = useMemo(() => filterProducts(category), [category]);
   const activeMeta = SHOP_CATEGORIES.find((c) => c.id === category) || SHOP_CATEGORIES[0];
@@ -39,6 +42,41 @@ export default function ProductsScreen() {
     Linking.openURL(`${SHOP_BASE}${activeMeta.sitePath}`).catch(() => {});
   };
 
+  const handleAddToCart = (product) => {
+    if (product.soldOut) {
+      Alert.alert('Sold out', 'This item is not available right now.');
+      return;
+    }
+
+    const sizes = Array.isArray(product.sizes) ? product.sizes.filter(Boolean) : [];
+
+    const doAdd = (size) => {
+      addItem(product, { size, quantity: 1 });
+      const sizeNote = size ? ` (${size})` : '';
+      Alert.alert(
+        'Added to cart',
+        `${product.name}${sizeNote} is in your cart.\n\nOpen the Orders tab to review your cart.`,
+        [{ text: 'OK' }]
+      );
+    };
+
+    if (sizes.length > 1) {
+      Alert.alert(
+        'Choose a size',
+        product.name,
+        [
+          ...sizes.map((s) => ({
+            text: s,
+            onPress: () => doAdd(s),
+          })),
+          { text: 'Cancel', style: 'cancel' },
+        ]
+      );
+    } else {
+      doAdd(sizes[0] || null);
+    }
+  };
+
   const renderProduct = ({ item }) => {
     const priceLabel = formatPrice(item);
     const sizeLabel =
@@ -47,37 +85,48 @@ export default function ProductsScreen() {
         : null;
 
     return (
-      <TouchableOpacity
-        style={styles.productCard}
-        activeOpacity={0.88}
-        onPress={() => openProduct(item)}
-      >
-        <View style={styles.imageWrap}>
-          {item.image ? (
-            <Image source={{ uri: item.image }} style={styles.productImage} resizeMode="cover" />
-          ) : (
-            <View style={styles.imagePlaceholder}>
-              <Text style={styles.placeholderEmoji}>🕯️</Text>
-            </View>
-          )}
-          {item.soldOut ? (
-            <View style={styles.soldBadge}>
-              <Text style={styles.soldBadgeText}>Sold out</Text>
-            </View>
-          ) : null}
-        </View>
-        <Text style={styles.productName} numberOfLines={2}>
-          {item.name}
-        </Text>
-        {item.description ? (
-          <Text style={styles.productDescription} numberOfLines={2}>
-            {item.description}
+      <View style={styles.productCard}>
+        <TouchableOpacity activeOpacity={0.9} onPress={() => openProduct(item)}>
+          <View style={styles.imageWrap}>
+            {item.image ? (
+              <Image source={{ uri: item.image }} style={styles.productImage} resizeMode="cover" />
+            ) : (
+              <View style={styles.imagePlaceholder}>
+                <Text style={styles.placeholderEmoji}>🕯️</Text>
+              </View>
+            )}
+            {item.soldOut ? (
+              <View style={styles.soldBadge}>
+                <Text style={styles.soldBadgeText}>Sold out</Text>
+              </View>
+            ) : null}
+          </View>
+          <Text style={styles.productName} numberOfLines={2}>
+            {item.name}
           </Text>
-        ) : null}
-        {sizeLabel ? <Text style={styles.sizeLabel}>{sizeLabel}</Text> : null}
-        {priceLabel ? <Text style={styles.productPrice}>{priceLabel}</Text> : null}
-        <Text style={styles.shopLink}>View on site →</Text>
-      </TouchableOpacity>
+          {item.description ? (
+            <Text style={styles.productDescription} numberOfLines={2}>
+              {item.description}
+            </Text>
+          ) : null}
+          {sizeLabel ? <Text style={styles.sizeLabel}>{sizeLabel}</Text> : null}
+          {priceLabel ? <Text style={styles.productPrice}>{priceLabel}</Text> : null}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.addBtn, item.soldOut && styles.addBtnDisabled]}
+          onPress={() => handleAddToCart(item)}
+          disabled={Boolean(item.soldOut)}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.addBtnText}>
+            {item.soldOut ? 'Sold out' : 'Add to cart'}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => openProduct(item)}>
+          <Text style={styles.shopLink}>View on site →</Text>
+        </TouchableOpacity>
+      </View>
     );
   };
 
@@ -105,6 +154,15 @@ export default function ProductsScreen() {
                 The same collections as thecandlegarden.co
               </Text>
             </View>
+
+            {itemCount > 0 ? (
+              <View style={styles.cartBanner}>
+                <Text style={styles.cartBannerText}>
+                  Cart: {itemCount} item{itemCount === 1 ? '' : 's'}
+                </Text>
+                <Text style={styles.cartBannerHint}>Review in Orders tab</Text>
+              </View>
+            ) : null}
 
             <ScrollView
               horizontal
@@ -196,6 +254,29 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
     marginTop: 4,
     zIndex: 1,
+  },
+  cartBanner: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderRadius: radii.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  cartBannerText: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  cartBannerHint: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textMuted,
   },
   chips: {
     paddingBottom: spacing.sm,
@@ -313,13 +394,30 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.primary,
     marginTop: 2,
+    marginBottom: 8,
+  },
+  addBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: radii.sm,
+    paddingVertical: 9,
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  addBtnDisabled: {
+    backgroundColor: colors.disabled,
+  },
+  addBtnText: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.6,
   },
   shopLink: {
     fontFamily: fonts.body,
     fontSize: 11,
     fontWeight: '600',
     color: colors.darkAccent,
-    marginTop: 6,
+    textAlign: 'center',
   },
   emptyContainer: {
     padding: 40,

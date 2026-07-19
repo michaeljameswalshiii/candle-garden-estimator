@@ -1,118 +1,110 @@
-import React from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, Alert, Image, ScrollView } from 'react-native';
+import React, { useMemo } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  FlatList,
+  TouchableOpacity,
+  Alert,
+  Image,
+  ScrollView,
+  Linking,
+} from 'react-native';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 import { classHero, classStrip } from '../lib/images';
-
-const SAMPLE_CLASSES = [
-  {
-    id: '1',
-    title: 'Candle Making 101',
-    date: '2024-02-01',
-    time: '10:00 AM',
-    duration: '2 hours',
-    price: 45.00,
-    available: 8,
-    description: 'Learn the basics of candle making',
-  },
-  {
-    id: '2',
-    title: 'Advanced Scent Blending',
-    date: '2024-02-03',
-    time: '2:00 PM',
-    duration: '3 hours',
-    price: 65.00,
-    available: 5,
-    description: 'Create your own signature scents',
-  },
-  {
-    id: '3',
-    title: 'Container Selection',
-    date: '2024-02-05',
-    time: '11:00 AM',
-    duration: '1.5 hours',
-    price: 35.00,
-    available: 12,
-    description: 'Choosing the right container for your candle',
-  },
-  {
-    id: '4',
-    title: 'Wick Training',
-    date: '2024-02-08',
-    time: '3:00 PM',
-    duration: '2 hours',
-    price: 40.00,
-    available: 6,
-    description: 'Understanding wick sizes and types',
-  },
-  {
-    id: '5',
-    title: 'Holiday Specials',
-    date: '2024-02-10',
-    time: '10:00 AM',
-    duration: '4 hours',
-    price: 85.00,
-    available: 4,
-    description: 'Create seasonal candles for gifts',
-  },
-];
+import { getUpcomingClasses, CLASSES_PAGE_URL } from '../lib/classesCatalog';
 
 export default function ClassScheduleScreen() {
+  const classes = useMemo(() => getUpcomingClasses(), []);
+
   const handleBookClass = (classItem) => {
+    const url = classItem.url || CLASSES_PAGE_URL;
     Alert.alert(
-      'Book Class',
-      `Would you like to book "${classItem.title}" on ${classItem.date} at ${classItem.time}?`,
+      'Book this class',
+      `${classItem.scheduleLabel || classItem.title}\n\n$${Number(classItem.price).toFixed(2)} per seat\n\nContinue to thecandlegarden.co to reserve your spot?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Book Now',
-          onPress: () => Alert.alert('Booking Confirmed', `You're booked for ${classItem.title}!`),
+          text: 'Book on website',
+          onPress: () => Linking.openURL(url).catch(() => {}),
         },
       ]
     );
   };
 
-  const renderClass = ({ item }) => (
-    <View style={styles.classCard}>
-      <View style={styles.classHeader}>
-        <Text style={styles.classTitle}>{item.title}</Text>
-        <Text style={styles.classPrice}>
-          ${item.price ? item.price.toFixed(2) : '0.00'}
-        </Text>
-      </View>
+  const renderClass = ({ item }) => {
+    const seats =
+      item.available != null && !item.soldOut
+        ? `${item.available} seat${item.available === 1 ? '' : 's'} left`
+        : item.soldOut
+          ? 'Sold out'
+          : 'See website';
 
-      <Text style={styles.classDescription}>{item.description}</Text>
+    return (
+      <View style={styles.classCard}>
+        <View style={styles.classHeader}>
+          <View style={styles.classTitles}>
+            <Text style={styles.classTitle}>{item.title}</Text>
+            <Text style={styles.scheduleLabel}>{item.scheduleLabel}</Text>
+          </View>
+          <Text style={styles.classPrice}>
+            ${item.price != null ? Number(item.price).toFixed(2) : '—'}
+          </Text>
+        </View>
 
-      <View style={styles.classDetails}>
-        <Text style={styles.detailText}>📅 {item.date}</Text>
-        <Text style={styles.detailText}>🕐 {item.time}</Text>
-        <Text style={styles.detailText}>⏱️ {item.duration}</Text>
-      </View>
+        {item.description ? (
+          <Text style={styles.classDescription} numberOfLines={4}>
+            {item.description}
+          </Text>
+        ) : null}
 
-      <View style={styles.classFooter}>
-        <Text
-          style={[
-            styles.availability,
-            { color: item.available < 5 ? colors.warning : colors.primary },
-          ]}
-        >
-          {item.available} spots left
-        </Text>
-        <TouchableOpacity
-          style={styles.bookButton}
-          onPress={() => handleBookClass(item)}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.bookButtonText}>Book</Text>
-        </TouchableOpacity>
+        <View style={styles.classDetails}>
+          {item.dateDisplay ? (
+            <Text style={styles.detailText}>📅 {item.dateDisplay}</Text>
+          ) : null}
+          {item.time ? <Text style={styles.detailText}>🕐 {item.time}</Text> : null}
+          {item.duration ? <Text style={styles.detailText}>⏱️ {item.duration}</Text> : null}
+          {item.location ? (
+            <Text style={styles.detailText} numberOfLines={1}>
+              📍 {item.location}
+            </Text>
+          ) : null}
+        </View>
+
+        <View style={styles.classFooter}>
+          <Text
+            style={[
+              styles.availability,
+              {
+                color:
+                  item.soldOut || (item.available != null && item.available < 3)
+                    ? colors.warning
+                    : colors.primary,
+              },
+            ]}
+          >
+            {seats}
+          </Text>
+          <TouchableOpacity
+            style={[styles.bookButton, item.soldOut && styles.bookButtonDisabled]}
+            onPress={() => handleBookClass(item)}
+            disabled={Boolean(item.soldOut)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.bookButtonText}>
+              {item.soldOut ? 'Full' : 'Book'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <View style={styles.container}>
       <FlatList
-        data={SAMPLE_CLASSES}
-        keyExtractor={(item) => item.id}
+        data={classes}
+        keyExtractor={(item) => item.id || item.scheduleLabel}
         renderItem={renderClass}
         contentContainerStyle={styles.list}
         ListHeaderComponent={
@@ -122,7 +114,7 @@ export default function ClassScheduleScreen() {
               <View style={styles.heroOverlay} />
               <Text style={styles.heroTitle}>Candle classes</Text>
               <Text style={styles.heroSubtitle}>
-                Pour, blend, and take your creation home
+                Same public sessions as thecandlegarden.co
               </Text>
             </View>
             <ScrollView
@@ -134,13 +126,26 @@ export default function ClassScheduleScreen() {
                 <Image key={i} source={src} style={styles.stripImage} resizeMode="cover" />
               ))}
             </ScrollView>
-            <Text style={styles.title}>Class Schedule</Text>
-            <Text style={styles.subtitle}>Join one of our candle making classes!</Text>
+            <Text style={styles.title}>Upcoming classes</Text>
+            <Text style={styles.subtitle}>
+              {`Pour two 8.5oz soy candles · about 1 hour · $${
+                classes[0]?.price != null ? Number(classes[0].price).toFixed(0) : '60'
+              }/seat`}
+            </Text>
+            <TouchableOpacity
+              style={styles.siteLink}
+              onPress={() => Linking.openURL(CLASSES_PAGE_URL).catch(() => {})}
+            >
+              <Text style={styles.siteLinkText}>Open full schedule on website →</Text>
+            </TouchableOpacity>
           </View>
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No classes scheduled</Text>
+            <Text style={styles.emptyText}>No classes listed right now</Text>
+            <TouchableOpacity onPress={() => Linking.openURL(CLASSES_PAGE_URL)}>
+              <Text style={styles.siteLinkText}>Check the website</Text>
+            </TouchableOpacity>
           </View>
         }
       />
@@ -212,7 +217,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textMuted,
     textAlign: 'center',
+    marginBottom: 8,
+  },
+  siteLink: {
+    alignItems: 'center',
     marginBottom: 16,
+  },
+  siteLinkText: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.primary,
   },
   list: {
     paddingBottom: 28,
@@ -228,15 +243,25 @@ const styles = StyleSheet.create({
   classHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 8,
+  },
+  classTitles: {
+    flex: 1,
+    paddingRight: 8,
   },
   classTitle: {
     fontFamily: fonts.heading,
     fontSize: 18,
     fontWeight: '400',
-    flex: 1,
     color: colors.darkAccent,
+  },
+  scheduleLabel: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
+    marginTop: 2,
   },
   classPrice: {
     fontFamily: fonts.body,
@@ -246,19 +271,20 @@ const styles = StyleSheet.create({
   },
   classDescription: {
     fontFamily: fonts.body,
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textMuted,
     marginBottom: 12,
+    lineHeight: 18,
   },
   classDetails: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 10,
     marginBottom: 12,
   },
   detailText: {
     fontFamily: fonts.body,
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textSecondary,
   },
   classFooter: {
@@ -280,6 +306,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: radii.sm,
   },
+  bookButtonDisabled: {
+    backgroundColor: colors.disabled,
+  },
   bookButtonText: {
     color: colors.white,
     fontSize: 14,
@@ -291,6 +320,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingTop: 60,
+    gap: 12,
   },
   emptyText: {
     fontFamily: fonts.body,
