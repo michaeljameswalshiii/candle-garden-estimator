@@ -13,6 +13,8 @@ import ClassScheduleScreen from './screens/ClassScheduleScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import { colors, navigationTheme, fonts } from './lib/theme';
 import { CartProvider, useCart } from './lib/cart';
+import { AuthProvider, useAuth } from './lib/AuthContext';
+import { setAuthTokenGetter } from './lib/apiClient';
 
 // Lazy-load Estimator so expo-image-picker / prepareImage are not required at app start
 const EstimatorScreen = lazy(() => import('./screens/EstimatorScreen'));
@@ -34,8 +36,18 @@ function EstimatorSuspense() {
   );
 }
 
+function AuthTokenBridge({ children }) {
+  const { getIdToken } = useAuth();
+  React.useEffect(() => {
+    // API Gateway Cognito authorizer expects the ID token
+    setAuthTokenGetter(() => getIdToken());
+  }, [getIdToken]);
+  return children;
+}
+
 function MainTabs() {
   const { itemCount } = useCart();
+  const { isAuthenticated } = useAuth();
 
   return (
     <Tab.Navigator
@@ -98,19 +110,37 @@ function MainTabs() {
         }}
       />
       <Tab.Screen name="Classes" component={ClassScheduleScreen} options={{ title: 'Classes' }} />
-      <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profile' }} />
+      <Tab.Screen
+        name="Profile"
+        component={ProfileScreen}
+        options={{
+          title: 'Profile',
+          tabBarBadge: isAuthenticated ? undefined : '!',
+          tabBarBadgeStyle: {
+            backgroundColor: colors.warning,
+            fontSize: 10,
+            minWidth: 14,
+            height: 14,
+            lineHeight: 14,
+          },
+        }}
+      />
     </Tab.Navigator>
   );
 }
 
 export default function App() {
   return (
-    <CartProvider>
-      <NavigationContainer theme={navigationTheme}>
-        <StatusBar style="dark" />
-        <MainTabs />
-      </NavigationContainer>
-    </CartProvider>
+    <AuthProvider>
+      <AuthTokenBridge>
+        <CartProvider>
+          <NavigationContainer theme={navigationTheme}>
+            <StatusBar style="dark" />
+            <MainTabs />
+          </NavigationContainer>
+        </CartProvider>
+      </AuthTokenBridge>
+    </AuthProvider>
   );
 }
 

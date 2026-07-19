@@ -1,0 +1,7 @@
+{
+    "region":  "us-east-1",
+    "issuer":  "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_WTA7ZWxcr",
+    "userPoolId":  "us-east-1_WTA7ZWxcr",
+    "clientId":  "19gc38poajblf8qsagv3s93nvu",
+    "domainPrefix":  "candle-garden-app-c954c8f3"
+}

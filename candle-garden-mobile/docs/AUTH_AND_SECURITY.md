@@ -1,154 +1,80 @@
 # Auth & security — The Candle Garden App
 
-**Status:** Recommended plan (not fully implemented yet)  
-**App name:** The Candle Garden App  
-**Last updated:** 2026-07-19
-
-Profile today is **demo-only** (no real login). Use this doc when implementing accounts.
+**Status:** Phase 1 implemented (2026-07-19)  
+**App name:** The Candle Garden App
 
 ---
 
-## Goals
+## Live Cognito (us-east-1)
 
-| Goal | Why |
-|------|-----|
-| Save refill estimates & vessel history | Repeat customers |
-| Cart / orders tied to a person | Checkout, support, history |
-| Optional class booking identity | Same email as website |
-| Protect APIs (detect, orders) | Stop abuse of vision/billing endpoints |
-| Keep UX light | Don’t force signup before browsing shop/classes |
+| Item | Value |
+|------|--------|
+| User pool | `us-east-1_WTA7ZWxcr` (`candle-garden-app-users`) |
+| App client (public, no secret) | `19gc38poajblf8qsagv3s93nvu` |
+| Auth flows | `USER_PASSWORD_AUTH`, `REFRESH_TOKEN_AUTH`, `USER_SRP_AUTH` |
+| Hosted domain prefix | `candle-garden-app-c954c8f3` |
+| Config file | `lib/cognitoConfig.json` |
 
----
-
-## Recommended approach (phased)
-
-### Phase 0 — Guest mode (now / keep forever)
-
-- Browse **Shop**, **Classes**, **Home** without login  
-- **Refill estimator** can work as guest (device-local history optional)  
-- Soft prompt: “Save this estimate — create an account”
-
-### Phase 1 — Customer accounts (MVP auth)
-
-**Provider: AWS Cognito** (you already use Cognito on Turnkey/other AWS work) **or** Clerk/Auth0 if you want faster mobile UX.
-
-| Decision | Recommendation |
-|----------|----------------|
-| Identity | Email + password **or** “magic link” / OTP email |
-| Social (optional) | Apple Sign In (required if any social on iOS) + Google |
-| Guest checkout | Allowed; account optional |
-| Tokens | Cognito JWT (access + refresh); store in **expo-secure-store** only |
-| Session | Silent refresh; logout clears secure storage |
-
-**Why Cognito:** Fits existing AWS stack (API Gateway, Lambda detector), IAM authorizers, low cost at small scale.
-
-**Why not only Squarespace accounts:** Squarespace is weak as a mobile auth backend; better to own customer identity for refill/orders.
-
-### Phase 2 — Harden APIs
-
-| Control | How |
-|---------|-----|
-| Auth on sensitive routes | API Gateway JWT authorizer on `/detect`, order create, etc. |
-| Guest detect | Rate limit by device/IP + short-lived anonymous token |
-| Abuse | Cap images/day per user; size limits; WAF optional |
-| Secrets | Never ship AWS keys in the app; only call **your** HTTPS APIs |
-| Images | Private S3 + short-lived upload URLs if you store photos |
-
-### Phase 3 — Business features
-
-- Order history (refills + shop cart intent)  
-- Saved addresses for return shipping  
-- Push notifications (Expo) for “refill ready / shipped”  
-- Staff/admin is **separate** (not this consumer app)
+Password policy: min 8, upper + lower + number.
 
 ---
 
-## Security baseline (do these regardless of provider)
+## Mobile app
 
-1. **HTTPS only** for all APIs  
-2. **No long-lived secrets** in the mobile binary  
-3. **Secure storage** for tokens (`expo-secure-store`), not AsyncStorage alone  
-4. **Certificate pinning** optional later (mitm for high risk)  
-5. **Privacy policy + terms** before App Store: camera, photos, account data  
-6. **Minimal PII:** name, email, phone, shipping address; document retention  
-7. **App Transport / ATS** defaults (already normal on iOS)  
-8. **Encryption export** — you already set `ITSAppUsesNonExemptEncryption: false` for standard HTTPS  
-9. **Input validation** server-side on every Lambda  
-10. **CORS** locked to known web origins if you add a web client  
+| Piece | Location |
+|-------|----------|
+| Secure token storage | `lib/authStorage.js` + `expo-secure-store` |
+| Cognito API client | `lib/cognitoClient.js` |
+| Auth context | `lib/AuthContext.js` (`AuthProvider`, `useAuth`) |
+| API + JWT headers | `lib/apiClient.js` (sends **ID token** as `Authorization: Bearer`) |
+| Profile UI | `screens/ProfileScreen.js` — sign up / confirm / sign in / sign out |
 
----
+### Guest vs signed-in
 
-## Suggested UX flow
-
-```
-App open
-  → Guest home (shop / classes / estimator)
-  → Profile → “Sign in or create account”
-  → Email OTP or password
-  → Optional: link guest cart / last estimate to account
-```
-
-**Don’t** block the whole app behind login. Force auth only when:
-
-- Saving order history  
-- Placing a paid refill that needs identity  
-- Viewing past orders  
+- **Guest:** Shop, Classes, Home, Refill detect  
+- **Signed-in:** Orders API (`GET/POST /orders`), cart “Place order”, profile session  
 
 ---
 
-## Data model (minimal)
+## API Gateway (`yg1ec20ucf` / prod)
 
-| Entity | Fields |
-|--------|--------|
-| User | id, email, name, phone, cognito_sub, created_at |
-| Address | user_id, line1, city, state, zip |
-| RefillEstimate | user_id?, device_id?, ounces, vessels_json, box_key, total, created_at |
-| Order | user_id, type (refill/shop), status, totals, shipping |
+| Route | Auth |
+|-------|------|
+| `POST /detect` | **NONE** (guest estimator; client still attaches JWT when signed in) |
+| `GET/POST /orders`, `GET/PUT /orders/{id}` | **COGNITO_USER_POOLS** authorizer `CandleGardenCognito` (`g4z8y1`) |
 
----
+Order Lambda forces `customer_id` from JWT `sub` (ignores spoofed body ids). If RDS is offline, POST still returns an accepted ephemeral order for mobile UX.
 
-## Expo / app wiring (when implementing)
-
-| Package | Use |
-|---------|-----|
-| `expo-secure-store` | Tokens |
-| `expo-auth-session` + Cognito Hosted UI **or** Amplify Auth | Login |
-| `expo-apple-authentication` | Sign in with Apple |
-| React Context `AuthProvider` | Session + profile |
-
-API clients send: `Authorization: Bearer <access_token>`.
+CDK (`candle_saas/stacks/api.py`) updated so future deploys keep Cognito on orders.
 
 ---
 
-## App Store notes
+## Phase 2+ (not done)
 
-- **Sign in with Apple** if you offer any third-party login  
-- Account deletion path required (Settings → Delete account → API)  
-- Privacy nutrition labels: camera, photos, contact info, identifiers  
-
----
-
-## Name
-
-| Surface | Value |
-|---------|--------|
-| Display name | **The Candle Garden App** |
-| Expo `app.json` `name` | The Candle Garden App |
-| Bundle id (unchanged) | `com.michaeljameswalshiii.candlegarden` |
-| Expo slug (unchanged) | `candle-garden-estimator` (URL stability on Expo) |
-
-Changing the **store listing** name is free in App Store Connect / Play Console; changing **bundle id** is a new app — avoid unless required.
+- Rate limit guest `/detect`  
+- Optional JWT validation on detect for attribution  
+- Sign in with Apple / Google  
+- Account deletion API  
+- Persistent cart  
+- Email templates branding in Cognito  
 
 ---
 
-## Next implementation sprint (when you say go)
+## How to test
 
-1. Cognito user pool (app client, no secret for public mobile)  
-2. `AuthProvider` + SecureStore  
-3. Profile: real sign-in / sign-out / delete account stub  
-4. API Gateway JWT on detector (with guest rate limit)  
-5. Attach `user_id` to refill estimates when logged in  
+1. Reload Expo Go → **Profile**  
+2. **Create** account with a real email → enter confirmation code  
+3. **Sign in**  
+4. Add shop items → **Cart** → **Place order (signed in)**  
+5. Sign out → order API should 401 without token  
 
 ---
 
-*Profile UI logout today is a stub until Phase 1 ships.*
+## Security baseline (still apply)
+
+1. HTTPS only  
+2. No AWS secrets in the app  
+3. Tokens only in Secure Store  
+4. Privacy policy before store launch  
+5. Account deletion before App Store  
+6. Sign in with Apple if any social login is added  

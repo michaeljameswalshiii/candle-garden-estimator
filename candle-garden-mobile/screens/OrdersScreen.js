@@ -12,9 +12,12 @@ import {
 import { colors, fonts, radii, spacing } from '../lib/theme';
 import { useCart } from '../lib/cart';
 import { SHOP_BASE } from '../lib/shopCatalog';
+import { useAuth } from '../lib/AuthContext';
+import { createOrder } from '../lib/apiClient';
 
 export default function OrdersScreen() {
   const { lines, itemCount, subtotal, setQuantity, removeItem, clearCart } = useCart();
+  const { isAuthenticated } = useAuth();
 
   const checkoutOnSite = () => {
     if (!lines.length) return;
@@ -29,6 +32,31 @@ export default function OrdersScreen() {
         },
       ]
     );
+  };
+
+  const submitAuthenticatedOrder = async () => {
+    if (!lines.length) return;
+    if (!isAuthenticated) {
+      Alert.alert('Sign in required', 'Open Profile to create an account or sign in, then place the order.');
+      return;
+    }
+    try {
+      const items = lines.map((l) => ({
+        product_id: l.productId,
+        name: l.name,
+        size: l.size,
+        quantity: l.quantity,
+        price: l.unitPrice,
+      }));
+      const result = await createOrder({ items, source: 'mobile_cart' });
+      clearCart();
+      Alert.alert(
+        'Order received',
+        result.message || `Order ${result.id || ''} submitted for your account.`
+      );
+    } catch (e) {
+      Alert.alert('Order failed', e.message || 'Could not submit order');
+    }
   };
 
   const renderLine = ({ item }) => (
@@ -102,8 +130,13 @@ export default function OrdersScreen() {
                 </Text>
                 <Text style={styles.subtotalValue}>${subtotal.toFixed(2)}</Text>
               </View>
-              <TouchableOpacity style={styles.checkoutBtn} onPress={checkoutOnSite}>
-                <Text style={styles.checkoutText}>Checkout on website</Text>
+              <TouchableOpacity style={styles.checkoutBtn} onPress={submitAuthenticatedOrder}>
+                <Text style={styles.checkoutText}>
+                  {isAuthenticated ? 'Place order (signed in)' : 'Sign in to place order'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.secondaryBtn} onPress={checkoutOnSite}>
+                <Text style={styles.secondaryText}>Checkout on website instead</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.clearBtn} onPress={clearCart}>
                 <Text style={styles.clearText}>Clear cart</Text>
@@ -271,6 +304,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     letterSpacing: 0.8,
+  },
+  secondaryBtn: {
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: radii.sm,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  secondaryText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '600',
   },
   clearBtn: {
     alignItems: 'center',

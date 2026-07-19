@@ -37,6 +37,9 @@
     "splash": {
       "backgroundColor": "#103831"
     },
-    "primaryColor": "#103831"
+    "primaryColor": "#103831",
+    "plugins": [
+      "expo-secure-store"
+    ]
   }
 }

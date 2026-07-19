@@ -9,6 +9,8 @@ import {
 } from '../lib/pricing';
 import { prepareImageForDetect, isImageManipulatorAvailable } from '../lib/prepareImage';
 import { colors, fonts, radii, spacing } from '../lib/theme';
+import { postDetect } from '../lib/apiClient';
+import { useAuth } from '../lib/AuthContext';
 
 // Custom Button component to avoid Fabric boolean prop issues
 function CustomButton({ title, onPress, disabled, color }) {
@@ -33,6 +35,7 @@ function CustomButton({ title, onPress, disabled, color }) {
 // EstimatorScreen for refill calculations
 export default function EstimatorScreen() {
   const navigation = useNavigation();
+  const { isAuthenticated } = useAuth();
   const [image, setImage] = useState(null);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -53,8 +56,6 @@ export default function EstimatorScreen() {
       });
     }
   };
-
-  const DETECTOR_URL = 'https://yg1ec20ucf.execute-api.us-east-1.amazonaws.com/prod/detect';
 
   const pickerOptions = {
     mediaTypes: ['images'],
@@ -136,21 +137,12 @@ export default function EstimatorScreen() {
         return;
       }
 
-      const detectResponse = await fetch(DETECTOR_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: prepared.base64 }),
-      });
-
-      const rawText = await detectResponse.text();
       let detectData;
       try {
-        detectData = JSON.parse(rawText);
-      } catch {
+        detectData = await postDetect({ image: prepared.base64 });
+      } catch (apiErr) {
         promptManualFallback([
-          detectResponse.ok
-            ? 'Server returned an invalid response'
-            : `Server error (${detectResponse.status}) — photo may be too large or network failed`,
+          apiErr.message || 'Server error — photo may be too large or network failed',
         ]);
         return;
       }
@@ -168,9 +160,9 @@ export default function EstimatorScreen() {
         return;
       }
 
-      if (!detectResponse.ok && !detectData.estimated_ounces) {
+      if (detectData.success === false && !detectData.estimated_ounces) {
         promptManualFallback(
-          detectData.tips || [detectData.error || `Request failed (${detectResponse.status})`]
+          detectData.tips || [detectData.error || 'Detection failed']
         );
         return;
       }
@@ -232,7 +224,9 @@ export default function EstimatorScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Refill Estimator</Text>
-      <Text style={styles.buildTag}>build: multi-vessel-v4</Text>
+      <Text style={styles.buildTag}>
+        build: multi-vessel-v4 · {isAuthenticated ? 'signed in' : 'guest'}
+      </Text>
       <Text style={styles.instruction}>
         Take a clear photo of your empty (or mostly empty) candle vessel from above or the side. Good examples: mugs, jars, bowls, glasses.
       </Text>

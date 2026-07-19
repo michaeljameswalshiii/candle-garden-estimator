@@ -1,6 +1,16 @@
-import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, Alert } from 'react-native';
+import React, { useState } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  TextInput,
+  ScrollView,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
 import { colors, fonts, radii, spacing } from '../lib/theme';
+import { useAuth } from '../lib/AuthContext';
 
 function CustomSwitch({ value, onValueChange }) {
   const isOn = Boolean(value);
@@ -18,27 +28,230 @@ function CustomSwitch({ value, onValueChange }) {
 }
 
 export default function ProfileScreen() {
-  const [name, setName] = React.useState('Demo User');
-  const [email, setEmail] = React.useState('user@example.com');
-  const [phone, setPhone] = React.useState('(555) 123-4567');
-  const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
-  const [isEditing, setIsEditing] = React.useState(false);
+  const {
+    user,
+    isAuthenticated,
+    booting,
+    busy,
+    signIn,
+    signUp,
+    confirmSignUp,
+    resendCode,
+    signOut,
+  } = useAuth();
 
-  const handleSave = () => {
-    setIsEditing(false);
-    Alert.alert('Success', 'Profile saved successfully!');
+  const [mode, setMode] = useState('signin'); // signin | signup | confirm
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+
+  const onSignIn = async () => {
+    try {
+      await signIn({ email: email.trim(), password });
+      setPassword('');
+      Alert.alert('Welcome back', 'You are signed in.');
+    } catch (e) {
+      if (String(e.message || '').includes('UserNotConfirmed')) {
+        setMode('confirm');
+        Alert.alert('Confirm email', 'Enter the verification code we emailed you.');
+        return;
+      }
+      Alert.alert('Sign in failed', e.message || 'Please try again');
+    }
+  };
+
+  const onSignUp = async () => {
+    try {
+      const result = await signUp({
+        email: email.trim(),
+        password,
+        name: name.trim() || undefined,
+      });
+      if (result.needsConfirmation) {
+        setMode('confirm');
+        Alert.alert(
+          'Check your email',
+          'Enter the 6-digit confirmation code to activate your account.'
+        );
+      } else {
+        await signIn({ email: email.trim(), password });
+      }
+    } catch (e) {
+      Alert.alert('Sign up failed', e.message || 'Please try again');
+    }
+  };
+
+  const onConfirm = async () => {
+    try {
+      await confirmSignUp({ email: email.trim(), code: code.trim() });
+      await signIn({ email: email.trim(), password });
+      setCode('');
+      setPassword('');
+      setMode('signin');
+      Alert.alert('Account ready', 'You are signed in.');
+    } catch (e) {
+      Alert.alert('Confirmation failed', e.message || 'Check the code and try again');
+    }
+  };
+
+  const onResend = async () => {
+    try {
+      await resendCode(email.trim());
+      Alert.alert('Code sent', 'Check your email for a new code.');
+    } catch (e) {
+      Alert.alert('Could not resend', e.message || 'Try again later');
+    }
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Logout', style: 'destructive', onPress: () => Alert.alert('Logged out') },
-      ]
-    );
+    Alert.alert('Sign out', 'Sign out of The Candle Garden App?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign out',
+        style: 'destructive',
+        onPress: async () => {
+          await signOut();
+          Alert.alert('Signed out');
+        },
+      },
+    ]);
   };
+
+  if (booting) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.muted}>Loading account…</Text>
+      </View>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
+        <Text style={styles.title}>Account</Text>
+        <Text style={styles.lead}>
+          Sign in to save orders and attach refill quotes to your profile. You can still
+          browse Shop and Classes as a guest.
+        </Text>
+
+        <View style={styles.section}>
+          <View style={styles.modeRow}>
+            {['signin', 'signup', 'confirm'].map((m) => (
+              <TouchableOpacity
+                key={m}
+                style={[styles.modeChip, mode === m && styles.modeChipOn]}
+                onPress={() => setMode(m)}
+              >
+                <Text style={[styles.modeChipText, mode === m && styles.modeChipTextOn]}>
+                  {m === 'signin' ? 'Sign in' : m === 'signup' ? 'Create' : 'Confirm'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {mode === 'signup' ? (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Name</Text>
+              <TextInput
+                style={styles.input}
+                value={name}
+                onChangeText={setName}
+                placeholder="Your name"
+                placeholderTextColor={colors.textFaint}
+                autoCapitalize="words"
+              />
+            </View>
+          ) : null}
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder="you@example.com"
+              placeholderTextColor={colors.textFaint}
+            />
+          </View>
+
+          {mode !== 'confirm' ? (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Password</Text>
+              <TextInput
+                style={styles.input}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                placeholder="Min 8 chars, upper, lower, number"
+                placeholderTextColor={colors.textFaint}
+              />
+            </View>
+          ) : (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Confirmation code</Text>
+              <TextInput
+                style={styles.input}
+                value={code}
+                onChangeText={setCode}
+                keyboardType="number-pad"
+                placeholder="6-digit code from email"
+                placeholderTextColor={colors.textFaint}
+              />
+            </View>
+          )}
+
+          {mode === 'confirm' && password ? null : mode === 'confirm' ? (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Password (to sign in after confirm)</Text>
+              <TextInput
+                style={styles.input}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                placeholder="Your password"
+                placeholderTextColor={colors.textFaint}
+              />
+            </View>
+          ) : null}
+
+          <TouchableOpacity
+            style={[styles.button, busy && styles.buttonDisabled]}
+            onPress={
+              mode === 'signin' ? onSignIn : mode === 'signup' ? onSignUp : onConfirm
+            }
+            disabled={busy}
+            activeOpacity={0.8}
+          >
+            {busy ? (
+              <ActivityIndicator color={colors.white} />
+            ) : (
+              <Text style={styles.buttonText}>
+                {mode === 'signin'
+                  ? 'Sign in'
+                  : mode === 'signup'
+                    ? 'Create account'
+                    : 'Confirm & sign in'}
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          {mode === 'confirm' ? (
+            <TouchableOpacity style={styles.linkBtn} onPress={onResend} disabled={busy}>
+              <Text style={styles.linkText}>Resend code</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+
+        <Text style={styles.version}>Secured with Amazon Cognito · Phase 1</Text>
+      </ScrollView>
+    );
+  }
 
   return (
     <ScrollView style={styles.container}>
@@ -46,70 +259,34 @@ export default function ProfileScreen() {
 
       <View style={styles.avatarContainer}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>👤</Text>
+          <Text style={styles.avatarText}>
+            {(user?.name || user?.email || '?').charAt(0).toUpperCase()}
+          </Text>
         </View>
-        <Text style={styles.avatarName}>{name}</Text>
+        <Text style={styles.avatarName}>{user?.name || 'Customer'}</Text>
+        <Text style={styles.muted}>{user?.email}</Text>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Personal Information</Text>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Name</Text>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            editable={Boolean(isEditing)}
-            placeholder="Enter your name"
-            placeholderTextColor={colors.textFaint}
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            editable={Boolean(isEditing)}
-            placeholder="Enter your email"
-            placeholderTextColor={colors.textFaint}
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Phone</Text>
-          <TextInput
-            style={styles.input}
-            value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
-            editable={Boolean(isEditing)}
-            placeholder="Enter your phone"
-            placeholderTextColor={colors.textFaint}
-          />
-        </View>
-
-        <TouchableOpacity
-          style={styles.button}
-          onPress={isEditing ? handleSave : () => setIsEditing(true)}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.buttonText}>
-            {isEditing ? 'Save Changes' : 'Edit Profile'}
+        <Text style={styles.sectionTitle}>Account</Text>
+        <Text style={styles.infoLine}>Email: {user?.email}</Text>
+        {user?.sub ? (
+          <Text style={styles.infoLine} numberOfLines={1}>
+            ID: {user.sub}
           </Text>
-        </TouchableOpacity>
+        ) : null}
+        <Text style={styles.hint}>
+          Orders API calls use your secure session. Refill detect still works as guest
+          when signed out.
+        </Text>
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Preferences</Text>
-
         <View style={styles.settingRow}>
           <View>
             <Text style={styles.settingLabel}>Push Notifications</Text>
-            <Text style={styles.settingDescription}>Receive notifications about orders</Text>
+            <Text style={styles.settingDescription}>Order and refill updates (soon)</Text>
           </View>
           <CustomSwitch
             value={notificationsEnabled}
@@ -118,32 +295,13 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Account</Text>
-
-        <TouchableOpacity style={styles.menuItem}>
-          <Text style={styles.menuText}>📦 Order History</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.menuItem}>
-          <Text style={styles.menuText}>💳 Payment Methods</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.menuItem}>
-          <Text style={styles.menuText}>📍 Shipping Addresses</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.menuItem}>
-          <Text style={styles.menuText}>❓ Help & Support</Text>
-        </TouchableOpacity>
-      </View>
-
       <TouchableOpacity
         style={[styles.button, styles.logoutButton]}
         onPress={handleLogout}
         activeOpacity={0.8}
+        disabled={busy}
       >
-        <Text style={[styles.buttonText, styles.logoutText]}>Logout</Text>
+        <Text style={[styles.buttonText, styles.logoutText]}>Sign out</Text>
       </TouchableOpacity>
 
       <Text style={styles.version}>Version 1.0.0 · The Candle Garden App</Text>
@@ -157,18 +315,36 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     padding: spacing.md,
   },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   title: {
     fontFamily: fonts.heading,
     fontSize: 26,
     fontWeight: '400',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 12,
     marginTop: 10,
     color: colors.primary,
   },
+  lead: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  muted: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.textMuted,
+    marginTop: 4,
+  },
   avatarContainer: {
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: 24,
   },
   avatar: {
     width: 80,
@@ -182,7 +358,9 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
   avatarText: {
-    fontSize: 36,
+    fontSize: 32,
+    fontWeight: '700',
+    color: colors.primary,
   },
   avatarName: {
     fontFamily: fonts.heading,
@@ -205,8 +383,34 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     color: colors.primary,
   },
-  inputGroup: {
+  modeRow: {
+    flexDirection: 'row',
+    gap: 8,
     marginBottom: 16,
+  },
+  modeChip: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    backgroundColor: colors.white,
+  },
+  modeChipOn: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  modeChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  modeChipTextOn: {
+    color: colors.white,
+  },
+  inputGroup: {
+    marginBottom: 14,
   },
   label: {
     fontFamily: fonts.body,
@@ -231,11 +435,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 10,
   },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
   buttonText: {
     color: colors.white,
     fontSize: 15,
     fontWeight: '500',
     letterSpacing: 1.2,
+  },
+  linkBtn: {
+    alignItems: 'center',
+    marginTop: 14,
+  },
+  linkText: {
+    color: colors.primary,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  infoLine: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 6,
+  },
+  hint: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textFaint,
+    marginTop: 8,
+    lineHeight: 17,
   },
   settingRow: {
     flexDirection: 'row',
@@ -255,19 +484,9 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: 2,
   },
-  menuItem: {
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  menuText: {
-    fontFamily: fonts.body,
-    fontSize: 16,
-    color: colors.text,
-  },
   logoutButton: {
     backgroundColor: colors.danger,
-    marginTop: 20,
+    marginTop: 8,
   },
   logoutText: {
     color: colors.white,

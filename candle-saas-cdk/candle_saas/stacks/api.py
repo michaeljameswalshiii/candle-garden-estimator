@@ -8,8 +8,10 @@ from aws_cdk import (
     aws_ec2 as ec2,
     aws_s3 as s3,
     aws_rds as rds,
+    aws_cognito as cognito,
     Duration,
     Size,
+    CfnOutput,
 )
 from constructs import Construct
 
@@ -141,20 +143,43 @@ class APIStack(Stack):
             lambda_execution_role, vpc, lambda_sg
         )
         
+        # Cognito user pool for The Candle Garden App (import existing Phase 1 pool when set)
+        pool_id = self.node.try_get_context("cognitoUserPoolId") or "us-east-1_WTA7ZWxcr"
+        user_pool = cognito.UserPool.from_user_pool_id(self, "CandleGardenUserPool", pool_id)
+        cognito_authorizer = apigw.CognitoUserPoolsAuthorizer(
+            self, "CandleGardenAuthorizer",
+            cognito_user_pools=[user_pool],
+            authorizer_name="CandleGardenCognito",
+            identity_source="method.request.header.Authorization",
+        )
+        auth_opts = apigw.MethodOptions(
+            authorization_type=apigw.AuthorizationType.COGNITO,
+            authorizer=cognito_authorizer,
+        )
+
         # Create API Gateway
         api = apigw.RestApi(
             self, "CandleSaasAPI",
             rest_api_name="Candle SaaS API",
             description="API for candle refill SaaS platform",
             endpoint_types=[apigw.EndpointType.REGIONAL],
+            default_cors_preflight_options=apigw.CorsOptions(
+                allow_origins=apigw.Cors.ALL_ORIGINS,
+                allow_methods=apigw.Cors.ALL_METHODS,
+                allow_headers=["Content-Type", "Authorization"],
+            ),
         )
         
         # Add API resources and integrations
         self._setup_products_endpoint(api, product_manager_fn)
-        self._setup_orders_endpoint(api, order_processor_fn)
+        self._setup_orders_endpoint(api, order_processor_fn, auth_opts)
         self._setup_recommendations_endpoint(api, ai_recommendations_fn)
         self._setup_images_endpoint(api, image_processor_fn)
+        # Detect stays public for guest estimator; client may still send JWT
         self._setup_detect_endpoint(api, container_detector_fn)
+
+        CfnOutput(self, "CognitoUserPoolId", value=pool_id)
+        CfnOutput(self, "ApiUrl", value=api.url)
     
     def _create_product_manager_function(
         self, role: iam.Role, vpc: ec2.Vpc, sg: ec2.SecurityGroup, db
@@ -298,20 +323,31 @@ class APIStack(Stack):
         product.add_method("PUT", integration)
         product.add_method("DELETE", integration)
     
-    def _setup_orders_endpoint(self, api: apigw.RestApi, function: lambda_.Function):
-        """Setup /orders endpoint."""
+    def _setup_orders_endpoint(
+        self,
+        api: apigw.RestApi,
+        function: lambda_.Function,
+        auth_opts=None,
+    ):
+        """Setup /orders endpoint (Cognito JWT required)."""
         orders = api.root.add_resource("orders")
         integration = apigw.LambdaIntegration(function)
-        
-        orders.add_method("GET", integration)
-        orders.add_method("POST", integration)
+        method_kwargs = {}
+        if auth_opts is not None:
+            method_kwargs = {
+                "authorization_type": auth_opts.authorization_type,
+                "authorizer": auth_opts.authorizer,
+            }
+
+        orders.add_method("GET", integration, **method_kwargs)
+        orders.add_method("POST", integration, **method_kwargs)
         
         order = orders.add_resource("{id}")
-        order.add_method("GET", integration)
-        order.add_method("PUT", integration)
+        order.add_method("GET", integration, **method_kwargs)
+        order.add_method("PUT", integration, **method_kwargs)
         
         order_confirm = order.add_resource("confirm")
-        order_confirm.add_method("POST", integration)
+        order_confirm.add_method("POST", integration, **method_kwargs)
     
     def _setup_recommendations_endpoint(self, api: apigw.RestApi, function: lambda_.Function):
         """Setup /recommendations endpoint."""
