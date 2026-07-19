@@ -132,6 +132,13 @@ export async function globalSignOut(accessToken) {
   }
 }
 
+/** Permanently delete the signed-in user (Cognito DeleteUser). */
+export async function deleteUser(accessToken) {
+  return cognitoRequest('DeleteUser', {
+    AccessToken: accessToken,
+  });
+}
+
 export function attributesToObject(userResult) {
   const attrs = {};
   (userResult.UserAttributes || []).forEach((a) => {

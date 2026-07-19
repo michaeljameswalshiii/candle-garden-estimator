@@ -1,7 +1,8 @@
 # Auth & security — The Candle Garden App
 
-**Status:** Phase 1 implemented (2026-07-19)  
-**App name:** The Candle Garden App
+**Status:** Phase 1 + Phase 2 core implemented (2026-07-19)  
+**App name:** The Candle Garden App  
+**Phase 2 details:** `docs/PHASE2_AUTH.md`
 
 ---
 
@@ -49,14 +50,21 @@ CDK (`candle_saas/stacks/api.py`) updated so future deploys keep Cognito on orde
 
 ---
 
-## Phase 2+ (not done)
+## Phase 2 (core done)
 
-- Rate limit guest `/detect`  
-- Optional JWT validation on detect for attribution  
+- Rate limit guest `/detect` (DynamoDB; 20/hr guest, 80/hr signed-in)  
+- Optional JWT attribution on detect (response `user` + `rate_limit`)  
+- Account deletion (Cognito DeleteUser + Profile UI)  
+- Persistent cart (SecureStore)  
+- Order history (`GET /orders` on Cart tab)  
+
+## Phase 2.5 / 3 (not done)
+
 - Sign in with Apple / Google  
-- Account deletion API  
-- Persistent cart  
-- Email templates branding in Cognito  
+- SES branded Cognito emails  
+- Full JWT verify / authorizer on detect  
+- Backend data purge on account delete  
+- Push notifications  
 
 ---
 

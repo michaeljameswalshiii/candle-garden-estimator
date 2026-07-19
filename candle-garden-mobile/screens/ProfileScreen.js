@@ -38,6 +38,7 @@ export default function ProfileScreen() {
     confirmSignUp,
     resendCode,
     signOut,
+    deleteAccount,
   } = useAuth();
 
   const [mode, setMode] = useState('signin'); // signin | signup | confirm
@@ -117,6 +118,41 @@ export default function ProfileScreen() {
         },
       },
     ]);
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete account',
+      'This permanently deletes your Cognito login. Orders and local cart data may remain until support purge. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete forever',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Confirm delete',
+              'Are you sure? You will need to create a new account to sign in again.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Yes, delete',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      await deleteAccount();
+                      Alert.alert('Account deleted', 'Your login has been removed.');
+                    } catch (e) {
+                      Alert.alert('Could not delete', e.message || 'Try again later');
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
   };
 
   if (booting) {
@@ -302,6 +338,15 @@ export default function ProfileScreen() {
         disabled={busy}
       >
         <Text style={[styles.buttonText, styles.logoutText]}>Sign out</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.deleteBtn}
+        onPress={handleDeleteAccount}
+        activeOpacity={0.8}
+        disabled={busy}
+      >
+        <Text style={styles.deleteText}>Delete account</Text>
       </TouchableOpacity>
 
       <Text style={styles.version}>Version 1.0.0 · The Candle Garden App</Text>
@@ -490,6 +535,17 @@ const styles = StyleSheet.create({
   },
   logoutText: {
     color: colors.white,
+  },
+  deleteBtn: {
+    alignItems: 'center',
+    marginTop: 16,
+    paddingVertical: 10,
+  },
+  deleteText: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.danger,
+    fontWeight: '600',
   },
   version: {
     fontFamily: fonts.body,

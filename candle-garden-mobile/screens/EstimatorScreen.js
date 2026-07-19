@@ -141,6 +141,14 @@ export default function EstimatorScreen() {
       try {
         detectData = await postDetect({ image: prepared.base64 });
       } catch (apiErr) {
+        if (apiErr.status === 429 || apiErr.data?.error === 'rate_limited') {
+          promptManualFallback([
+            apiErr.data?.message || apiErr.message || 'Too many estimates from this device',
+            'Wait a bit and try again, or sign in for a higher limit',
+            'You can still enter ounces manually',
+          ]);
+          return;
+        }
         promptManualFallback([
           apiErr.message || 'Server error — photo may be too large or network failed',
         ]);

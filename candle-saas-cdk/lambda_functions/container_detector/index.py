@@ -18,6 +18,12 @@ CLAUDE_MODEL_ID = os.environ.get(
 )
 NOVA_MODEL_ID = os.environ.get("NOVA_MODEL_ID", "amazon.nova-pro-v1:0")
 MIN_CONFIDENCE = float(os.environ.get("MIN_CONFIDENCE", "0.5"))
+RATE_LIMIT_TABLE = os.environ.get("RATE_LIMIT_TABLE", "candle-garden-detect-rate-limits")
+GUEST_DETECT_LIMIT = int(os.environ.get("GUEST_DETECT_LIMIT", "20"))
+AUTH_DETECT_LIMIT = int(os.environ.get("AUTH_DETECT_LIMIT", "80"))
+RATE_WINDOW_SECONDS = int(os.environ.get("RATE_WINDOW_SECONDS", "3600"))
+
+dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
 
 # Bedrock vision accepts jpeg/png/gif/webp — not HEIC/HEIF (iPhone default).
 SUPPORTED_FORMATS = {"jpeg", "jpg", "png", "gif", "webp"}
@@ -511,11 +517,106 @@ def analyze_image(body):
     )
 
 
+def _client_ip(event):
+    headers = event.get("headers") or {}
+    # API Gateway may lowercase headers
+    lower = {str(k).lower(): v for k, v in headers.items()}
+    xff = lower.get("x-forwarded-for") or ""
+    if xff:
+        return xff.split(",")[0].strip()
+    req = event.get("requestContext") or {}
+    identity = req.get("identity") or {}
+    return identity.get("sourceIp") or "unknown"
+
+
+def _optional_jwt_claims(event):
+    """
+    Best-effort decode of Bearer JWT payload (no signature verify).
+    Used only for rate-limit bucket key + response attribution when API GW
+    has no Cognito authorizer on /detect. Not a security boundary.
+    """
+    headers = event.get("headers") or {}
+    lower = {str(k).lower(): v for k, v in headers.items()}
+    auth = lower.get("authorization") or ""
+    if not auth.lower().startswith("bearer "):
+        return {}
+    token = auth.split(" ", 1)[1].strip()
+    parts = token.split(".")
+    if len(parts) < 2:
+        return {}
+    try:
+        pad = "=" * (-len(parts[1]) % 4)
+        raw = base64.urlsafe_b64decode(parts[1] + pad)
+        data = json.loads(raw.decode("utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _rate_limit_check(bucket_key, limit):
+    """
+    Sliding window counter in DynamoDB.
+    Returns (allowed: bool, remaining: int, limit: int)
+    """
+    if not RATE_LIMIT_TABLE:
+        return True, limit, limit
+
+    now = int(__import__("time").time())
+    window = RATE_WINDOW_SECONDS
+    window_id = now // window
+    pk = f"{bucket_key}#{window_id}"
+    ttl = (window_id + 2) * window
+
+    table = dynamodb.Table(RATE_LIMIT_TABLE)
+    try:
+        resp = table.update_item(
+            Key={"pk": pk},
+            UpdateExpression="ADD #c :one SET #ttl = if_not_exists(#ttl, :ttl)",
+            ExpressionAttributeNames={"#c": "count", "#ttl": "ttl"},
+            ExpressionAttributeValues={":one": 1, ":ttl": ttl},
+            ReturnValues="UPDATED_NEW",
+        )
+        count = int(resp.get("Attributes", {}).get("count", 1))
+        remaining = max(0, limit - count)
+        return count <= limit, remaining, limit
+    except Exception as e:
+        # Fail open on rate-limit infra errors so refills keep working
+        logger.warning(f"Rate limit check failed open: {e}")
+        return True, limit, limit
+
+
 def handler(event, context):
     try:
         # CORS preflight
         if (event.get("httpMethod") or event.get("requestContext", {}).get("http", {}).get("method", "")).upper() == "OPTIONS":
             return _json_response(200, {"ok": True})
+
+        claims = _optional_jwt_claims(event)
+        user_sub = claims.get("sub")
+        user_email = claims.get("email")
+        is_authenticated = bool(user_sub)
+
+        ip = _client_ip(event)
+        if is_authenticated:
+            bucket = f"user:{user_sub}"
+            limit = AUTH_DETECT_LIMIT
+        else:
+            bucket = f"ip:{ip}"
+            limit = GUEST_DETECT_LIMIT
+
+        allowed, remaining, lim = _rate_limit_check(bucket, limit)
+        if not allowed:
+            return _json_response(429, {
+                "success": False,
+                "error": "rate_limited",
+                "message": (
+                    "Too many estimate requests. Please try again later"
+                    + (" or sign in for a higher limit." if not is_authenticated else ".")
+                ),
+                "limit": lim,
+                "remaining": 0,
+                "window_seconds": RATE_WINDOW_SECONDS,
+            })
 
         body_raw = event.get("body")
         if event.get("isBase64Encoded") and isinstance(body_raw, str):
@@ -543,7 +644,30 @@ def handler(event, context):
                 "success": False,
             })
 
-        return analyze_image(body)
+        result = analyze_image(body)
+        # Attach attribution + rate-limit metadata when possible
+        try:
+            if isinstance(result, dict) and result.get("body"):
+                payload = json.loads(result["body"])
+                payload["rate_limit"] = {
+                    "remaining": remaining,
+                    "limit": lim,
+                    "window_seconds": RATE_WINDOW_SECONDS,
+                    "bucket": "user" if is_authenticated else "guest_ip",
+                }
+                if user_sub:
+                    payload["user"] = {
+                        "sub": user_sub,
+                        "email": user_email,
+                        "authenticated": True,
+                    }
+                else:
+                    payload["user"] = {"authenticated": False}
+                result["body"] = json.dumps(payload)
+        except Exception as meta_err:
+            logger.warning(f"Could not attach rate metadata: {meta_err}")
+
+        return result
     except Exception as e:
         logger.error(f"Handler error: {str(e)}")
         return _fail_closed(error=str(e), status_code=500)

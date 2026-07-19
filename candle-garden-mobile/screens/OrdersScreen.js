@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,16 +8,47 @@ import {
   Image,
   Linking,
   Alert,
+  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 import { useCart } from '../lib/cart';
 import { SHOP_BASE } from '../lib/shopCatalog';
 import { useAuth } from '../lib/AuthContext';
-import { createOrder } from '../lib/apiClient';
+import { createOrder, listOrders } from '../lib/apiClient';
 
 export default function OrdersScreen() {
   const { lines, itemCount, subtotal, setQuantity, removeItem, clearCart } = useCart();
   const { isAuthenticated } = useAuth();
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState(null);
+
+  const loadHistory = useCallback(async () => {
+    if (!isAuthenticated) {
+      setHistory([]);
+      setHistoryError(null);
+      return;
+    }
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const data = await listOrders();
+      setHistory(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setHistoryError(e.message || 'Could not load orders');
+      setHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [isAuthenticated]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadHistory();
+    }, [loadHistory])
+  );
 
   const checkoutOnSite = () => {
     if (!lines.length) return;
@@ -37,7 +68,10 @@ export default function OrdersScreen() {
   const submitAuthenticatedOrder = async () => {
     if (!lines.length) return;
     if (!isAuthenticated) {
-      Alert.alert('Sign in required', 'Open Profile to create an account or sign in, then place the order.');
+      Alert.alert(
+        'Sign in required',
+        'Open Profile to create an account or sign in, then place the order.'
+      );
       return;
     }
     try {
@@ -54,6 +88,7 @@ export default function OrdersScreen() {
         'Order received',
         result.message || `Order ${result.id || ''} submitted for your account.`
       );
+      loadHistory();
     } catch (e) {
       Alert.alert('Order failed', e.message || 'Could not submit order');
     }
@@ -101,11 +136,38 @@ export default function OrdersScreen() {
     </View>
   );
 
+  const renderHistory = ({ item }) => {
+    const total =
+      item.total_amount != null
+        ? Number(item.total_amount)
+        : item.total != null
+          ? Number(item.total)
+          : null;
+    return (
+      <View style={styles.historyCard}>
+        <View style={styles.historyRow}>
+          <Text style={styles.historyId} numberOfLines={1}>
+            {item.id || 'Order'}
+          </Text>
+          <Text style={styles.historyStatus}>{item.status || '—'}</Text>
+        </View>
+        <Text style={styles.historyMeta}>
+          {item.created_at
+            ? String(item.created_at).slice(0, 19).replace('T', ' ')
+            : 'Date unknown'}
+        </Text>
+        {total != null && !Number.isNaN(total) ? (
+          <Text style={styles.historyTotal}>${total.toFixed(2)}</Text>
+        ) : null}
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Your cart</Text>
+      <Text style={styles.title}>Cart & orders</Text>
       <Text style={styles.subtitle}>
-        Add candles from Shop · checkout on the website for now
+        Cart is saved on this device · signed-in orders use your account
       </Text>
 
       <FlatList
@@ -113,6 +175,9 @@ export default function OrdersScreen() {
         keyExtractor={(item) => item.key}
         renderItem={renderLine}
         contentContainerStyle={styles.list}
+        refreshControl={
+          <RefreshControl refreshing={historyLoading} onRefresh={loadHistory} />
+        }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>Your cart is empty</Text>
@@ -122,27 +187,53 @@ export default function OrdersScreen() {
           </View>
         }
         ListFooterComponent={
-          lines.length ? (
-            <View style={styles.footer}>
-              <View style={styles.subtotalRow}>
-                <Text style={styles.subtotalLabel}>
-                  Subtotal ({itemCount} item{itemCount === 1 ? '' : 's'})
-                </Text>
-                <Text style={styles.subtotalValue}>${subtotal.toFixed(2)}</Text>
+          <View>
+            {lines.length ? (
+              <View style={styles.footer}>
+                <View style={styles.subtotalRow}>
+                  <Text style={styles.subtotalLabel}>
+                    Subtotal ({itemCount} item{itemCount === 1 ? '' : 's'})
+                  </Text>
+                  <Text style={styles.subtotalValue}>${subtotal.toFixed(2)}</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.checkoutBtn}
+                  onPress={submitAuthenticatedOrder}
+                >
+                  <Text style={styles.checkoutText}>
+                    {isAuthenticated
+                      ? 'Place order (signed in)'
+                      : 'Sign in to place order'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.secondaryBtn} onPress={checkoutOnSite}>
+                  <Text style={styles.secondaryText}>Checkout on website instead</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.clearBtn} onPress={clearCart}>
+                  <Text style={styles.clearText}>Clear cart</Text>
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity style={styles.checkoutBtn} onPress={submitAuthenticatedOrder}>
-                <Text style={styles.checkoutText}>
-                  {isAuthenticated ? 'Place order (signed in)' : 'Sign in to place order'}
+            ) : null}
+
+            <View style={styles.historySection}>
+              <Text style={styles.historyTitle}>Order history</Text>
+              {!isAuthenticated ? (
+                <Text style={styles.historyHint}>
+                  Sign in on Profile to see orders placed from this app.
                 </Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.secondaryBtn} onPress={checkoutOnSite}>
-                <Text style={styles.secondaryText}>Checkout on website instead</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.clearBtn} onPress={clearCart}>
-                <Text style={styles.clearText}>Clear cart</Text>
-              </TouchableOpacity>
+              ) : historyLoading && !history.length ? (
+                <ActivityIndicator color={colors.primary} style={{ marginTop: 12 }} />
+              ) : historyError ? (
+                <Text style={styles.historyError}>{historyError}</Text>
+              ) : history.length === 0 ? (
+                <Text style={styles.historyHint}>No orders yet for this account.</Text>
+              ) : (
+                history.map((h) => (
+                  <View key={h.id || JSON.stringify(h)}>{renderHistory({ item: h })}</View>
+                ))
+              )}
             </View>
-          ) : null
+          </View>
         }
       />
     </View>
@@ -254,7 +345,7 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   emptyContainer: {
-    paddingTop: 60,
+    paddingTop: 40,
     alignItems: 'center',
   },
   emptyText: {
@@ -327,5 +418,67 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textMuted,
     fontWeight: '600',
+  },
+  historySection: {
+    marginTop: 28,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  historyTitle: {
+    fontFamily: fonts.heading,
+    fontSize: 20,
+    color: colors.primary,
+    marginBottom: 10,
+  },
+  historyHint: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.textMuted,
+    lineHeight: 18,
+  },
+  historyError: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.danger,
+  },
+  historyCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  historyRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  historyId: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textSecondary,
+    flex: 1,
+  },
+  historyStatus: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
+    textTransform: 'capitalize',
+  },
+  historyMeta: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textFaint,
+    marginTop: 4,
+  },
+  historyTotal: {
+    fontFamily: fonts.body,
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.primary,
+    marginTop: 6,
   },
 });

@@ -216,14 +216,15 @@ aws apigateway get-method \
 
 ## Phase 2+ backlog
 
+See **`docs/PHASE2_AUTH.md`** for what shipped in Phase 2.
+
+Still open:
+
 - [ ] SES for branded Cognito emails  
-- [ ] Rate limit guest `/detect`  
-- [ ] Optional JWT enforcement / attribution on detect  
 - [ ] Sign in with Apple / Google  
-- [ ] Account deletion API + Profile UI  
-- [ ] Persistent cart across reinstalls  
-- [ ] Full order history screen from `GET /orders`  
+- [ ] Full JWT authorizer on detect (guest alternate path)  
 - [ ] RDS-backed orders in all environments  
+- [ ] Backend purge on account delete  
 
 ---
 

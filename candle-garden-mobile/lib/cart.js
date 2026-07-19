@@ -1,17 +1,74 @@
 /**
- * Simple in-memory cart for the mobile app.
- * Checkout completes on thecandlegarden.co (or later native payments).
+ * Cart for The Candle Garden App — persisted in SecureStore.
  */
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import * as SecureStore from 'expo-secure-store';
 
 const CartContext = createContext(null);
+const CART_KEY = 'cg_cart_v1';
 
 function lineKey(item) {
   return `${item.productId}::${item.size || 'default'}`;
 }
 
+async function loadPersistedLines() {
+  try {
+    const raw = await SecureStore.getItemAsync(CART_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+async function persistLines(lines) {
+  try {
+    if (!lines.length) {
+      await SecureStore.deleteItemAsync(CART_KEY);
+      return;
+    }
+    await SecureStore.setItemAsync(CART_KEY, JSON.stringify(lines));
+  } catch (e) {
+    console.warn('Cart persist failed', e?.message);
+  }
+}
+
 export function CartProvider({ children }) {
   const [lines, setLines] = useState([]);
+  const [ready, setReady] = useState(false);
+  const skipFirstPersist = useRef(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const stored = await loadPersistedLines();
+      if (!cancelled) {
+        setLines(stored);
+        setReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!ready) return;
+    if (skipFirstPersist.current) {
+      skipFirstPersist.current = false;
+      // still persist if we have lines from restore path that mutates
+    }
+    persistLines(lines);
+  }, [lines, ready]);
 
   const addItem = useCallback((product, options = {}) => {
     const size =
@@ -74,12 +131,13 @@ export function CartProvider({ children }) {
       lines,
       itemCount,
       subtotal,
+      ready,
       addItem,
       removeItem,
       setQuantity,
       clearCart,
     }),
-    [lines, itemCount, subtotal, addItem, removeItem, setQuantity, clearCart]
+    [lines, itemCount, subtotal, ready, addItem, removeItem, setQuantity, clearCart]
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

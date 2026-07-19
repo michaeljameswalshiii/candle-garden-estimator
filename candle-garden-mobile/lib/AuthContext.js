@@ -10,6 +10,7 @@ import {
   attributesToObject,
   confirmSignUp as cognitoConfirm,
   getUser,
+  deleteUser as cognitoDeleteUser,
   globalSignOut,
   refreshSession,
   resendConfirmationCode,
@@ -170,6 +171,29 @@ export function AuthProvider({ children }) {
     }
   }, [tokens]);
 
+  const deleteAccount = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const access =
+        tokens?.accessToken ||
+        (await loadTokens())?.accessToken;
+      if (!access) {
+        throw new Error('Not signed in');
+      }
+      await cognitoDeleteUser(access);
+      await clearTokens();
+      setTokens(null);
+      setUser(null);
+      return true;
+    } catch (e) {
+      setError(e.message);
+      throw e;
+    } finally {
+      setBusy(false);
+    }
+  }, [tokens]);
+
   const getAccessToken = useCallback(async () => {
     let session = tokens || (await loadTokens());
     if (!session) return null;
@@ -221,6 +245,7 @@ export function AuthProvider({ children }) {
       resendCode,
       signIn,
       signOut,
+      deleteAccount,
       getAccessToken,
       getIdToken,
       restore,
@@ -236,6 +261,7 @@ export function AuthProvider({ children }) {
       resendCode,
       signIn,
       signOut,
+      deleteAccount,
       getAccessToken,
       getIdToken,
       restore,
