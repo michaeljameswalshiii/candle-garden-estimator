@@ -517,16 +517,28 @@ def analyze_image(body):
     )
 
 
-def _client_ip(event):
+def _headers_lower(event):
     headers = event.get("headers") or {}
-    # API Gateway may lowercase headers
-    lower = {str(k).lower(): v for k, v in headers.items()}
+    return {str(k).lower(): v for k, v in headers.items()}
+
+
+def _client_ip(event):
+    lower = _headers_lower(event)
     xff = lower.get("x-forwarded-for") or ""
     if xff:
         return xff.split(",")[0].strip()
     req = event.get("requestContext") or {}
     identity = req.get("identity") or {}
     return identity.get("sourceIp") or "unknown"
+
+
+def _device_id(event):
+    """Optional stable guest device id from mobile SecureStore."""
+    lower = _headers_lower(event)
+    did = (lower.get("x-device-id") or "").strip()
+    if did and 8 <= len(did) <= 128:
+        return did
+    return None
 
 
 def _bearer_token(event):
@@ -645,10 +657,14 @@ def handler(event, context):
         token_verified = bool(user_ctx.get("verified"))
 
         ip = _client_ip(event)
+        device_id = _device_id(event)
         # Only use user bucket when token was verified with Cognito GetUser
         if is_authenticated and token_verified:
             bucket = f"user:{user_sub}"
             limit = AUTH_DETECT_LIMIT
+        elif device_id:
+            bucket = f"device:{device_id}"
+            limit = GUEST_DETECT_LIMIT
         else:
             bucket = f"ip:{ip}"
             limit = GUEST_DETECT_LIMIT

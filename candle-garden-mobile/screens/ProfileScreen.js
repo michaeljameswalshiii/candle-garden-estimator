@@ -11,6 +11,11 @@ import {
 } from 'react-native';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 import { useAuth } from '../lib/AuthContext';
+import {
+  clearPushToken,
+  getStoredPushToken,
+  registerForPushNotificationsAsync,
+} from '../lib/notifications';
 
 function CustomSwitch({ value, onValueChange }) {
   const isOn = Boolean(value);
@@ -48,7 +53,41 @@ export default function ProfileScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [pushToken, setPushToken] = useState(null);
+
+  React.useEffect(() => {
+    getStoredPushToken().then((t) => {
+      if (t) {
+        setPushToken(t);
+        setNotificationsEnabled(true);
+      }
+    });
+  }, []);
+
+  const onToggleNotifications = async (on) => {
+    if (!on) {
+      setNotificationsEnabled(false);
+      setPushToken(null);
+      await clearPushToken();
+      return;
+    }
+    const result = await registerForPushNotificationsAsync();
+    if (result.token) {
+      setNotificationsEnabled(true);
+      setPushToken(result.token);
+      Alert.alert(
+        'Notifications on',
+        'This device is registered for push. Server-side sends come next (order/refill updates).'
+      );
+    } else {
+      setNotificationsEnabled(false);
+      Alert.alert(
+        'Could not enable',
+        result.error || 'Use a physical device and allow notifications.'
+      );
+    }
+  };
 
   const onSignIn = async () => {
     try {
@@ -399,9 +438,14 @@ export default function ProfileScreen() {
           </View>
           <CustomSwitch
             value={notificationsEnabled}
-            onValueChange={setNotificationsEnabled}
+            onValueChange={onToggleNotifications}
           />
         </View>
+        {pushToken ? (
+          <Text style={styles.hint} numberOfLines={2}>
+            Push token saved on device
+          </Text>
+        ) : null}
       </View>
 
       <TouchableOpacity

@@ -39,7 +39,13 @@
     },
     "primaryColor": "#103831",
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "color": "#103831"
+        }
+      ]
     ]
   }
 }

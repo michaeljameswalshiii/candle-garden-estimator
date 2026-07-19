@@ -97,13 +97,35 @@ Files: `lib/cognitoClient.js` → `deleteUser`, `AuthContext.deleteAccount`, Pro
 
 ---
 
+## Phase 2 continued (round 3)
+
+### Durable orders (DynamoDB)
+- Table: `candle-garden-orders`  
+- GSI: `customer_id-created_at-index`  
+- Order Lambda is **DynamoDB-first** (no RDS required)  
+- Create / list / get / soft-delete on purge  
+
+### Guest device rate limit
+- Mobile sends `X-Device-Id` (SecureStore)  
+- Detect rate-limit bucket: `device:{id}` for guests  
+
+### Push notifications scaffold
+- `expo-notifications` + `expo-device`  
+- Profile toggle registers Expo push token on device  
+- Server send pipeline still Phase 3  
+
+### Ops
+- `docs/SES_AND_SOCIAL_LOGIN.md` for SES + Apple/Google  
+
+---
+
 ## Intentionally deferred (Phase 3)
 
-- [ ] Sign in with **Apple** / Google (code/federation)  
+- [ ] Sign in with **Apple** / Google (federation code)  
 - [ ] SES branded templates (after domain verify)  
 - [ ] WAF / API key on detect  
-- [ ] Always-on RDS for durable orders  
-- [ ] Push notifications  
+- [ ] Expo push *send* from backend (order status → notify)  
+- [ ] Full RDS if preferred over DynamoDB  
 
 ---
 

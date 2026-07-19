@@ -3,9 +3,24 @@
  * Orders API requires ID token. Detect uses optional access token for verified attribution.
  */
 import { API_BASE } from './cognitoConfig';
+import * as SecureStore from 'expo-secure-store';
 
 let idTokenGetter = async () => null;
 let accessTokenGetter = async () => null;
+
+const DEVICE_ID_KEY = 'cg_device_id_v1';
+
+async function getOrCreateDeviceId() {
+  try {
+    let id = await SecureStore.getItemAsync(DEVICE_ID_KEY);
+    if (id && id.length >= 8) return id;
+    id = `dev_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
+    await SecureStore.setItemAsync(DEVICE_ID_KEY, id);
+    return id;
+  } catch {
+    return `tmp_${Date.now()}`;
+  }
+}
 
 /** Call once from AuthProvider wiring / App */
 export function setAuthTokenGetter(fn) {
@@ -22,6 +37,9 @@ export async function authHeaders(extra = {}, { preferAccessToken = false } = {}
     ...extra,
   };
   try {
+    const deviceId = await getOrCreateDeviceId();
+    if (deviceId) headers['X-Device-Id'] = deviceId;
+
     if (preferAccessToken) {
       const access = await accessTokenGetter();
       if (access) {
