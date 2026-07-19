@@ -1,15 +1,15 @@
 """
 Order processor for The Candle Garden App.
 
-Primary store: DynamoDB (candle-garden-orders) — durable without RDS.
-Optional: Postgres if DB_HOST is reachable (legacy dual-write not required).
-
+Primary store: DynamoDB (candle-garden-orders).
+Push tokens: candle-garden-push-tokens.
 Auth: Cognito JWT via API Gateway (customer_id = claims.sub).
 """
 import json
 import os
 import uuid
 import time
+import urllib.request
 import boto3
 from boto3.dynamodb.conditions import Key
 from decimal import Decimal
@@ -21,11 +21,13 @@ logger.setLevel(logging.INFO)
 
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 ORDERS_TABLE = os.environ.get("ORDERS_TABLE", "candle-garden-orders")
+PUSH_TABLE = os.environ.get("PUSH_TABLE", "candle-garden-push-tokens")
 RATE_LIMIT_TABLE = os.environ.get("RATE_LIMIT_TABLE", "candle-garden-detect-rate-limits")
 RATE_WINDOW_SECONDS = int(os.environ.get("RATE_WINDOW_SECONDS", "3600"))
 
 dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
 orders_table = dynamodb.Table(ORDERS_TABLE)
+push_table = dynamodb.Table(PUSH_TABLE)
 
 
 def _now_iso():
@@ -82,6 +84,96 @@ def _to_decimal(value):
         return Decimal("0")
 
 
+def save_push_token(customer_id, body):
+    token = (body.get("token") or body.get("expo_push_token") or "").strip()
+    if not token or not token.startswith("ExponentPushToken"):
+        # Also allow ExpoPushToken[...] format variants
+        if not token or "PushToken" not in token:
+            return _json(400, {"error": "Valid Expo push token required"})
+
+    platform = body.get("platform") or "unknown"
+    push_table.put_item(
+        Item={
+            "customer_id": customer_id,
+            "token": token,
+            "platform": platform,
+            "updated_at": _now_iso(),
+            "enabled": True,
+        }
+    )
+    return _json(200, {"success": True, "token_saved": True})
+
+
+def delete_push_token(customer_id, body):
+    token = (body.get("token") or "").strip()
+    if token:
+        try:
+            push_table.delete_item(Key={"customer_id": customer_id, "token": token})
+        except Exception as e:
+            logger.warning(f"Push token delete failed: {e}")
+    else:
+        # delete all for user
+        try:
+            resp = push_table.query(
+                KeyConditionExpression=Key("customer_id").eq(customer_id)
+            )
+            for item in resp.get("Items") or []:
+                push_table.delete_item(
+                    Key={"customer_id": customer_id, "token": item["token"]}
+                )
+        except Exception as e:
+            logger.warning(f"Push token bulk delete failed: {e}")
+    return _json(200, {"success": True})
+
+
+def _list_push_tokens(customer_id):
+    try:
+        resp = push_table.query(
+            KeyConditionExpression=Key("customer_id").eq(customer_id)
+        )
+        return [
+            i["token"]
+            for i in (resp.get("Items") or [])
+            if i.get("enabled", True) and i.get("token")
+        ]
+    except Exception as e:
+        logger.warning(f"List push tokens failed: {e}")
+        return []
+
+
+def send_expo_push(tokens, title, body, data=None):
+    """Send via Expo Push API. Best-effort; never fails the order."""
+    if not tokens:
+        return {"sent": 0}
+    messages = [
+        {
+            "to": t,
+            "sound": "default",
+            "title": title,
+            "body": body,
+            "data": data or {},
+        }
+        for t in tokens
+    ]
+    try:
+        req = urllib.request.Request(
+            "https://exp.host/--/api/v2/push/send",
+            data=json.dumps(messages).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            raw = resp.read().decode("utf-8")
+            logger.info(f"Expo push response: {raw[:300]}")
+            return {"sent": len(messages), "response": raw[:500]}
+    except Exception as e:
+        logger.warning(f"Expo push send failed: {e}")
+        return {"sent": 0, "error": str(e)}
+
+
 def ddb_create_order(customer_id, body, claims):
     items = body.get("items") or []
     if not items:
@@ -115,16 +207,25 @@ def ddb_create_order(customer_id, body, claims):
         "updated_at": created,
     }
     orders_table.put_item(Item=item)
+
+    # Notify devices
+    tokens = _list_push_tokens(customer_id)
+    push_result = send_expo_push(
+        tokens,
+        title="Order received",
+        body=f"The Candle Garden got your order (${float(total):.2f}).",
+        data={"orderId": order_id, "type": "order_received"},
+    )
+
     out = {
         "id": order_id,
         "customer_id": customer_id,
         "total_amount": float(total),
         "status": "pending",
-        "items": [
-            {**i, "price": float(i["price"])} for i in normalized
-        ],
+        "items": [{**i, "price": float(i["price"])} for i in normalized],
         "created_at": created,
         "message": "Order saved",
+        "push": push_result,
     }
     return _json(201, out)
 
@@ -144,9 +245,7 @@ def ddb_list_orders(customer_id, query_params=None):
         Limit=limit,
     )
     items = resp.get("Items") or []
-    # Hide soft-deleted
     items = [i for i in items if i.get("status") != "deleted"]
-    # Normalize decimals
     out = []
     for i in items:
         row = dict(i)
@@ -193,17 +292,26 @@ def ddb_update_order(order_id, customer_id, body):
         ExpressionAttributeNames={"#s": "status"},
         ExpressionAttributeValues={":s": status, ":u": updated},
     )
+
+    # Notify on status change
+    tokens = _list_push_tokens(customer_id)
+    send_expo_push(
+        tokens,
+        title="Order update",
+        body=f"Your Candle Garden order is now: {status}",
+        data={"orderId": order_id, "type": "order_status", "status": status},
+    )
+
     return _json(200, {"id": order_id, "status": status, "updated_at": updated})
 
 
 def purge_user_data(customer_id):
-    purged = {"rate_limit_keys": 0, "orders": 0, "store": "dynamodb"}
+    purged = {"rate_limit_keys": 0, "orders": 0, "push_tokens": 0, "store": "dynamodb"}
 
-    # Rate limit keys
     try:
         table = dynamodb.Table(RATE_LIMIT_TABLE)
         now = int(time.time())
-        window_id = now // RATE_WINDOW_SECONDS
+        window_id = now // int(os.environ.get("RATE_WINDOW_SECONDS", "3600"))
         for wid in (window_id - 1, window_id, window_id + 1):
             pk = f"user:{customer_id}#{wid}"
             try:
@@ -214,7 +322,6 @@ def purge_user_data(customer_id):
     except Exception as e:
         logger.warning(f"Rate-limit purge failed: {e}")
 
-    # Soft-delete all orders for customer
     try:
         resp = orders_table.query(
             IndexName="customer_id-created_at-index",
@@ -230,6 +337,18 @@ def purge_user_data(customer_id):
             purged["orders"] += 1
     except Exception as e:
         logger.warning(f"Order purge failed: {e}")
+
+    try:
+        resp = push_table.query(
+            KeyConditionExpression=Key("customer_id").eq(customer_id)
+        )
+        for item in resp.get("Items") or []:
+            push_table.delete_item(
+                Key={"customer_id": customer_id, "token": item["token"]}
+            )
+            purged["push_tokens"] += 1
+    except Exception as e:
+        logger.warning(f"Push token purge failed: {e}")
 
     return purged
 
@@ -263,6 +382,12 @@ def handler(event, context):
                 "purged": result,
                 "message": "Server-side user data purge complete",
             })
+
+        if http_method == "POST" and path.endswith("/account/push-token"):
+            return save_push_token(customer_id, body if isinstance(body, dict) else {})
+
+        if http_method == "DELETE" and path.endswith("/account/push-token"):
+            return delete_push_token(customer_id, body if isinstance(body, dict) else {})
 
         if isinstance(body, dict):
             body = {

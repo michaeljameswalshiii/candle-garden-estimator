@@ -155,6 +155,14 @@ export async function confirmForgotPassword({ email, code, password }) {
   });
 }
 
+export async function changePassword({ accessToken, previousPassword, proposedPassword }) {
+  return cognitoRequest('ChangePassword', {
+    AccessToken: accessToken,
+    PreviousPassword: previousPassword,
+    ProposedPassword: proposedPassword,
+  });
+}
+
 export function attributesToObject(userResult) {
   const attrs = {};
   (userResult.UserAttributes || []).forEach((a) => {

@@ -119,13 +119,29 @@ Files: `lib/cognitoClient.js` → `deleteUser`, `AuthContext.deleteAccount`, Pro
 
 ---
 
+## Phase 2 continued (round 4)
+
+### Server push (Expo)
+- Table: `candle-garden-push-tokens`  
+- `POST /account/push-token` / `DELETE /account/push-token` (JWT)  
+- Profile toggle syncs token to backend when signed in  
+- On **order create** and **status update**, Lambda sends Expo Push API notification  
+
+### API throttle
+- Stage `prod` method throttle: rate 10/s, burst 20  
+- Usage plan `candle-garden-detect-throttle` (rate 5, burst 10) attached to prod  
+
+### Change password
+- Signed-in Profile section → Cognito `ChangePassword`  
+
+---
+
 ## Intentionally deferred (Phase 3)
 
 - [ ] Sign in with **Apple** / Google (federation code)  
 - [ ] SES branded templates (after domain verify)  
-- [ ] WAF / API key on detect  
-- [ ] Expo push *send* from backend (order status → notify)  
-- [ ] Full RDS if preferred over DynamoDB  
+- [ ] AWS WAF web ACL (beyond stage throttle)  
+- [ ] Admin order-status UI that triggers more push types  
 
 ---
 

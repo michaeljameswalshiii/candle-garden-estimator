@@ -1,13 +1,14 @@
 /**
- * Push notification scaffold for The Candle Garden App.
- * Registers Expo push token when user opts in; stores on device.
- * Server-side send is Phase 3 (Expo push API / SNS).
+ * Push notifications for The Candle Garden App.
+ * Registers Expo push token on device and syncs to backend when signed in.
+ * Order create/status updates send via Expo Push API from order Lambda.
  */
 import { Platform } from 'react-native';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
+import { registerPushToken, unregisterPushToken } from './apiClient';
 
 const TOKEN_KEY = 'cg_expo_push_token_v1';
 
@@ -31,8 +32,11 @@ export async function getStoredPushToken() {
 
 /**
  * Request permission and return Expo push token (or null).
+ * @param {{ syncToServer?: boolean }} opts - when true and signed in, POST token to API
  */
-export async function registerForPushNotificationsAsync() {
+export async function registerForPushNotificationsAsync(opts = {}) {
+  const { syncToServer = false } = opts;
+
   if (!Device.isDevice) {
     return { token: null, error: 'Push requires a physical device' };
   }
@@ -65,6 +69,14 @@ export async function registerForPushNotificationsAsync() {
     const token = tokenData?.data || null;
     if (token) {
       await SecureStore.setItemAsync(TOKEN_KEY, token);
+      if (syncToServer) {
+        try {
+          await registerPushToken(token, Platform.OS);
+        } catch (e) {
+          // Token still valid locally; server sync can retry later
+          console.warn('Push token server sync failed', e?.message);
+        }
+      }
     }
     return { token, error: null };
   } catch (e) {
@@ -72,8 +84,17 @@ export async function registerForPushNotificationsAsync() {
   }
 }
 
-export async function clearPushToken() {
+export async function clearPushToken(opts = {}) {
+  const { syncToServer = false } = opts;
   try {
+    const token = await SecureStore.getItemAsync(TOKEN_KEY);
+    if (syncToServer && token) {
+      try {
+        await unregisterPushToken(token);
+      } catch {
+        /* ignore */
+      }
+    }
     await SecureStore.deleteItemAsync(TOKEN_KEY);
   } catch {
     /* ignore */

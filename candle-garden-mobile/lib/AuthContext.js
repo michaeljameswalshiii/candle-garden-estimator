@@ -10,6 +10,7 @@ import {
   attributesToObject,
   confirmSignUp as cognitoConfirm,
   getUser,
+  changePassword as cognitoChangePassword,
   confirmForgotPassword as cognitoConfirmForgotPassword,
   deleteUser as cognitoDeleteUser,
   forgotPassword as cognitoForgotPassword,
@@ -236,6 +237,28 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  const changePassword = useCallback(async ({ previousPassword, proposedPassword }) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const access =
+        tokens?.accessToken ||
+        (await loadTokens())?.accessToken;
+      if (!access) throw new Error('Not signed in');
+      await cognitoChangePassword({
+        accessToken: access,
+        previousPassword,
+        proposedPassword,
+      });
+      return true;
+    } catch (e) {
+      setError(e.message);
+      throw e;
+    } finally {
+      setBusy(false);
+    }
+  }, [tokens]);
+
   const getAccessToken = useCallback(async () => {
     let session = tokens || (await loadTokens());
     if (!session) return null;
@@ -290,6 +313,7 @@ export function AuthProvider({ children }) {
       deleteAccount,
       forgotPassword,
       confirmForgotPassword,
+      changePassword,
       getAccessToken,
       getIdToken,
       restore,
@@ -308,6 +332,7 @@ export function AuthProvider({ children }) {
       deleteAccount,
       forgotPassword,
       confirmForgotPassword,
+      changePassword,
       getAccessToken,
       getIdToken,
       restore,

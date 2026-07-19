@@ -129,4 +129,20 @@ export async function purgeAccountData() {
   return apiFetch('/account/purge', { method: 'POST', body: {}, requireAuth: true });
 }
 
+export async function registerPushToken(token, platform = 'unknown') {
+  return apiFetch('/account/push-token', {
+    method: 'POST',
+    body: { token, platform },
+    requireAuth: true,
+  });
+}
+
+export async function unregisterPushToken(token) {
+  return apiFetch('/account/push-token', {
+    method: 'DELETE',
+    body: token ? { token } : {},
+    requireAuth: true,
+  });
+}
+
 export { API_BASE };

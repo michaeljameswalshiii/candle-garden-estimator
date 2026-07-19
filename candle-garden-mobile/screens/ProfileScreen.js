@@ -46,6 +46,7 @@ export default function ProfileScreen() {
     deleteAccount,
     forgotPassword,
     confirmForgotPassword,
+    changePassword,
   } = useAuth();
 
   const [mode, setMode] = useState('signin'); // signin | signup | confirm | forgot | reset
@@ -55,6 +56,8 @@ export default function ProfileScreen() {
   const [code, setCode] = useState('');
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [pushToken, setPushToken] = useState(null);
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
 
   React.useEffect(() => {
     getStoredPushToken().then((t) => {
@@ -69,16 +72,20 @@ export default function ProfileScreen() {
     if (!on) {
       setNotificationsEnabled(false);
       setPushToken(null);
-      await clearPushToken();
+      await clearPushToken({ syncToServer: isAuthenticated });
       return;
     }
-    const result = await registerForPushNotificationsAsync();
+    const result = await registerForPushNotificationsAsync({
+      syncToServer: isAuthenticated,
+    });
     if (result.token) {
       setNotificationsEnabled(true);
       setPushToken(result.token);
       Alert.alert(
         'Notifications on',
-        'This device is registered for push. Server-side sends come next (order/refill updates).'
+        isAuthenticated
+          ? 'Device registered. You will get a push when an order is placed from this account.'
+          : 'Device registered locally. Sign in to link push to your account for order alerts.'
       );
     } else {
       setNotificationsEnabled(false);
@@ -86,6 +93,20 @@ export default function ProfileScreen() {
         'Could not enable',
         result.error || 'Use a physical device and allow notifications.'
       );
+    }
+  };
+
+  const onChangePassword = async () => {
+    try {
+      await changePassword({
+        previousPassword: oldPassword,
+        proposedPassword: newPassword,
+      });
+      setOldPassword('');
+      setNewPassword('');
+      Alert.alert('Password updated');
+    } catch (e) {
+      Alert.alert('Could not change password', e.message || 'Try again');
     }
   };
 
@@ -432,9 +453,11 @@ export default function ProfileScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Preferences</Text>
         <View style={styles.settingRow}>
-          <View>
+          <View style={{ flex: 1, paddingRight: 8 }}>
             <Text style={styles.settingLabel}>Push Notifications</Text>
-            <Text style={styles.settingDescription}>Order and refill updates (soon)</Text>
+            <Text style={styles.settingDescription}>
+              Order received / status updates
+            </Text>
           </View>
           <CustomSwitch
             value={notificationsEnabled}
@@ -443,9 +466,42 @@ export default function ProfileScreen() {
         </View>
         {pushToken ? (
           <Text style={styles.hint} numberOfLines={2}>
-            Push token saved on device
+            Push linked{isAuthenticated ? ' to your account' : ' on this device only'}
           </Text>
         ) : null}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Change password</Text>
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Current password</Text>
+          <TextInput
+            style={styles.input}
+            value={oldPassword}
+            onChangeText={setOldPassword}
+            secureTextEntry
+            placeholderTextColor={colors.textFaint}
+            placeholder="Current password"
+          />
+        </View>
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>New password</Text>
+          <TextInput
+            style={styles.input}
+            value={newPassword}
+            onChangeText={setNewPassword}
+            secureTextEntry
+            placeholderTextColor={colors.textFaint}
+            placeholder="Min 8 chars, upper, lower, number"
+          />
+        </View>
+        <TouchableOpacity
+          style={[styles.button, busy && styles.buttonDisabled]}
+          onPress={onChangePassword}
+          disabled={busy || !oldPassword || !newPassword}
+        >
+          <Text style={styles.buttonText}>Update password</Text>
+        </TouchableOpacity>
       </View>
 
       <TouchableOpacity
