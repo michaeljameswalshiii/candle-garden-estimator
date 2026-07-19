@@ -74,7 +74,10 @@ export const assets = {
 };
 
 export const brand = {
+  /** Business / marketing name */
   name: 'The Candle Garden',
+  /** App display name (home screen, headers) */
+  appName: 'The Candle Garden App',
   tagline: 'From my hands, to your home',
   location: 'Atlantic Beach, Florida',
   siteUrl: 'https://www.thecandlegarden.co/',

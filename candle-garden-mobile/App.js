@@ -78,7 +78,7 @@ function MainTabs() {
         },
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'The Candle Garden' }} />
+      <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'The Candle Garden App' }} />
       <Tab.Screen
         name="Estimator"
         component={EstimatorSuspense}

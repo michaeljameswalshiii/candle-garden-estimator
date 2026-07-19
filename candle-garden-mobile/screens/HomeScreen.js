@@ -83,7 +83,7 @@ export default function HomeScreen() {
           accessibilityLabel="The Candle Garden"
         />
         <View style={styles.headerText}>
-          <Text style={styles.title}>{brand.name}</Text>
+          <Text style={styles.title}>{brand.appName}</Text>
           <Text style={styles.location}>{brand.location}</Text>
         </View>
       </View>

@@ -146,7 +146,7 @@ export default function ProfileScreen() {
         <Text style={[styles.buttonText, styles.logoutText]}>Logout</Text>
       </TouchableOpacity>
 
-      <Text style={styles.version}>Version 1.0.0 · The Candle Garden</Text>
+      <Text style={styles.version}>Version 1.0.0 · The Candle Garden App</Text>
     </ScrollView>
   );
 }
