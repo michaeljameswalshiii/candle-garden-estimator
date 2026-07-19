@@ -2,14 +2,15 @@ import React, { useState, useMemo } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import {
-  BOX_PRICING,
   calculateCost,
   recommendBox,
   WAX_PRICE_PER_OZ,
+  USPS_FLAT_RATE_BOXES,
+  SHIPPING_POLICY,
 } from '../lib/pricing';
+import { BOX_FIT_ORDER } from '../lib/shippingConfig';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 
-// Custom Button component
 function CustomButton({ title, onPress, disabled, color }) {
   return (
     <TouchableOpacity
@@ -37,15 +38,23 @@ export default function RefillStep4() {
     ounces = 12,
     containerType = 'Unknown',
     boxKey: initialBoxKey,
+    vesselCount: vesselCountParam,
   } = route.params || {};
 
-  const recommendedBox = initialBoxKey || recommendBox(ounces);
+  const vesselCount = Math.max(1, Number(vesselCountParam) || 1);
+  const recommendedBox =
+    initialBoxKey || recommendBox(ounces, { vesselCount });
   const [quantity, setQuantity] = useState(1);
   const [selectedBox, setSelectedBox] = useState(recommendedBox);
 
   const cost = useMemo(
-    () => calculateCost(ounces, { quantity, boxKey: selectedBox }),
-    [ounces, quantity, selectedBox]
+    () =>
+      calculateCost(ounces, {
+        quantity,
+        boxKey: selectedBox,
+        vesselCount: Math.max(vesselCount, quantity),
+      }),
+    [ounces, quantity, selectedBox, vesselCount]
   );
 
   const increaseQuantity = () => {
@@ -77,7 +86,11 @@ export default function RefillStep4() {
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Shipping & Quantity</Text>
 
-      {/* Order Summary */}
+      <View style={styles.policyBox}>
+        <Text style={styles.policyTitle}>How shipping works</Text>
+        <Text style={styles.policyText}>{SHIPPING_POLICY.summary}</Text>
+      </View>
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Order Summary</Text>
         <Text style={styles.infoText}>Container: {containerType}</Text>
@@ -90,7 +103,6 @@ export default function RefillStep4() {
         </Text>
       </View>
 
-      {/* Quantity Selector */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Quantity</Text>
         <View style={styles.quantityContainer}>
@@ -113,48 +125,67 @@ export default function RefillStep4() {
         <Text style={styles.hintText}>Max 10 candles per order</Text>
       </View>
 
-      {/* Box Selection */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Select Shipping Box</Text>
+        <Text style={styles.sectionTitle}>Recommended box</Text>
         <Text style={styles.hintText}>
-          Shipping is charged once per order (not per candle).
+          Price shown is return shipping to you (included). Pack empties well —
+          packing material uses space. Use this size when you ship to us.
         </Text>
 
-        {Object.entries(BOX_PRICING).map(([key, box]) => (
-          <TouchableOpacity
-            key={key}
-            style={[
-              styles.boxOption,
-              selectedBox === key && styles.boxOptionSelected,
-              key === recommendedBox && selectedBox !== key && styles.boxOptionRecommended,
-            ]}
-            onPress={() => setSelectedBox(key)}
-          >
-            <View style={styles.boxInfo}>
-              <Text style={styles.boxName}>{box.name}</Text>
-              <Text style={styles.boxDetails}>Holds up to {box.maxOz} oz</Text>
-            </View>
-            <Text style={styles.boxPrice}>${box.cost.toFixed(2)}</Text>
-            {key === recommendedBox && (
-              <Text style={styles.recommendedBadge}>Recommended</Text>
-            )}
-          </TouchableOpacity>
-        ))}
+        {BOX_FIT_ORDER.map((key) => {
+          const box = USPS_FLAT_RATE_BOXES[key];
+          if (!box) return null;
+          const dims = `${box.lengthIn}×${box.widthIn}×${box.heightIn} in`;
+          return (
+            <TouchableOpacity
+              key={key}
+              style={[
+                styles.boxOption,
+                selectedBox === key && styles.boxOptionSelected,
+                key === recommendedBox &&
+                  selectedBox !== key &&
+                  styles.boxOptionRecommended,
+              ]}
+              onPress={() => setSelectedBox(key)}
+            >
+              <View style={styles.boxInfo}>
+                <Text style={styles.boxName}>{box.shortName}</Text>
+                <Text style={styles.boxDetails}>
+                  Inside ~{dims}
+                </Text>
+                <Text style={styles.boxDetails} numberOfLines={2}>
+                  {box.notes}
+                </Text>
+              </View>
+              <Text style={styles.boxPrice}>
+                ${box.postageOneLegUsd.toFixed(2)}
+              </Text>
+              {key === recommendedBox && (
+                <Text style={styles.recommendedBadge}>Recommended</Text>
+              )}
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
-      {/* Total */}
       <View style={styles.totalSection}>
-        <Text style={styles.totalLabel}>Total</Text>
+        <Text style={styles.totalLabel}>Estimate total</Text>
         <Text style={styles.totalAmount}>${cost.total_cost}</Text>
         <Text style={styles.totalBreakdown}>
-          Wax: ${cost.wax_cost} + Shipping: ${cost.shipping_cost}
+          Wax ${cost.wax_cost} + Return shipping ${cost.shipping_cost}
+        </Text>
+        <Text style={styles.totalNote}>
+          Does not include your postage to ship empties to us
         </Text>
       </View>
 
-      {/* Add to Cart Button */}
       <View style={styles.buttonContainer}>
         <CustomButton title="Add to Cart" onPress={handleAddToCart} />
-        <CustomButton title="Back" onPress={() => navigation.goBack()} color={colors.textMuted} />
+        <CustomButton
+          title="Back"
+          onPress={() => navigation.goBack()}
+          color={colors.textMuted}
+        />
       </View>
     </ScrollView>
   );
@@ -170,9 +201,29 @@ const styles = StyleSheet.create({
     fontFamily: fonts.heading,
     fontSize: 26,
     fontWeight: '400',
-    marginBottom: 20,
+    marginBottom: 16,
     color: colors.primary,
     textAlign: 'center',
+  },
+  policyBox: {
+    backgroundColor: colors.lightAccent,
+    padding: 14,
+    borderRadius: radii.md,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  policyTitle: {
+    fontFamily: fonts.heading,
+    fontSize: 16,
+    color: colors.primary,
+    marginBottom: 6,
+  },
+  policyText: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 19,
   },
   section: {
     backgroundColor: colors.surface,
@@ -234,6 +285,7 @@ const styles = StyleSheet.create({
     color: colors.textFaint,
     textAlign: 'center',
     marginBottom: 8,
+    lineHeight: 17,
   },
   boxOption: {
     flexDirection: 'row',
@@ -254,17 +306,19 @@ const styles = StyleSheet.create({
   },
   boxInfo: {
     flex: 1,
+    paddingRight: 8,
   },
   boxName: {
     fontFamily: fonts.body,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 'bold',
     color: colors.text,
   },
   boxDetails: {
     fontFamily: fonts.body,
-    fontSize: 12,
+    fontSize: 11,
     color: colors.textMuted,
+    marginTop: 2,
   },
   boxPrice: {
     fontFamily: fonts.body,
@@ -306,9 +360,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textMuted,
   },
+  totalNote: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: colors.textFaint,
+    marginTop: 8,
+    textAlign: 'center',
+  },
   buttonContainer: {
     gap: 12,
     marginTop: 20,
+    marginBottom: 24,
   },
   button: {
     backgroundColor: colors.primary,

@@ -42,10 +42,14 @@ export default function EstimatorScreen() {
 
   const continueToShipping = () => {
     if (result && result.estimated_ounces) {
+      const vesselCount = Array.isArray(result.vessels) && result.vessels.length
+        ? result.vessels.length
+        : 1;
       navigation.navigate('RefillStep4', {
         ounces: result.estimated_ounces,
         containerType: result.container_type,
         boxKey: result.box_key,
+        vesselCount,
       });
     }
   };
@@ -177,7 +181,15 @@ export default function EstimatorScreen() {
         return;
       }
 
-      const costData = calculateCost(check.ounces);
+      const vesselCount = Array.isArray(detectData.vessels) && detectData.vessels.length
+        ? detectData.vessels.length
+        : 1;
+      const perVesselOz = Array.isArray(detectData.vessels)
+        ? detectData.vessels
+            .map((v) => Number(v.wax_needed_oz ?? v.estimated_ounces ?? v.volume_oz))
+            .filter((n) => Number.isFinite(n) && n > 0)
+        : undefined;
+      const costData = calculateCost(check.ounces, { vesselCount, perVesselOz });
       setResult({
         estimated_ounces: check.ounces,
         container_type: check.container_type,
@@ -322,7 +334,10 @@ export default function EstimatorScreen() {
           )}
           <Text style={styles.resultText}>Wax Cost: ${result.wax_cost}</Text>
           <Text style={styles.resultText}>
-            Shipping: ${result.shipping_cost} ({result.box_type})
+            Return shipping (included): ${result.shipping_cost} ({result.box_type})
+          </Text>
+          <Text style={styles.shipNote}>
+            You ship empties to us (your postage). We ship refills back in this box size — that leg is in the estimate.
           </Text>
           <Text style={styles.total}>Total: ${result.total_cost}</Text>
           <CustomButton
@@ -537,5 +552,15 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 18,
+  },
+  shipNote: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 17,
+    marginTop: 6,
+    marginBottom: 4,
+    paddingHorizontal: 8,
   },
 });

@@ -1,9 +1,17 @@
 /**
- * Shared refill pricing — single source of truth for Estimator + checkout steps.
- * Keep rates in one place so screens cannot drift.
+ * Shared refill pricing — wax + one-leg return shipping.
+ * Shipping boxes / packing rules: lib/shippingConfig.js
+ * Product rules: docs/REFILL_SHIPPING_RULES.md
  */
 
-export const WAX_PRICE_PER_OZ = 0.5;
+import {
+  SHIPPING_POLICY,
+  USPS_FLAT_RATE_BOXES,
+  recommendShippingBox,
+  shippingLineLabel,
+} from './shippingConfig';
+
+export const WAX_PRICE_PER_OZ = 1.5;
 
 /**
  * Minimum vision confidence to accept an auto-estimate (0–1).
@@ -11,22 +19,66 @@ export const WAX_PRICE_PER_OZ = 0.5;
  */
 export const MIN_CONFIDENCE = 0.5;
 
+/**
+ * @deprecated Use USPS_FLAT_RATE_BOXES from shippingConfig — kept for screens mid-migration.
+ * Maps to Flat Rate boxes used in the quote (one-leg return postage).
+ */
 export const BOX_PRICING = {
-  small: { cost: 8.99, maxOz: 8, name: 'Small Box' },
-  medium: { cost: 12.99, maxOz: 16, name: 'Medium Box' },
-  large: { cost: 15.99, maxOz: 32, name: 'Large Box' },
+  frb_small: {
+    cost: USPS_FLAT_RATE_BOXES.frb_small.postageOneLegUsd,
+    maxOz: USPS_FLAT_RATE_BOXES.frb_small.maxWaxOzHint,
+    name: USPS_FLAT_RATE_BOXES.frb_small.shortName,
+  },
+  frb_medium_top: {
+    cost: USPS_FLAT_RATE_BOXES.frb_medium_top.postageOneLegUsd,
+    maxOz: USPS_FLAT_RATE_BOXES.frb_medium_top.maxWaxOzHint,
+    name: USPS_FLAT_RATE_BOXES.frb_medium_top.shortName,
+  },
+  frb_medium_side: {
+    cost: USPS_FLAT_RATE_BOXES.frb_medium_side.postageOneLegUsd,
+    maxOz: USPS_FLAT_RATE_BOXES.frb_medium_side.maxWaxOzHint,
+    name: USPS_FLAT_RATE_BOXES.frb_medium_side.shortName,
+  },
+  frb_large: {
+    cost: USPS_FLAT_RATE_BOXES.frb_large.postageOneLegUsd,
+    maxOz: USPS_FLAT_RATE_BOXES.frb_large.maxWaxOzHint,
+    name: USPS_FLAT_RATE_BOXES.frb_large.shortName,
+  },
+  // Aliases used by older UI keys
+  small: {
+    cost: USPS_FLAT_RATE_BOXES.frb_small.postageOneLegUsd,
+    maxOz: USPS_FLAT_RATE_BOXES.frb_small.maxWaxOzHint,
+    name: USPS_FLAT_RATE_BOXES.frb_small.shortName,
+  },
+  medium: {
+    cost: USPS_FLAT_RATE_BOXES.frb_medium_top.postageOneLegUsd,
+    maxOz: USPS_FLAT_RATE_BOXES.frb_medium_top.maxWaxOzHint,
+    name: USPS_FLAT_RATE_BOXES.frb_medium_top.shortName,
+  },
+  large: {
+    cost: USPS_FLAT_RATE_BOXES.frb_large.postageOneLegUsd,
+    maxOz: USPS_FLAT_RATE_BOXES.frb_large.maxWaxOzHint,
+    name: USPS_FLAT_RATE_BOXES.frb_large.shortName,
+  },
 };
 
 /**
- * Recommend a shipping box key from total wax ounces.
- * @param {number} ounces
- * @returns {'small'|'medium'|'large'}
+ * Recommend a shipping box key from wax oz + optional vessel count.
+ * Uses packing volume heuristics (see shippingConfig).
+ *
+ * @param {number} ounces - total wax oz for the shipment (all vessels)
+ * @param {object} [opts]
+ * @param {number} [opts.vesselCount]
+ * @param {number[]} [opts.perVesselOz]
+ * @returns {string} box key
  */
-export function recommendBox(ounces) {
-  const oz = Number(ounces) || 0;
-  if (oz <= BOX_PRICING.small.maxOz) return 'small';
-  if (oz <= BOX_PRICING.medium.maxOz) return 'medium';
-  return 'large';
+export function recommendBox(ounces, opts = {}) {
+  const result = recommendShippingBox({
+    totalWaxOz: ounces,
+    vesselCount: opts.vesselCount,
+    perVesselOz: opts.perVesselOz,
+  });
+  return result.boxKey;
 }
 
 /**
@@ -41,44 +93,52 @@ export function isValidOunces(ounces) {
 }
 
 /**
- * Calculate refill material + shipping cost.
- * Shipping is charged once per shipment (not multiplied by candle quantity).
- * Wax scales with quantity.
+ * Calculate refill material + one-leg return shipping cost.
  *
- * @param {number} ounces - wax needed per candle
+ * Shipping line = Candle Garden → customer only (included).
+ * Customer → CG postage is NOT included (customer responsibility).
+ *
+ * @param {number} ounces - wax needed (per candle if quantity multiplies wax)
  * @param {object} [options]
  * @param {number} [options.quantity=1]
  * @param {string} [options.boxKey] - force a box; defaults to recommended
- * @returns {{
- *   wax_cost: string,
- *   shipping_cost: string,
- *   box_type: string,
- *   box_key: string,
- *   total_cost: string,
- *   wax_cost_num: number,
- *   shipping_cost_num: number,
- *   total_cost_num: number,
- * }}
+ * @param {number} [options.vesselCount]
+ * @param {number[]} [options.perVesselOz]
  */
 export function calculateCost(ounces, options = {}) {
   const quantity = Math.max(1, Number(options.quantity) || 1);
-  const boxKey = options.boxKey || recommendBox(ounces);
-  const box = BOX_PRICING[boxKey] || BOX_PRICING.medium;
+  const totalWaxOz = Number(ounces) * quantity;
+
+  const recommendation = recommendShippingBox({
+    totalWaxOz,
+    vesselCount: options.vesselCount || quantity,
+    perVesselOz: options.perVesselOz,
+  });
+
+  const boxKey = options.boxKey || recommendation.boxKey;
+  const box =
+    USPS_FLAT_RATE_BOXES[boxKey] ||
+    USPS_FLAT_RATE_BOXES[recommendation.boxKey] ||
+    USPS_FLAT_RATE_BOXES.frb_medium_top;
 
   const waxCost = Number(ounces) * WAX_PRICE_PER_OZ * quantity;
-  // One shipment per order (quantity is extra wax in the same box for MVP)
-  const shippingCost = box.cost;
+  // One leg only: CG ships refilled vessels back (return shipping included)
+  const shippingCost = box.postageOneLegUsd;
   const total = waxCost + shippingCost;
 
   return {
     wax_cost: waxCost.toFixed(2),
     shipping_cost: shippingCost.toFixed(2),
-    box_type: box.name,
-    box_key: boxKey,
+    box_type: box.shortName || box.name,
+    box_key: box.key,
+    box_full_name: box.name,
+    shipping_label: shippingLineLabel(box),
+    shipping_policy: SHIPPING_POLICY.summary,
     total_cost: total.toFixed(2),
     wax_cost_num: waxCost,
     shipping_cost_num: shippingCost,
     total_cost_num: total,
+    recommendation,
   };
 }
 
@@ -118,5 +178,8 @@ export function isAcceptableDetection(detectData) {
     ounces,
     confidence,
     container_type: detectData.container_type || 'Candle vessel(s)',
+    vessels: Array.isArray(detectData.vessels) ? detectData.vessels : undefined,
   };
 }
+
+export { SHIPPING_POLICY, USPS_FLAT_RATE_BOXES, recommendShippingBox };
