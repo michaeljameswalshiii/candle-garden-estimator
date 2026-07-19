@@ -1,6 +1,8 @@
 import json
 import os
 import uuid
+import time
+import boto3
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import logging
@@ -14,6 +16,9 @@ DB_HOST = os.environ.get("DB_HOST")
 DB_PORT = os.environ.get("DB_PORT", "5432")
 DB_NAME = os.environ.get("DB_NAME", "candledb")
 DB_USER = os.environ.get("DB_USER", "candleadmin")
+RATE_LIMIT_TABLE = os.environ.get("RATE_LIMIT_TABLE", "candle-garden-detect-rate-limits")
+AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
+dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
 
 
 def get_db_connection():
@@ -54,6 +59,57 @@ def _customer_id(event, body=None):
     return None
 
 
+def _cors_headers():
+    return {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+    }
+
+
+def purge_user_data(customer_id):
+    """
+    Best-effort purge of server-side user data before Cognito DeleteUser.
+    - Deletes rate-limit rows for user:{sub}#*
+    - Soft-deletes or removes orders for customer_id when DB is available
+    """
+    purged = {"rate_limit_keys": 0, "orders": 0, "db": False}
+
+    # Rate limit keys (current + previous window)
+    try:
+        table = dynamodb.Table(RATE_LIMIT_TABLE)
+        now = int(time.time())
+        window = int(os.environ.get("RATE_WINDOW_SECONDS", "3600"))
+        window_id = now // window
+        for wid in (window_id - 1, window_id, window_id + 1):
+            pk = f"user:{customer_id}#{wid}"
+            try:
+                table.delete_item(Key={"pk": pk})
+                purged["rate_limit_keys"] += 1
+            except Exception:
+                pass
+    except Exception as e:
+        logger.warning(f"Rate-limit purge failed: {e}")
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "UPDATE orders SET status = %s, updated_at = %s WHERE customer_id = %s",
+                ("deleted", datetime.utcnow(), customer_id),
+            )
+            purged["orders"] = cursor.rowcount or 0
+            conn.commit()
+            purged["db"] = True
+        finally:
+            cursor.close()
+            conn.close()
+    except Exception as e:
+        logger.warning(f"Order purge skipped (DB unavailable): {e}")
+
+    return purged
+
+
 def handler(event, context):
     """
     Handle order processing requests.
@@ -64,9 +120,11 @@ def handler(event, context):
     - GET /orders/{id} - Get order details
     - PUT /orders/{id} - Update order
     - POST /orders/{id}/confirm - Confirm/process order
+    - POST /account/purge - Purge user server data before account delete
     """
     try:
         http_method = event.get("httpMethod", "").upper()
+        path = (event.get("path") or event.get("resource") or "").rstrip("/")
         path_parameters = event.get("pathParameters", {}) or {}
         body = event.get("body", "{}")
         
@@ -76,16 +134,34 @@ def handler(event, context):
             except json.JSONDecodeError:
                 body = {}
 
+        if http_method == "OPTIONS":
+            return {
+                "statusCode": 200,
+                "body": json.dumps({"ok": True}),
+                "headers": _cors_headers(),
+            }
+
         claims = _claims(event)
         customer_id = _customer_id(event, body)
         if not customer_id:
             return {
                 "statusCode": 401,
                 "body": json.dumps({"error": "Unauthorized — sign in required"}),
-                "headers": {
-                    "Content-Type": "application/json",
-                    "Access-Control-Allow-Origin": "*",
-                },
+                "headers": _cors_headers(),
+            }
+
+        # Account purge (before client deletes Cognito user)
+        if http_method == "POST" and path.endswith("/account/purge"):
+            result = purge_user_data(customer_id)
+            return {
+                "statusCode": 200,
+                "body": json.dumps({
+                    "success": True,
+                    "customer_id": customer_id,
+                    "purged": result,
+                    "message": "Server-side user data purge complete",
+                }),
+                "headers": _cors_headers(),
             }
 
         # Force customer identity from token (ignore spoofed body customer_id)
@@ -110,27 +186,18 @@ def handler(event, context):
                         "message": "Order accepted (processing queue). Database offline in this environment.",
                         "payload": body,
                     }, default=str),
-                    "headers": {
-                        "Content-Type": "application/json",
-                        "Access-Control-Allow-Origin": "*",
-                    },
+                    "headers": _cors_headers(),
                 }
             if http_method == "GET" and not order_id:
                 return {
                     "statusCode": 200,
                     "body": json.dumps([]),
-                    "headers": {
-                        "Content-Type": "application/json",
-                        "Access-Control-Allow-Origin": "*",
-                    },
+                    "headers": _cors_headers(),
                 }
             return {
                 "statusCode": 503,
                 "body": json.dumps({"error": "Orders service temporarily unavailable"}),
-                "headers": {
-                    "Content-Type": "application/json",
-                    "Access-Control-Allow-Origin": "*",
-                },
+                "headers": _cors_headers(),
             }
 
         cursor = conn.cursor(cursor_factory=RealDictCursor)

@@ -1,25 +1,41 @@
 /**
  * API helpers — attach Cognito JWT when the user is signed in.
- * Orders API requires JWT. Detect accepts optional JWT (guest allowed).
+ * Orders API requires ID token. Detect uses optional access token for verified attribution.
  */
 import { API_BASE } from './cognitoConfig';
 
-let tokenGetter = async () => null;
+let idTokenGetter = async () => null;
+let accessTokenGetter = async () => null;
 
 /** Call once from AuthProvider wiring / App */
 export function setAuthTokenGetter(fn) {
-  tokenGetter = fn || (async () => null);
+  idTokenGetter = fn || (async () => null);
 }
 
-export async function authHeaders(extra = {}) {
+export function setAccessTokenGetter(fn) {
+  accessTokenGetter = fn || (async () => null);
+}
+
+export async function authHeaders(extra = {}, { preferAccessToken = false } = {}) {
   const headers = {
     'Content-Type': 'application/json',
     ...extra,
   };
   try {
-    const token = await tokenGetter();
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
+    if (preferAccessToken) {
+      const access = await accessTokenGetter();
+      if (access) {
+        // Access token for Cognito GetUser verification on /detect
+        headers.Authorization = `Bearer ${access}`;
+        headers['X-Cognito-Token-Use'] = 'access';
+      }
+      const id = await idTokenGetter();
+      if (id) headers['X-Id-Token'] = id;
+    } else {
+      const token = await idTokenGetter();
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
     }
   } catch {
     /* guest */
@@ -28,8 +44,14 @@ export async function authHeaders(extra = {}) {
 }
 
 export async function apiFetch(path, options = {}) {
-  const { method = 'GET', body, requireAuth = false, headers: extraHeaders } = options;
-  const headers = await authHeaders(extraHeaders);
+  const {
+    method = 'GET',
+    body,
+    requireAuth = false,
+    headers: extraHeaders,
+    preferAccessToken = false,
+  } = options;
+  const headers = await authHeaders(extraHeaders, { preferAccessToken });
 
   if (requireAuth && !headers.Authorization) {
     const err = new Error('Please sign in to continue');
@@ -63,8 +85,13 @@ export async function apiFetch(path, options = {}) {
 }
 
 export async function postDetect(payload) {
-  // Guest allowed; JWT attached when signed in
-  return apiFetch('/detect', { method: 'POST', body: payload, requireAuth: false });
+  // Guest allowed; access token attached when signed in for verified attribution
+  return apiFetch('/detect', {
+    method: 'POST',
+    body: payload,
+    requireAuth: false,
+    preferAccessToken: true,
+  });
 }
 
 export async function listOrders() {
@@ -77,6 +104,11 @@ export async function createOrder(orderBody) {
 
 export async function getOrder(id) {
   return apiFetch(`/orders/${id}`, { method: 'GET', requireAuth: true });
+}
+
+/** Purge server-side user data (rate limits / order notes) before Cognito delete */
+export async function purgeAccountData() {
+  return apiFetch('/account/purge', { method: 'POST', body: {}, requireAuth: true });
 }
 
 export { API_BASE };

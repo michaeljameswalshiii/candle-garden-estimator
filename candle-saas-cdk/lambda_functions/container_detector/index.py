@@ -529,18 +529,20 @@ def _client_ip(event):
     return identity.get("sourceIp") or "unknown"
 
 
-def _optional_jwt_claims(event):
-    """
-    Best-effort decode of Bearer JWT payload (no signature verify).
-    Used only for rate-limit bucket key + response attribution when API GW
-    has no Cognito authorizer on /detect. Not a security boundary.
-    """
+def _bearer_token(event):
     headers = event.get("headers") or {}
     lower = {str(k).lower(): v for k, v in headers.items()}
     auth = lower.get("authorization") or ""
     if not auth.lower().startswith("bearer "):
+        return None
+    return auth.split(" ", 1)[1].strip() or None
+
+
+def _optional_jwt_claims(event):
+    """Decode JWT payload without verify (fallback only)."""
+    token = _bearer_token(event)
+    if not token:
         return {}
-    token = auth.split(" ", 1)[1].strip()
     parts = token.split(".")
     if len(parts) < 2:
         return {}
@@ -551,6 +553,51 @@ def _optional_jwt_claims(event):
         return data if isinstance(data, dict) else {}
     except Exception:
         return {}
+
+
+def _verify_access_token_user(access_token):
+    """
+    Cryptographically useful attribution: Cognito GetUser validates the access token.
+    Returns {sub, email, username, verified: True} or {}.
+    """
+    if not access_token:
+        return {}
+    try:
+        cognito = boto3.client("cognito-idp", region_name=AWS_REGION)
+        resp = cognito.get_user(AccessToken=access_token)
+        attrs = {a["Name"]: a["Value"] for a in resp.get("UserAttributes", [])}
+        return {
+            "sub": attrs.get("sub"),
+            "email": attrs.get("email"),
+            "username": resp.get("Username"),
+            "verified": True,
+            "token_use": "access",
+        }
+    except Exception as e:
+        logger.info(f"Access token verify failed (guest or id token): {e}")
+        return {}
+
+
+def _resolve_user_context(event):
+    """
+    Prefer verified Cognito GetUser when Authorization is an access token.
+    Fall back to unverified JWT claims (e.g. id token) for soft attribution.
+    """
+    token = _bearer_token(event)
+    verified = _verify_access_token_user(token)
+    if verified.get("sub"):
+        return verified
+
+    claims = _optional_jwt_claims(event)
+    if claims.get("sub"):
+        return {
+            "sub": claims.get("sub"),
+            "email": claims.get("email"),
+            "username": claims.get("cognito:username") or claims.get("username"),
+            "verified": False,
+            "token_use": claims.get("token_use") or "unknown",
+        }
+    return {"verified": False}
 
 
 def _rate_limit_check(bucket_key, limit):
@@ -591,13 +638,15 @@ def handler(event, context):
         if (event.get("httpMethod") or event.get("requestContext", {}).get("http", {}).get("method", "")).upper() == "OPTIONS":
             return _json_response(200, {"ok": True})
 
-        claims = _optional_jwt_claims(event)
-        user_sub = claims.get("sub")
-        user_email = claims.get("email")
+        user_ctx = _resolve_user_context(event)
+        user_sub = user_ctx.get("sub")
+        user_email = user_ctx.get("email")
         is_authenticated = bool(user_sub)
+        token_verified = bool(user_ctx.get("verified"))
 
         ip = _client_ip(event)
-        if is_authenticated:
+        # Only use user bucket when token was verified with Cognito GetUser
+        if is_authenticated and token_verified:
             bucket = f"user:{user_sub}"
             limit = AUTH_DETECT_LIMIT
         else:
@@ -611,7 +660,7 @@ def handler(event, context):
                 "error": "rate_limited",
                 "message": (
                     "Too many estimate requests. Please try again later"
-                    + (" or sign in for a higher limit." if not is_authenticated else ".")
+                    + (" or sign in for a higher limit." if not (is_authenticated and token_verified) else ".")
                 ),
                 "limit": lim,
                 "remaining": 0,
@@ -660,9 +709,13 @@ def handler(event, context):
                         "sub": user_sub,
                         "email": user_email,
                         "authenticated": True,
+                        "token_verified": token_verified,
                     }
                 else:
-                    payload["user"] = {"authenticated": False}
+                    payload["user"] = {
+                        "authenticated": False,
+                        "token_verified": False,
+                    }
                 result["body"] = json.dumps(payload)
         except Exception as meta_err:
             logger.warning(f"Could not attach rate metadata: {meta_err}")

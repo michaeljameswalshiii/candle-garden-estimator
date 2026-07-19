@@ -10,13 +10,16 @@ import {
   attributesToObject,
   confirmSignUp as cognitoConfirm,
   getUser,
+  confirmForgotPassword as cognitoConfirmForgotPassword,
   deleteUser as cognitoDeleteUser,
+  forgotPassword as cognitoForgotPassword,
   globalSignOut,
   refreshSession,
   resendConfirmationCode,
   signIn as cognitoSignIn,
   signUp as cognitoSignUp,
 } from './cognitoClient';
+import { purgeAccountData } from './apiClient';
 import {
   clearTokens,
   loadProfile,
@@ -181,6 +184,13 @@ export function AuthProvider({ children }) {
       if (!access) {
         throw new Error('Not signed in');
       }
+      // Purge server-side data while JWT still valid, then delete Cognito user
+      try {
+        await purgeAccountData();
+      } catch (purgeErr) {
+        // Continue with Cognito delete even if purge soft-fails
+        console.warn('Account purge warning:', purgeErr?.message);
+      }
       await cognitoDeleteUser(access);
       await clearTokens();
       setTokens(null);
@@ -193,6 +203,38 @@ export function AuthProvider({ children }) {
       setBusy(false);
     }
   }, [tokens]);
+
+  const forgotPassword = useCallback(async (email) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await cognitoForgotPassword({ email: email.trim() });
+      return true;
+    } catch (e) {
+      setError(e.message);
+      throw e;
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const confirmForgotPassword = useCallback(async ({ email, code, password }) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await cognitoConfirmForgotPassword({
+        email: email.trim(),
+        code: code.trim(),
+        password,
+      });
+      return true;
+    } catch (e) {
+      setError(e.message);
+      throw e;
+    } finally {
+      setBusy(false);
+    }
+  }, []);
 
   const getAccessToken = useCallback(async () => {
     let session = tokens || (await loadTokens());
@@ -246,6 +288,8 @@ export function AuthProvider({ children }) {
       signIn,
       signOut,
       deleteAccount,
+      forgotPassword,
+      confirmForgotPassword,
       getAccessToken,
       getIdToken,
       restore,
@@ -262,6 +306,8 @@ export function AuthProvider({ children }) {
       signIn,
       signOut,
       deleteAccount,
+      forgotPassword,
+      confirmForgotPassword,
       getAccessToken,
       getIdToken,
       restore,

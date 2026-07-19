@@ -139,6 +139,22 @@ export async function deleteUser(accessToken) {
   });
 }
 
+export async function forgotPassword({ email }) {
+  return cognitoRequest('ForgotPassword', {
+    ClientId: cognitoConfig.clientId,
+    Username: email,
+  });
+}
+
+export async function confirmForgotPassword({ email, code, password }) {
+  return cognitoRequest('ConfirmForgotPassword', {
+    ClientId: cognitoConfig.clientId,
+    Username: email,
+    ConfirmationCode: code,
+    Password: password,
+  });
+}
+
 export function attributesToObject(userResult) {
   const attrs = {};
   (userResult.UserAttributes || []).forEach((a) => {

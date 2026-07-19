@@ -72,13 +72,37 @@ Files: `lib/cognitoClient.js` → `deleteUser`, `AuthContext.deleteAccount`, Pro
 
 ---
 
-## Intentionally deferred (Phase 2.5 / 3)
+## Phase 2 continued (also done)
 
-- [ ] Sign in with **Apple** / Google  
-- [ ] Full cryptographic JWT verify on detect (or Cognito authorizer + guest alternate path)  
+### Forgot password
+- Profile modes: **Forgot** → email code → **Set new password**  
+- Cognito `ForgotPassword` / `ConfirmForgotPassword`
+
+### Verified detect attribution
+- Client sends **access token** on `/detect` when signed in  
+- Lambda calls **Cognito GetUser** to validate token  
+- Higher rate-limit bucket only when **verified**  
+- Response: `user.token_verified: true|false`
+
+### Account data purge
+- `POST /account/purge` (Cognito authorizer, same as orders)  
+- Deletes detect rate-limit keys for `user:{sub}`  
+- Soft-deletes orders (`status=deleted`) when DB available  
+- Profile delete flow: purge → Cognito `DeleteUser`
+
+### SES / social login
+- Ops guide: `docs/SES_AND_SOCIAL_LOGIN.md`  
+- No SES identities in account yet — cannot auto-enable branded mail  
+- Apple/Google not wired (needs Apple Developer + rebuild)
+
+---
+
+## Intentionally deferred (Phase 3)
+
+- [ ] Sign in with **Apple** / Google (code/federation)  
+- [ ] SES branded templates (after domain verify)  
 - [ ] WAF / API key on detect  
-- [ ] Always-on RDS for durable orders (ephemeral accept when DB offline remains)  
-- [ ] Backend purge of user data on delete (beyond Cognito user)  
+- [ ] Always-on RDS for durable orders  
 - [ ] Push notifications  
 
 ---

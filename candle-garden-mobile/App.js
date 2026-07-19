@@ -14,7 +14,7 @@ import ProfileScreen from './screens/ProfileScreen';
 import { colors, navigationTheme, fonts } from './lib/theme';
 import { CartProvider, useCart } from './lib/cart';
 import { AuthProvider, useAuth } from './lib/AuthContext';
-import { setAuthTokenGetter } from './lib/apiClient';
+import { setAuthTokenGetter, setAccessTokenGetter } from './lib/apiClient';
 
 // Lazy-load Estimator so expo-image-picker / prepareImage are not required at app start
 const EstimatorScreen = lazy(() => import('./screens/EstimatorScreen'));
@@ -37,11 +37,13 @@ function EstimatorSuspense() {
 }
 
 function AuthTokenBridge({ children }) {
-  const { getIdToken } = useAuth();
+  const { getIdToken, getAccessToken } = useAuth();
   React.useEffect(() => {
     // API Gateway Cognito authorizer expects the ID token
     setAuthTokenGetter(() => getIdToken());
-  }, [getIdToken]);
+    // Detect attribution uses access token (Cognito GetUser)
+    setAccessTokenGetter(() => getAccessToken());
+  }, [getIdToken, getAccessToken]);
   return children;
 }
 

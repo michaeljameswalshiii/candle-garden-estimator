@@ -39,9 +39,11 @@ export default function ProfileScreen() {
     resendCode,
     signOut,
     deleteAccount,
+    forgotPassword,
+    confirmForgotPassword,
   } = useAuth();
 
-  const [mode, setMode] = useState('signin'); // signin | signup | confirm
+  const [mode, setMode] = useState('signin'); // signin | signup | confirm | forgot | reset
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -106,6 +108,34 @@ export default function ProfileScreen() {
     }
   };
 
+  const onForgot = async () => {
+    try {
+      await forgotPassword(email.trim());
+      setMode('reset');
+      Alert.alert(
+        'Check your email',
+        'Enter the reset code and choose a new password.'
+      );
+    } catch (e) {
+      Alert.alert('Reset failed', e.message || 'Try again');
+    }
+  };
+
+  const onResetPassword = async () => {
+    try {
+      await confirmForgotPassword({
+        email: email.trim(),
+        code: code.trim(),
+        password,
+      });
+      setCode('');
+      setMode('signin');
+      Alert.alert('Password updated', 'Sign in with your new password.');
+    } catch (e) {
+      Alert.alert('Could not reset', e.message || 'Check the code and try again');
+    }
+  };
+
   const handleLogout = () => {
     Alert.alert('Sign out', 'Sign out of The Candle Garden App?', [
       { text: 'Cancel', style: 'cancel' },
@@ -123,7 +153,7 @@ export default function ProfileScreen() {
   const handleDeleteAccount = () => {
     Alert.alert(
       'Delete account',
-      'This permanently deletes your Cognito login. Orders and local cart data may remain until support purge. Continue?',
+      'This permanently deletes your login and purges server rate-limit keys / soft-deletes orders when available. Local cart on this device is cleared after sign-out. Continue?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -175,14 +205,29 @@ export default function ProfileScreen() {
 
         <View style={styles.section}>
           <View style={styles.modeRow}>
-            {['signin', 'signup', 'confirm'].map((m) => (
+            {[
+              { id: 'signin', label: 'Sign in' },
+              { id: 'signup', label: 'Create' },
+              { id: 'confirm', label: 'Confirm' },
+              { id: 'forgot', label: 'Forgot' },
+            ].map((m) => (
               <TouchableOpacity
-                key={m}
-                style={[styles.modeChip, mode === m && styles.modeChipOn]}
-                onPress={() => setMode(m)}
+                key={m.id}
+                style={[
+                  styles.modeChip,
+                  (mode === m.id || (m.id === 'forgot' && mode === 'reset')) &&
+                    styles.modeChipOn,
+                ]}
+                onPress={() => setMode(m.id === 'forgot' ? 'forgot' : m.id)}
               >
-                <Text style={[styles.modeChipText, mode === m && styles.modeChipTextOn]}>
-                  {m === 'signin' ? 'Sign in' : m === 'signup' ? 'Create' : 'Confirm'}
+                <Text
+                  style={[
+                    styles.modeChipText,
+                    (mode === m.id || (m.id === 'forgot' && mode === 'reset')) &&
+                      styles.modeChipTextOn,
+                  ]}
+                >
+                  {m.label}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -216,9 +261,27 @@ export default function ProfileScreen() {
             />
           </View>
 
-          {mode !== 'confirm' ? (
+          {(mode === 'confirm' || mode === 'reset') && (
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Password</Text>
+              <Text style={styles.label}>
+                {mode === 'reset' ? 'Reset code' : 'Confirmation code'}
+              </Text>
+              <TextInput
+                style={styles.input}
+                value={code}
+                onChangeText={setCode}
+                keyboardType="number-pad"
+                placeholder="Code from email"
+                placeholderTextColor={colors.textFaint}
+              />
+            </View>
+          )}
+
+          {mode !== 'confirm' && mode !== 'forgot' ? (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>
+                {mode === 'reset' ? 'New password' : 'Password'}
+              </Text>
               <TextInput
                 style={styles.input}
                 value={password}
@@ -228,21 +291,9 @@ export default function ProfileScreen() {
                 placeholderTextColor={colors.textFaint}
               />
             </View>
-          ) : (
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Confirmation code</Text>
-              <TextInput
-                style={styles.input}
-                value={code}
-                onChangeText={setCode}
-                keyboardType="number-pad"
-                placeholder="6-digit code from email"
-                placeholderTextColor={colors.textFaint}
-              />
-            </View>
-          )}
+          ) : null}
 
-          {mode === 'confirm' && password ? null : mode === 'confirm' ? (
+          {mode === 'confirm' ? (
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Password (to sign in after confirm)</Text>
               <TextInput
@@ -259,7 +310,15 @@ export default function ProfileScreen() {
           <TouchableOpacity
             style={[styles.button, busy && styles.buttonDisabled]}
             onPress={
-              mode === 'signin' ? onSignIn : mode === 'signup' ? onSignUp : onConfirm
+              mode === 'signin'
+                ? onSignIn
+                : mode === 'signup'
+                  ? onSignUp
+                  : mode === 'confirm'
+                    ? onConfirm
+                    : mode === 'forgot'
+                      ? onForgot
+                      : onResetPassword
             }
             disabled={busy}
             activeOpacity={0.8}
@@ -272,7 +331,11 @@ export default function ProfileScreen() {
                   ? 'Sign in'
                   : mode === 'signup'
                     ? 'Create account'
-                    : 'Confirm & sign in'}
+                    : mode === 'confirm'
+                      ? 'Confirm & sign in'
+                      : mode === 'forgot'
+                        ? 'Send reset code'
+                        : 'Set new password'}
               </Text>
             )}
           </TouchableOpacity>
@@ -280,6 +343,16 @@ export default function ProfileScreen() {
           {mode === 'confirm' ? (
             <TouchableOpacity style={styles.linkBtn} onPress={onResend} disabled={busy}>
               <Text style={styles.linkText}>Resend code</Text>
+            </TouchableOpacity>
+          ) : null}
+
+          {mode === 'signin' ? (
+            <TouchableOpacity
+              style={styles.linkBtn}
+              onPress={() => setMode('forgot')}
+              disabled={busy}
+            >
+              <Text style={styles.linkText}>Forgot password?</Text>
             </TouchableOpacity>
           ) : null}
         </View>
