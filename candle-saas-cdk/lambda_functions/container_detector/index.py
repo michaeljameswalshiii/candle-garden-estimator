@@ -32,32 +32,40 @@ VISION_PROMPT = """You are an expert candle refill estimator for The Candle Gard
 
 Customers photograph one or more containers they want REFILLED with soy wax. Your job is to estimate wax needed for EVERY refillable container in the photo, then SUM them.
 
-## ONLY exclude (never list as a vessel)
-- The blue Athletic Brewing beer can (or any soda/beer aluminum can) used as a **scale reference only**
-  - Treat it as a standard **12 fl oz / 355 ml** can for size comparison
-  - Do NOT include it in vessels[] and do NOT add its volume to totals
+## SCALE ONLY — never list as a vessel
+Any aluminum beverage can used for size reference (standard **12 fl oz / 355 ml**):
+- Athletic Brewing beer cans, Alani energy drinks, seltzer, soda, or similar
+- Brand/color does not matter — if it is a drink can, it is scale only
+- Do NOT put the can in vessels[] and do NOT add its volume to totals
 
-## INCLUDE as candle vessels (always estimate when present)
-Count EVERY other open container that can hold candle wax, including:
-- Glass jars, amber/apothecary jars, metal tins
-- Ceramic/porcelain mugs (even if they currently show liquid, latte foam, or residue — customers reuse mugs as candle vessels)
-- Drinking glasses, tumblers, rocks glasses, stemless glasses (even if cloudy, frosted, sooty, or with ice-like residue — that is often spent wax)
+## INCLUDE as a candle vessel if ANY of these are true
+- Has a wick, wick tab, or metal wick clip (even when the glass is empty)
+- Glass jar, tumbler, amber/apothecary jar, metal tin
+- Ceramic/porcelain mug staged for candles (even with liquid/residue)
+- Clear drinking-style glass / rocks glass / tumbler that is empty with a wick or Candle Garden branding
 - Votives, bowls used as candles, novelty vessels
+- Small short jars next to taller ones — still count them separately
 
-When in doubt whether something is a candle vessel vs trash: if it is a jar, mug, or glass container next to the scale can, INCLUDE it.
+When in doubt: if it is a jar/mug/glass in the main foreground group next to the scale can, INCLUDE it.
 
 ## Do NOT include
-- Cardboard boxes, plastic storage bins, bags, furniture, food packaging
-- Closed bottles with screw caps of liquor/water (not candle jars)
-- The scale can (see above)
+- Beverage cans (scale only — see above)
+- Cardboard boxes, plastic storage bins, bags of wicks, paper towels, furniture, food packaging
+- Closed liquor/water bottles with screw caps
+- Finished candles sitting in the background/shelves unless clearly part of the refill group
+- Wax melts / cubes of wax in trays (not vessels)
 
-## Multi-container rules (critical)
-- If the photo shows N jars/mugs/glasses + 1 scale can → return N vessels (not 1)
+## Multi-container rules (critical — common failure: under-counting)
+- If the photo shows N jars/mugs/glasses + 1 scale can → return N vessels (not N-1, not 1)
+- Count EACH separate glass as its own vessel — do NOT merge two similar tall tumblers
+- Always include the smallest short jar if it has a wick
+- Before answering: count distinct glass bottoms/rims/wicks in the main cluster; vessels.length MUST match
+- vessel_count MUST equal vessels.length
 - Estimate each vessel separately with wax_needed_oz
 - total_wax_needed_oz = SUM of all vessels' wax_needed_oz
 - total_wax_needed_grams = SUM of all vessels' wax_needed_grams (or oz * 28.35)
 - Use the 12 oz can for relative diameter/height of each vessel
-- current_wax_percent: remaining usable wax still in the vessel (0–100)
+- current_wax_percent: remaining usable wax (0–100); empty + wick only → 0
 - wax_needed_oz ≈ full_capacity_oz * (1 - current_wax_percent/100)
 
 ## Output
@@ -66,30 +74,47 @@ Return ONLY valid JSON, no markdown, no other text:
 {
   "success": true,
   "container_detected": true,
+  "vessel_count": 5,
   "vessels": [
     {
-      "description": "Brief description of vessel (color, material, label if any)",
-      "full_capacity_oz": 9,
-      "current_wax_percent": 15,
-      "wax_needed_oz": 7.7,
-      "wax_needed_grams": 218,
-      "notes": "Any observations"
+      "description": "Small clear glass jar with wick (shortest)",
+      "full_capacity_oz": 5,
+      "current_wax_percent": 0,
+      "wax_needed_oz": 5,
+      "wax_needed_grams": 142,
+      "notes": ""
     }
   ],
-  "total_wax_needed_oz": 22.5,
-  "total_wax_needed_grams": 638,
+  "total_wax_needed_oz": 48,
+  "total_wax_needed_grams": 1361,
   "confidence": 0.85,
-  "explanation": "List each vessel counted and confirm the beer can was used only as scale",
+  "explanation": "Counted 5 glass vessels with wicks; Alani/Athletic can used only as 12 oz scale; background clutter ignored",
+  "recount_check": "I see 5 separate glasses with wicks in the foreground; listed 5 vessels",
   "refill_recommendations": {
-    "soy_wax_grams": 638,
+    "soy_wax_grams": 1361,
     "fragrance_ml": "estimate 6-8% load",
     "suggested_price": "optional range",
     "priority": "notes"
   }
 }
 
-If ZERO vessels other than the scale can: set container_detected false and vessels to [].
+If ZERO vessels other than the scale can: set container_detected false, vessel_count 0, vessels [].
 There is no min/max vessel size.
+"""
+
+# Extra text appended when we ask the model to recount (undercount guard)
+RECOUNT_PROMPT_SUFFIX = """
+
+## RECOUNT PASS (required)
+You previously may have under-counted vessels in this same image.
+Common mistakes on studio photos:
+- Dropping the smallest short jar next to the scale can
+- Merging two similar tall tumblers into one vessel
+- Ignoring an empty glass that still has a wick
+
+List EVERY separate glass candle vessel in the foreground group again.
+Beverage cans = scale only. Background wax cubes / finished candles / wick bags = ignore.
+vessel_count MUST equal vessels.length. Return JSON only.
 """
 
 MEDIA_TYPES = {
@@ -270,13 +295,14 @@ def _parse_model_json(text):
         return None
 
 
-def _invoke_claude(image_data, image_format):
+def _invoke_claude(image_data, image_format, prompt_text=None):
     """Call Claude (Anthropic Messages API on Bedrock). Returns response text."""
     media_type = MEDIA_TYPES.get(image_format, "image/jpeg")
+    prompt_text = prompt_text or VISION_PROMPT
 
     body = {
         "anthropic_version": "bedrock-2023-05-31",
-        "max_tokens": 1200,
+        "max_tokens": 2000,
         "temperature": 0.0,
         "messages": [
             {
@@ -290,7 +316,7 @@ def _invoke_claude(image_data, image_format):
                             "data": image_data,
                         },
                     },
-                    {"type": "text", "text": VISION_PROMPT},
+                    {"type": "text", "text": prompt_text},
                 ],
             }
         ],
@@ -312,9 +338,10 @@ def _invoke_claude(image_data, image_format):
     return ""
 
 
-def _invoke_nova(image_data, image_format):
+def _invoke_nova(image_data, image_format, prompt_text=None):
     """Call Amazon Nova Pro. Returns response text."""
     fmt = "jpeg" if image_format in ("jpg", "jpeg") else image_format
+    prompt_text = prompt_text or VISION_PROMPT
     response = bedrock_runtime.invoke_model(
         modelId=NOVA_MODEL_ID,
         contentType="application/json",
@@ -324,11 +351,11 @@ def _invoke_nova(image_data, image_format):
                 "role": "user",
                 "content": [
                     {"image": {"format": fmt, "source": {"bytes": image_data}}},
-                    {"text": VISION_PROMPT},
+                    {"text": prompt_text},
                 ],
             }],
             "inferenceConfig": {
-                "max_new_tokens": 1000,
+                "max_new_tokens": 1600,
                 "temperature": 0.0,
                 "topP": 0.95,
             },
@@ -426,21 +453,42 @@ def _build_success_response(result, model_used):
     if est_grams < 1:
         est_grams = est_oz * 28.35
 
+    vessel_count = len(vessels) if isinstance(vessels, list) else 0
+    try:
+        declared = int(result.get("vessel_count")) if result.get("vessel_count") is not None else vessel_count
+    except (TypeError, ValueError):
+        declared = vessel_count
+    if declared != vessel_count:
+        logger.warning(
+            "vessel_count mismatch declared=%s actual=%s — using actual list length",
+            declared,
+            vessel_count,
+        )
+
+    container_type = (
+        f"{vessel_count} candle vessel{'s' if vessel_count != 1 else ''}"
+        if vessel_count
+        else "Candle vessel(s)"
+    )
+
     return _json_response(200, {
         "success": True,
         "container_detected": True,
         "estimated_ounces": round(est_oz, 1),
         "total_volume_oz": round(est_oz, 1),
         "estimated_grams": round(est_grams, 1),
+        "vessel_count": vessel_count,
         "vessels": vessels,
         "confidence": round(conf, 2),
-        "container_type": "Candle vessel(s)",
+        "container_type": container_type,
         "explanation": result.get("explanation", "Refill estimate based on visual analysis"),
+        "recount_check": result.get("recount_check"),
         "refill_recommendations": result.get("refill_recommendations") or {},
         "model_used": model_used,
         "tips": [
             "Fully clean vessel for best results",
             "Good overhead lighting helps",
+            "Place a 12 oz drink can beside vessels for scale (not counted)",
             "Multiple vessels? We'll calculate total refill",
         ],
     })
@@ -468,11 +516,46 @@ def analyze_image(body):
             return built
         return None
 
+    def _maybe_recount(result, model_label, invoker):
+        """
+        Soft undercount guard: multi-vessel studio shots often miss 1 of 5.
+        If we only found 2–4 vessels, run one recount pass and keep the higher count.
+        """
+        if not result or not isinstance(result, dict):
+            return result
+        vessels = result.get("vessels") or []
+        n = len(vessels) if isinstance(vessels, list) else 0
+        if n < 2 or n > 4:
+            return result
+        try:
+            logger.info(
+                "%s soft recount (first pass vessel_count=%s)", model_label, n
+            )
+            text2 = invoker(
+                image_data,
+                image_format,
+                VISION_PROMPT + RECOUNT_PROMPT_SUFFIX,
+            )
+            result2 = _parse_model_json(text2)
+            if not result2 or not isinstance(result2, dict):
+                return result
+            n2 = len(result2.get("vessels") or [])
+            if n2 > n:
+                logger.info(
+                    "%s recount improved count %s → %s", model_label, n, n2
+                )
+                return result2
+            return result
+        except Exception as re_err:
+            logger.warning("%s recount failed: %s", model_label, re_err)
+            return result
+
     try:
         logger.info(f"Invoking Claude model: {CLAUDE_MODEL_ID}")
         text = _invoke_claude(image_data, image_format)
         models_tried.append("claude")
         result = _parse_model_json(text)
+        result = _maybe_recount(result, "Claude", _invoke_claude)
         handled = _handle_built(
             _build_success_response(result, CLAUDE_MODEL_ID),
             "Claude",
@@ -490,6 +573,7 @@ def analyze_image(body):
         text = _invoke_nova(image_data, image_format)
         models_tried.append("nova")
         result = _parse_model_json(text)
+        result = _maybe_recount(result, "Nova", _invoke_nova)
         handled = _handle_built(
             _build_success_response(result, NOVA_MODEL_ID),
             "Nova",

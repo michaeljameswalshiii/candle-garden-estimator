@@ -233,10 +233,10 @@ export default function EstimatorScreen() {
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Refill Estimator</Text>
       <Text style={styles.buildTag}>
-        build: multi-vessel-v4 · {isAuthenticated ? 'signed in' : 'guest'}
+        build: multi-vessel-v5 · {isAuthenticated ? 'signed in' : 'guest'}
       </Text>
       <Text style={styles.instruction}>
-        Take a clear photo of your empty (or mostly empty) candle vessel from above or the side. Good examples: mugs, jars, bowls, glasses.
+        Put every vessel you want refilled in the foreground (include small jars). Place a 12 oz drink can beside them for scale only — we will not count the can. Empty glass with wick visible works best.
       </Text>
       {!manipulatorOk ? (
         <View style={styles.warnBanner}>
