@@ -33,12 +33,7 @@ export default function ClassScheduleScreen() {
   };
 
   const renderClass = ({ item }) => {
-    const seats =
-      item.available != null && !item.soldOut
-        ? `${item.available} seat${item.available === 1 ? '' : 's'} left`
-        : item.soldOut
-          ? 'Sold out'
-          : 'See website';
+    const availability = 'Check live availability';
 
     return (
       <View style={styles.classCard}>
@@ -73,26 +68,17 @@ export default function ClassScheduleScreen() {
 
         <View style={styles.classFooter}>
           <Text
-            style={[
-              styles.availability,
-              {
-                color:
-                  item.soldOut || (item.available != null && item.available < 3)
-                    ? colors.warning
-                    : colors.primary,
-              },
-            ]}
+            style={styles.availability}
           >
-            {seats}
+            {availability}
           </Text>
           <TouchableOpacity
-            style={[styles.bookButton, item.soldOut && styles.bookButtonDisabled]}
+            style={styles.bookButton}
             onPress={() => handleBookClass(item)}
-            disabled={Boolean(item.soldOut)}
             activeOpacity={0.8}
           >
             <Text style={styles.bookButtonText}>
-              {item.soldOut ? 'Full' : 'Book'}
+              View & book
             </Text>
           </TouchableOpacity>
         </View>
@@ -114,7 +100,7 @@ export default function ClassScheduleScreen() {
               <View style={styles.heroOverlay} />
               <Text style={styles.heroTitle}>Candle classes</Text>
               <Text style={styles.heroSubtitle}>
-                Same public sessions as thecandlegarden.co
+                Preview upcoming sessions and confirm live details online
               </Text>
             </View>
             <ScrollView
@@ -136,7 +122,7 @@ export default function ClassScheduleScreen() {
               style={styles.siteLink}
               onPress={() => Linking.openURL(CLASSES_PAGE_URL).catch(() => {})}
             >
-              <Text style={styles.siteLinkText}>Open full schedule on website →</Text>
+              <Text style={styles.siteLinkText}>View live schedule & availability on website →</Text>
             </TouchableOpacity>
           </View>
         }

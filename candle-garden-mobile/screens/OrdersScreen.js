@@ -16,7 +16,7 @@ import { colors, fonts, radii, spacing } from '../lib/theme';
 import { useCart } from '../lib/cart';
 import { SHOP_BASE } from '../lib/shopCatalog';
 import { useAuth } from '../lib/AuthContext';
-import { createOrder, listOrders } from '../lib/apiClient';
+import { listOrders } from '../lib/apiClient';
 
 export default function OrdersScreen() {
   const { lines, itemCount, subtotal, setQuantity, removeItem, clearCart } = useCart();
@@ -53,45 +53,16 @@ export default function OrdersScreen() {
   const checkoutOnSite = () => {
     if (!lines.length) return;
     Alert.alert(
-      'Checkout on website',
-      'Your mobile cart is ready. Complete purchase on thecandlegarden.co (Squarespace checkout).',
+      'Continue on Squarespace',
+      'Your saved list cannot be transferred automatically. Choose product options again on the official store, where payment and live inventory are confirmed.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Open shop',
+          text: 'Open official store',
           onPress: () => Linking.openURL(`${SHOP_BASE}/shop`).catch(() => {}),
         },
       ]
     );
-  };
-
-  const submitAuthenticatedOrder = async () => {
-    if (!lines.length) return;
-    if (!isAuthenticated) {
-      Alert.alert(
-        'Sign in required',
-        'Open Profile to create an account or sign in, then place the order.'
-      );
-      return;
-    }
-    try {
-      const items = lines.map((l) => ({
-        product_id: l.productId,
-        name: l.name,
-        size: l.size,
-        quantity: l.quantity,
-        price: l.unitPrice,
-      }));
-      const result = await createOrder({ items, source: 'mobile_cart' });
-      clearCart();
-      Alert.alert(
-        'Order received',
-        result.message || `Order ${result.id || ''} submitted for your account.`
-      );
-      loadHistory();
-    } catch (e) {
-      Alert.alert('Order failed', e.message || 'Could not submit order');
-    }
   };
 
   const renderLine = ({ item }) => (
@@ -129,6 +100,11 @@ export default function OrdersScreen() {
             <Text style={styles.removeText}>Remove</Text>
           </TouchableOpacity>
         </View>
+        {item.url ? (
+          <TouchableOpacity onPress={() => Linking.openURL(item.url).catch(() => {})}>
+            <Text style={styles.productLink}>Choose options on Squarespace →</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
       <Text style={styles.lineTotal}>
         ${(item.unitPrice * item.quantity).toFixed(2)}
@@ -167,7 +143,7 @@ export default function OrdersScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>Cart & orders</Text>
       <Text style={styles.subtitle}>
-        Cart is saved on this device · signed-in orders use your account
+        Saved shopping list · payment and live inventory are confirmed on Squarespace
       </Text>
 
       <FlatList
@@ -196,18 +172,8 @@ export default function OrdersScreen() {
                   </Text>
                   <Text style={styles.subtotalValue}>${subtotal.toFixed(2)}</Text>
                 </View>
-                <TouchableOpacity
-                  style={styles.checkoutBtn}
-                  onPress={submitAuthenticatedOrder}
-                >
-                  <Text style={styles.checkoutText}>
-                    {isAuthenticated
-                      ? 'Place order (signed in)'
-                      : 'Sign in to place order'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.secondaryBtn} onPress={checkoutOnSite}>
-                  <Text style={styles.secondaryText}>Checkout on website instead</Text>
+                <TouchableOpacity style={styles.checkoutBtn} onPress={checkoutOnSite}>
+                  <Text style={styles.checkoutText}>Continue on Squarespace</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.clearBtn} onPress={clearCart}>
                   <Text style={styles.clearText}>Clear cart</Text>
@@ -337,6 +303,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.danger,
     fontWeight: '600',
+  },
+  productLink: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '700',
+    marginTop: 8,
   },
   lineTotal: {
     fontFamily: fonts.body,

@@ -9,8 +9,14 @@ export const CLASSES_PAGE_URL = 'https://www.thecandlegarden.co/candle-garden-ev
 /** @type {Array<object>} */
 export const classes = Array.isArray(catalog) ? catalog : [];
 
-export function getUpcomingClasses() {
-  return [...classes].sort((a, b) => {
+export function getUpcomingClasses(now = new Date()) {
+  const today = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+  ].join('-');
+
+  return classes.filter((item) => !item.date || item.date >= today).sort((a, b) => {
     const da = a.date || '';
     const db = b.date || '';
     if (da !== db) return da.localeCompare(db);

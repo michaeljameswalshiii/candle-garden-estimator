@@ -11,7 +11,9 @@
       "**/*"
     ],
     "web": {
-      "favicon": "./assets/favicon.png"
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/icon.png"
     },
     "experiments": {
       "typedRoutes": true
@@ -34,9 +36,6 @@
     "android": {
       "package": "com.michaeljameswalshiii.candlegarden"
     },
-    "splash": {
-      "backgroundColor": "#103831"
-    },
     "primaryColor": "#103831",
     "plugins": [
       "expo-secure-store",
@@ -45,7 +44,15 @@
         {
           "color": "#103831"
         }
-      ]
+      ],
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#103831"
+        }
+      ],
+      "expo-font"
     ]
   }
 }
