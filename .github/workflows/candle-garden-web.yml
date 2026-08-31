@@ -1,0 +1,34 @@
+name: Candle Garden Web
+
+on:
+  pull_request:
+    paths:
+      - "candle-garden-web/**"
+      - "packages/catalog/**"
+      - ".github/workflows/candle-garden-web.yml"
+  push:
+    branches: [main]
+    paths:
+      - "candle-garden-web/**"
+      - "packages/catalog/**"
+      - ".github/workflows/candle-garden-web.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: candle-garden-web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: candle-garden-web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build

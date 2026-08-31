@@ -1,0 +1,6 @@
+{
+  "name": "@candle-garden/catalog",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shared product and class catalog snapshots for The Candle Garden web and mobile apps"
+}

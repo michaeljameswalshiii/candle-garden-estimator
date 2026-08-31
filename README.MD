@@ -1,5 +1,16 @@
 # Candle Garden Estimator
 
+## Repository layout
+
+This repository contains three independently deployable applications plus shared data:
+
+- `candle-garden-mobile/` — Expo iOS and Android app, released through EAS.
+- `candle-garden-web/` — Next.js public storefront, deployed through its own Vercel project.
+- `candle-saas-cdk/` — AWS infrastructure and APIs, deployed through CDK.
+- `packages/catalog/` — product and class snapshots consumed by web and mobile.
+
+GitHub Actions use path filters so a web-only change does not validate the mobile app and a mobile-only change does not validate the website. Shared catalog changes validate both consumers.
+
 **A powerful iOS tool for precise candle-making calculations**  
 Built for The Candle Garden – Jacksonville, Florida's premier soy candle and house plant studio.
 

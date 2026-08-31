@@ -9,8 +9,10 @@ npm install
 npm run dev
 ```
 
-The initial catalog adapter reads the existing mobile product and class JSON files so both experiences begin with matching content. Product checkout and class booking links continue to the live Squarespace store until the shared commerce API is ready.
+The catalog adapter reads `../packages/catalog`, the shared source used by both web and mobile. Product checkout and class booking links continue to the live Squarespace store until the shared commerce API is ready.
 
 ## Vercel
 
 Create a Vercel project with `candle-garden-web` as its Root Directory. The default Next.js build settings are sufficient.
+
+The project is intentionally independent from Expo/EAS. `vercel.json` skips deployments when neither the web app nor the shared catalog changed.

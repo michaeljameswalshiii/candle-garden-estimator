@@ -1,5 +1,5 @@
-import rawClasses from "../../../candle-garden-mobile/lib/classesCatalog.json";
-import rawProducts from "../../../candle-garden-mobile/lib/shopCatalog.json";
+import rawClasses from "../../../packages/catalog/classes.json";
+import rawProducts from "../../../packages/catalog/products.json";
 
 export type Product = {
   id: string;

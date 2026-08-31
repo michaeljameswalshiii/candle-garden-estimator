@@ -2,7 +2,7 @@
  * Candle classes mirrored from https://www.thecandlegarden.co/candle-garden-events
  * Snapshot for reliable offline display; "Book" opens the live site.
  */
-import catalog from './classesCatalog.json';
+import catalog from '../../packages/catalog/classes.json';
 
 export const CLASSES_PAGE_URL = 'https://www.thecandlegarden.co/candle-garden-events';
 

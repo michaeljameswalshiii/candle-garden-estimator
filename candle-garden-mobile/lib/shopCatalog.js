@@ -3,7 +3,7 @@
  * Categories match site collections: Spring, Classic, Subscriptions.
  * Data snapshot embedded for reliable Expo Go display; "View on site" opens live product.
  */
-import catalog from './shopCatalog.json';
+import catalog from '../../packages/catalog/products.json';
 
 export const SHOP_CATEGORIES = [
   { id: 'all', label: 'All', sitePath: '/shop' },
