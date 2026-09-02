@@ -5,6 +5,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import { StripeProvider } from '@stripe/stripe-react-native';
 
 import HomeScreen from './screens/HomeScreen';
 import ProductsScreen from './screens/ProductsScreen';
@@ -15,6 +16,7 @@ import { colors, navigationTheme, fonts } from './lib/theme';
 import { CartProvider, useCart } from './lib/cart';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import { setAuthTokenGetter, setAccessTokenGetter } from './lib/apiClient';
+import { APPLE_MERCHANT_IDENTIFIER, STRIPE_PUBLISHABLE_KEY } from './lib/stripeConfig';
 
 // Lazy-load Estimator so expo-image-picker / prepareImage are not required at app start
 const EstimatorScreen = lazy(() => import('./screens/EstimatorScreen'));
@@ -131,7 +133,7 @@ function MainTabs() {
   );
 }
 
-export default function App() {
+function AppTree() {
   return (
     <AuthProvider>
       <AuthTokenBridge>
@@ -143,6 +145,20 @@ export default function App() {
         </CartProvider>
       </AuthTokenBridge>
     </AuthProvider>
+  );
+}
+
+export default function App() {
+  if (!STRIPE_PUBLISHABLE_KEY) {
+    return <AppTree />;
+  }
+  return (
+    <StripeProvider
+      publishableKey={STRIPE_PUBLISHABLE_KEY}
+      merchantIdentifier={APPLE_MERCHANT_IDENTIFIER || undefined}
+    >
+      <AppTree />
+    </StripeProvider>
   );
 }
 

@@ -16,14 +16,31 @@ import { colors, fonts, radii, spacing } from '../lib/theme';
 import { useCart } from '../lib/cart';
 import { SHOP_BASE } from '../lib/shopCatalog';
 import { useAuth } from '../lib/AuthContext';
-import { listOrders } from '../lib/apiClient';
+import { createOrder, createStripePaymentSheet, listOrders } from '../lib/apiClient';
+import { useStripe } from '@stripe/stripe-react-native';
+import { APPLE_MERCHANT_IDENTIFIER, stripeConfigured } from '../lib/stripeConfig';
 
 export default function OrdersScreen() {
+  if (stripeConfigured) {
+    return <OrdersScreenCheckout />;
+  }
+  return <OrdersScreenBody stripe={null} />;
+}
+
+function OrdersScreenCheckout() {
+  const stripe = useStripe();
+  return <OrdersScreenBody stripe={stripe} />;
+}
+
+function OrdersScreenBody({ stripe }) {
   const { lines, itemCount, subtotal, setQuantity, removeItem, clearCart } = useCart();
   const { isAuthenticated } = useAuth();
+  const initPaymentSheet = stripe?.initPaymentSheet;
+  const presentPaymentSheet = stripe?.presentPaymentSheet;
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState(null);
+  const [checkingOut, setCheckingOut] = useState(false);
 
   const loadHistory = useCallback(async () => {
     if (!isAuthenticated) {
@@ -63,6 +80,58 @@ export default function OrdersScreen() {
         },
       ]
     );
+  };
+
+  const checkoutWithStripe = async () => {
+    if (!lines.length || checkingOut) return;
+    if (!isAuthenticated) {
+      Alert.alert('Sign in required', 'Please sign in on Profile before checkout.');
+      return;
+    }
+    if (!stripeConfigured || !initPaymentSheet || !presentPaymentSheet) {
+      Alert.alert('Stripe test mode is not configured', 'Add the Stripe test publishable key to the app build, then try again.');
+      return;
+    }
+    setCheckingOut(true);
+    try {
+      const sheet = await createStripePaymentSheet(
+        lines.map(({ productId, quantity, size }) => ({ productId, quantity, size }))
+      );
+      const { error: initError } = await initPaymentSheet({
+        merchantDisplayName: 'The Candle Garden',
+        paymentIntentClientSecret: sheet.paymentIntentClientSecret,
+        applePay: APPLE_MERCHANT_IDENTIFIER ? { merchantCountryCode: 'US' } : undefined,
+        googlePay: { merchantCountryCode: 'US', testEnv: true },
+        allowsDelayedPaymentMethods: false,
+      });
+      if (initError) throw initError;
+      const { error: paymentError } = await presentPaymentSheet();
+      if (paymentError) {
+        if (paymentError.code !== 'Canceled') throw paymentError;
+        return;
+      }
+      const paidTotal = Number(sheet.amount || 0) / 100;
+      await createOrder({
+        items: (sheet.items || lines).map((item) => ({
+          productId: item.productId,
+          name: item.name,
+          quantity: item.quantity,
+          size: item.size,
+          unitPrice: item.unitCents != null ? item.unitCents / 100 : item.unitPrice,
+        })),
+        total: paidTotal || subtotal,
+        status: 'paid_test',
+        payment_provider: 'stripe',
+        payment_intent_id: sheet.paymentIntentId,
+      });
+      clearCart();
+      await loadHistory();
+      Alert.alert('Test payment complete', 'Stripe accepted the test payment. No real charge was made.');
+    } catch (error) {
+      Alert.alert('Checkout unavailable', error.message || 'Stripe could not start checkout.');
+    } finally {
+      setCheckingOut(false);
+    }
   };
 
   const renderLine = ({ item }) => (
@@ -143,7 +212,7 @@ export default function OrdersScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>Cart & orders</Text>
       <Text style={styles.subtitle}>
-        Saved shopping list · payment and live inventory are confirmed on Squarespace
+        Secure test checkout is available in this app; Squarespace remains a fallback.
       </Text>
 
       <FlatList
@@ -172,8 +241,13 @@ export default function OrdersScreen() {
                   </Text>
                   <Text style={styles.subtotalValue}>${subtotal.toFixed(2)}</Text>
                 </View>
-                <TouchableOpacity style={styles.checkoutBtn} onPress={checkoutOnSite}>
-                  <Text style={styles.checkoutText}>Continue on Squarespace</Text>
+                <TouchableOpacity style={styles.checkoutBtn} onPress={checkoutWithStripe} disabled={checkingOut}>
+                  <Text style={styles.checkoutText}>
+                    {checkingOut ? 'Opening secure checkout…' : 'Test checkout with Stripe'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.secondaryBtn} onPress={checkoutOnSite} disabled={checkingOut}>
+                  <Text style={styles.secondaryText}>Continue on Squarespace instead</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.clearBtn} onPress={clearCart}>
                   <Text style={styles.clearText}>Clear cart</Text>

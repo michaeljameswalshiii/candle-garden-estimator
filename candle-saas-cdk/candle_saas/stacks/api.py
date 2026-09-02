@@ -1,4 +1,5 @@
 import os
+import shutil
 from aws_cdk import (
     Stack,
     aws_apigateway as apigw,
@@ -130,6 +131,9 @@ class APIStack(Stack):
         order_processor_fn = self._create_order_processor_function(
             lambda_execution_role, vpc, lambda_sg, database
         )
+        payment_processor_fn = self._create_payment_processor_function(
+            lambda_execution_role, vpc, lambda_sg
+        )
         
         ai_recommendations_fn = self._create_ai_recommendations_function(
             lambda_execution_role, vpc, lambda_sg, database
@@ -166,13 +170,14 @@ class APIStack(Stack):
             default_cors_preflight_options=apigw.CorsOptions(
                 allow_origins=apigw.Cors.ALL_ORIGINS,
                 allow_methods=apigw.Cors.ALL_METHODS,
-                allow_headers=["Content-Type", "Authorization"],
+                allow_headers=["Content-Type", "Authorization", "X-Device-Id", "Stripe-Signature"],
             ),
         )
         
         # Add API resources and integrations
         self._setup_products_endpoint(api, product_manager_fn)
         self._setup_orders_endpoint(api, order_processor_fn, auth_opts)
+        self._setup_payments_endpoint(api, payment_processor_fn, auth_opts)
         self._setup_recommendations_endpoint(api, ai_recommendations_fn)
         self._setup_images_endpoint(api, image_processor_fn)
         # Detect stays public for guest estimator; client may still send JWT
@@ -234,6 +239,35 @@ class APIStack(Stack):
             log_retention=logs.RetentionDays.TWO_WEEKS,
         )
         return fn
+
+    def _create_payment_processor_function(
+        self, role: iam.Role, vpc: ec2.Vpc, sg: ec2.SecurityGroup
+    ) -> lambda_.Function:
+        """Stripe PaymentIntent API. The key is injected after deployment."""
+        asset_dir = os.path.join(
+            os.path.dirname(__file__), "..", "..", "lambda_functions", "payment_processor"
+        )
+        catalog_src = os.path.join(
+            os.path.dirname(__file__), "..", "..", "..", "packages", "catalog", "products.json"
+        )
+        if os.path.isfile(catalog_src):
+            shutil.copyfile(catalog_src, os.path.join(asset_dir, "catalog.json"))
+        return lambda_.Function(
+            self, "PaymentProcessorFunction",
+            code=lambda_.Code.from_asset(asset_dir),
+            handler="index.handler",
+            runtime=lambda_.Runtime.PYTHON_3_10,
+            role=role,
+            vpc=vpc,
+            security_groups=[sg],
+            environment={
+                "STRIPE_SECRET_ARN": self.node.try_get_context("stripeSecretArn") or "",
+                "STRIPE_LIVE_ENABLED": "true" if self.node.try_get_context("stripeLiveEnabled") == "true" else "false",
+            },
+            timeout=Duration.seconds(30),
+            memory_size=512,
+            log_retention=logs.RetentionDays.TWO_WEEKS,
+        )
     
     def _create_ai_recommendations_function(
         self, role: iam.Role, vpc: ec2.Vpc, sg: ec2.SecurityGroup, db
@@ -348,6 +382,19 @@ class APIStack(Stack):
         
         order_confirm = order.add_resource("confirm")
         order_confirm.add_method("POST", integration, **method_kwargs)
+
+    def _setup_payments_endpoint(self, api: apigw.RestApi, function: lambda_.Function, auth_opts):
+        """Authenticated PaymentSheet plus a public, signature-checked webhook."""
+        payments = api.root.add_resource("payments")
+        integration = apigw.LambdaIntegration(function)
+        auth_kwargs = {
+            "authorization_type": auth_opts.authorization_type,
+            "authorizer": auth_opts.authorizer,
+        }
+        payment_sheet = payments.add_resource("payment-sheet")
+        payment_sheet.add_method("POST", integration, **auth_kwargs)
+        webhook = payments.add_resource("webhook")
+        webhook.add_method("POST", integration)
     
     def _setup_recommendations_endpoint(self, api: apigw.RestApi, function: lambda_.Function):
         """Setup /recommendations endpoint."""

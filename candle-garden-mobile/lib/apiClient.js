@@ -120,6 +120,15 @@ export async function createOrder(orderBody) {
   return apiFetch('/orders', { method: 'POST', body: orderBody, requireAuth: true });
 }
 
+/** Create a server-side Stripe PaymentIntent and return its mobile client secret. */
+export async function createStripePaymentSheet(items) {
+  return apiFetch('/payments/payment-sheet', {
+    method: 'POST',
+    body: { items },
+    requireAuth: true,
+  });
+}
+
 export async function getOrder(id) {
   return apiFetch(`/orders/${id}`, { method: 'GET', requireAuth: true });
 }

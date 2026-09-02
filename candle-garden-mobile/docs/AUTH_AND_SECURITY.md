@@ -33,7 +33,7 @@ Password policy: min 8, upper + lower + number.
 ### Guest vs signed-in
 
 - **Guest:** Shop, Classes, Home, Refill detect  
-- **Signed-in:** Orders API (`GET/POST /orders`), cart “Place order”, profile session  
+- **Signed-in:** Orders API (`GET/POST /orders`), Stripe test checkout (`POST /payments/payment-sheet`), profile session  
 
 ---
 
@@ -58,6 +58,11 @@ CDK (`candle_saas/stacks/api.py`) updated so future deploys keep Cognito on orde
 - Persistent cart (SecureStore)  
 - Order history (`GET /orders` on Cart tab)  
 
+## Stripe test checkout
+
+Native PaymentSheet is in the Cart tab. Secret keys stay in AWS Secrets
+Manager. See `docs/STRIPE_TEST_SETUP.md`. Live charges stay off.
+
 ## Phase 2.5 / 3 (not done)
 
 - Sign in with Apple / Google  
@@ -65,6 +70,7 @@ CDK (`candle_saas/stacks/api.py`) updated so future deploys keep Cognito on orde
 - Full JWT verify / authorizer on detect  
 - Backend data purge on account delete  
 - Push notifications  
+- Live Stripe charges  
 
 ---
 

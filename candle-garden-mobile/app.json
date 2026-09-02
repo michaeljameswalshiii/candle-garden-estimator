@@ -52,7 +52,14 @@
           "backgroundColor": "#103831"
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.michaeljameswalshiii.candlegarden",
+          "enableGooglePay": true
+        }
+      ]
     ]
   }
 }
