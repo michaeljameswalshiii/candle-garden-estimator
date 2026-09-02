@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { site } from "@/lib/site";
 
@@ -64,7 +65,7 @@ export function AdminLogin() {
         <button className="button button-dark" type="submit" disabled={busy}>
           {busy ? "Signing in…" : "Enter the garden"}
         </button>
-        <a href="/">Back to the public site</a>
+        <Link href="/">Back to the public site</Link>
       </form>
     </div>
   );
