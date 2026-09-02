@@ -1,8 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
-import { hours, site } from "@/lib/site";
+import { getGardenContent } from "@/lib/admin/content";
+import { site } from "@/lib/site";
 
-export function SiteFooter() {
+export async function SiteFooter() {
+  const content = await getGardenContent();
   return (
     <footer className="site-footer">
       <div className="footer-grid page-shell">
@@ -20,19 +22,19 @@ export function SiteFooter() {
         </div>
         <div>
           <h3>Visit</h3>
-          <a href={site.mapUrl} target="_blank" rel="noreferrer">
-            {site.address}<br />{site.city}
+          <a href={content.mapUrl} target="_blank" rel="noreferrer">
+            {content.address}<br />{content.city}
           </a>
-          {hours.map((row) => (
+          {content.hours.map((row) => (
             <p key={row.days}>{row.days}<br /><strong>{row.time}</strong></p>
           ))}
         </div>
         <div>
           <h3>Say hello</h3>
-          <a href={`tel:${site.phoneHref}`}>{site.phone}</a>
-          <a href={`mailto:${site.email}`}>{site.email}</a>
-          <a href={site.instagram} target="_blank" rel="noreferrer">Instagram</a>
-          <a href={site.facebook} target="_blank" rel="noreferrer">Facebook</a>
+          <a href={`tel:${site.phoneHref}`}>{content.phone}</a>
+          <a href={`mailto:${content.email}`}>{content.email}</a>
+          <a href={content.instagram} target="_blank" rel="noreferrer">Instagram</a>
+          <a href={content.facebook} target="_blank" rel="noreferrer">Facebook</a>
         </div>
       </div>
       <div className="footer-bottom page-shell">

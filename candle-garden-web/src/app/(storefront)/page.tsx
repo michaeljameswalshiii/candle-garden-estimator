@@ -1,19 +1,21 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ProductCard } from "@/components/ProductCard";
+import { getPhotos } from "@/lib/admin/photos";
 import { featuredProducts, upcomingClasses } from "@/lib/catalog";
 import { site } from "@/lib/site";
 
 const classImage =
   "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/7b332a48-a942-49b2-9557-e11f6a2039ec/CandleGardenSummer2025-44.jpg";
 
-export default function Home() {
+export default async function Home() {
   const nextClass = upcomingClasses()[0];
+  const photos = await getPhotos();
 
   return (
     <>
       <section className="hero">
-        <Image src={site.hero} alt="The Candle Garden storefront in Atlantic Beach" fill priority sizes="100vw" />
+        <Image src={photos.hero || site.hero} alt={photos.heroAlt || "The Candle Garden storefront in Atlantic Beach"} fill priority sizes="100vw" unoptimized={!String(photos.hero || site.hero).includes("squarespace-cdn.com")} />
         <div className="hero-shade" />
         <div className="hero-content page-shell">
           <p className="eyebrow light">Hand-poured in Atlantic Beach</p>

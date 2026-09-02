@@ -11,11 +11,11 @@ export type AdminUser = {
   passwordHash: string;
 };
 
-function hashPassword(password: string): string {
+export function hashPassword(password: string): string {
   return createHmac("sha256", HASH_PEPPER).update(password).digest("hex");
 }
 
-function safeEqual(a: string, b: string): boolean {
+export function safeEqual(a: string, b: string): boolean {
   const left = Buffer.from(a);
   const right = Buffer.from(b);
   if (left.length !== right.length) {
@@ -80,20 +80,29 @@ export function isAdminConfigured(): boolean {
   return loadAdminUsers().length > 0;
 }
 
-export function verifyCredentials(
+export async function verifyCredentials(
   id: string,
   password: string
-): { ok: true; id: string } | { ok: false } {
+): Promise<{ ok: true; id: string } | { ok: false }> {
   if (!password) return { ok: false };
   const users = loadAdminUsers();
   const incoming = normalizeId(id);
   const match = users.find((user) => user.id.toLowerCase() === incoming.toLowerCase());
-  if (!match) {
-    safeEqual(hashPassword(password), "x".repeat(64));
-    return { ok: false };
+  if (match) {
+    if (!safeEqual(match.passwordHash, hashPassword(password))) return { ok: false };
+    return { ok: true, id: match.id };
   }
-  if (!safeEqual(match.passwordHash, hashPassword(password))) return { ok: false };
-  return { ok: true, id: match.id };
+  const { verifyStaff } = await import("./staff");
+  const staff = await verifyStaff(incoming, password);
+  if (staff.ok) return staff;
+  safeEqual(hashPassword(password), "x".repeat(64));
+  return { ok: false };
+}
+
+export async function requireAdmin() {
+  const session = await getAdminSession();
+  if (!session.ok || !session.id) return { ok: false as const };
+  return { ok: true as const, id: session.id };
 }
 
 export function createSessionToken(id: string): string {

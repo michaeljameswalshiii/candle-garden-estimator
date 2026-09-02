@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const id = String(body.id || body.email || body.user || "").trim();
   const password = String(body.password || "");
-  const result = verifyCredentials(id, password);
+  const result = await verifyCredentials(id, password);
   if (!result.ok) {
     return NextResponse.json({ error: "Invalid ID or password" }, { status: 401 });
   }

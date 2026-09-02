@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { getGardenContent } from "@/lib/admin/content";
 import { site } from "@/lib/site";
 
 const nav = [
@@ -9,10 +10,12 @@ const nav = [
   { href: "/contact", label: "Visit" },
 ];
 
-export function SiteHeader() {
+export async function SiteHeader() {
+  const content = await getGardenContent();
+  const banner = content.closedToday ? content.closedMessage : content.banner;
   return (
     <>
-      <div className="announcement">Free shipping on orders over $50</div>
+      <div className="announcement">{banner}</div>
       <header className="site-header">
         <Link className="brand" href="/" aria-label="The Candle Garden home">
           <Image src={site.logo} alt="" width={54} height={54} className="brand-mark" />

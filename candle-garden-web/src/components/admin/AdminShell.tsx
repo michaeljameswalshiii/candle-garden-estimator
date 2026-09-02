@@ -3,14 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { ADMIN_NAV, ADMIN_SECTIONS } from "@/lib/admin/nav";
 import { site } from "@/lib/site";
-
-const nav = [
-  { href: "/admin", label: "Overview" },
-  { href: "/admin/shop", label: "Shop" },
-  { href: "/admin/classes", label: "Classes" },
-  { href: "/admin/visit", label: "Visit" },
-];
 
 export function AdminShell({
   id,
@@ -20,6 +15,16 @@ export function AdminShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname() || "/admin";
+  const [unread, setUnread] = useState(0);
+
+  useEffect(() => {
+    void fetch("/api/admin/inquiries", { credentials: "include", cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && typeof data.unread === "number") setUnread(data.unread);
+      })
+      .catch(() => undefined);
+  }, [pathname]);
 
   async function signOut() {
     await fetch("/api/admin/logout", { method: "POST", credentials: "include" });
@@ -37,21 +42,25 @@ export function AdminShell({
           </span>
         </Link>
         <nav>
-          {nav.map((item) => {
-            const active =
-              item.href === "/admin"
-                ? pathname === "/admin"
-                : pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={active ? "is-active" : undefined}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
+          {ADMIN_SECTIONS.map((section) => (
+            <div className="admin-nav-section" key={section}>
+              <p>{section}</p>
+              {ADMIN_NAV.filter((item) => item.section === section).map((item) => {
+                const active =
+                  item.href === "/admin"
+                    ? pathname === "/admin"
+                    : pathname.startsWith(item.href);
+                return (
+                  <Link key={item.href} href={item.href} className={active ? "is-active" : undefined}>
+                    <span>{item.label}</span>
+                    {item.href === "/admin/messages" && unread > 0 ? (
+                      <em>{unread}</em>
+                    ) : null}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
         <div className="admin-aside-foot">
           <p>Signed in as {id}</p>
