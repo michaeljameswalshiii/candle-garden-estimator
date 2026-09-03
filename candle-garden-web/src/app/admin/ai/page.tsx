@@ -1,5 +1,5 @@
-import { AiDesk } from "@/components/admin/desks";
+import { AiWorkspace } from "@/components/admin/AiWorkspace";
 
 export default function AiPage() {
-  return <AiDesk />;
+  return <AiWorkspace />;
 }

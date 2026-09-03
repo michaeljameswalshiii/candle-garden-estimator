@@ -209,7 +209,7 @@ export function VisitorsDesk() {
               <th>When</th>
               <th>Page</th>
               <th>City</th>
-              <th>IP</th>
+              <th>IP address</th>
               <th>Device</th>
             </tr>
           </thead>
@@ -793,7 +793,7 @@ export function SettingsDesk() {
       </section>
       <section className="admin-card">
         <p className="eyebrow">Connections</p>
-        <p>Content AI {session?.grokConfigured ? "ready" : "needs XAI_API_KEY"}</p>
+        <p>Content AI {session?.grokConfigured ? "ready on AWS Bedrock" : "needs AWS Bedrock credentials"}</p>
         <p>Saved records {session?.blobConfigured ? "on Vercel Blob" : "local / temporary until Blob is set"}</p>
         <p>Instagram {social.connected?.instagram ? "connected" : "needs INSTAGRAM_ACCESS_TOKEN"}</p>
         <p>Facebook {social.connected?.facebook ? "connected" : "needs FACEBOOK_PAGE_TOKEN"}</p>

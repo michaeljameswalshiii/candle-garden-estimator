@@ -1,31 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin/auth";
 import { getGardenContent } from "@/lib/admin/content";
+import { bedrockConfigured, invokeBedrockGrok } from "@/lib/admin/bedrock-mantle";
+import { AiBudgetExceededError, estimateMaximumRequestMicrousd, releaseAiBudget, reserveAiBudget, settleAiBudget } from "@/lib/admin/ai-usage";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   const session = await requireAdmin();
   if (!session.ok) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!process.env.XAI_API_KEY) {
+  if (!bedrockConfigured()) {
     return NextResponse.json(
-      { error: "Content AI needs XAI_API_KEY on the server." },
+      { error: "Content AI needs AWS Bedrock credentials on the server." },
       { status: 503 }
     );
   }
   const body = await request.json().catch(() => ({}));
   const messages = Array.isArray(body.messages) ? body.messages : [];
   const content = await getGardenContent();
-  const res = await fetch("https://api.x.ai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.XAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "grok-4.5",
-      temperature: 0.5,
-      messages: [
+  const modelMessages = [
         {
           role: "system",
           content: `You help staff rewrite copy for The Candle Garden, a soy candle shop in Atlantic Beach, Florida. Keep the voice warm, playful, and specific. Current shop facts: ${JSON.stringify({
@@ -43,16 +36,20 @@ export async function POST(request: NextRequest) {
             role: item.role === "assistant" ? "assistant" : "user",
             content: String(item.content).slice(0, 4000),
           })),
-      ],
-    }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
+      ] as Array<{ role: "system" | "user" | "assistant"; content: string }>;
+  let reservation = 0;
+  let invoked = false;
+  try {
+    reservation = await reserveAiBudget(estimateMaximumRequestMicrousd(modelMessages));
+    const result = await invokeBedrockGrok(modelMessages);
+    invoked = true;
+    const usage = await settleAiBudget(reservation, result.inputTokens, result.outputTokens);
+    return NextResponse.json({ reply: result.content, usage });
+  } catch (error) {
+    if (reservation && !invoked) await releaseAiBudget(reservation).catch(() => undefined);
     return NextResponse.json(
-      { error: data.error?.message || "Grok could not reply." },
-      { status: 502 }
+      { error: error instanceof Error ? error.message : "Grok could not reply.", ...(error instanceof AiBudgetExceededError ? { usage: error.usage } : {}) },
+      { status: error instanceof AiBudgetExceededError ? 429 : 502 },
     );
   }
-  const reply = data.choices?.[0]?.message?.content || "";
-  return NextResponse.json({ reply });
 }

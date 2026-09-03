@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { loadRecord, saveRecord } from "./store";
 import { listInquiries } from "./inquiries";
 import { classes, products } from "@/lib/catalog";
+import { bedrockConfigured } from "./bedrock-mantle";
 
 export type SiteVisit = {
   id: string;
@@ -155,6 +156,6 @@ export async function buildSiteHealth() {
     catalog: { candles: products.length, classes: classes.length },
     inquiries: { unread, recent: inquiries.length },
     persistence: process.env.BLOB_READ_WRITE_TOKEN ? "blob" : process.env.VERCEL ? "temporary" : "local file",
-    grokConfigured: Boolean(process.env.XAI_API_KEY),
+    grokConfigured: bedrockConfigured(),
   };
 }

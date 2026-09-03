@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAdminSession, isAdminConfigured } from "@/lib/admin/auth";
 import { socialStatus } from "@/lib/admin/social";
+import { bedrockConfigured } from "@/lib/admin/bedrock-mantle";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,7 @@ export async function GET() {
   return NextResponse.json({
     id: session.id,
     adminConfigured: isAdminConfigured(),
-    grokConfigured: Boolean(process.env.XAI_API_KEY),
+    grokConfigured: bedrockConfigured(),
     blobConfigured: Boolean(process.env.BLOB_READ_WRITE_TOKEN),
     social,
   });
