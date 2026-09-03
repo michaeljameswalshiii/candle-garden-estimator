@@ -55,6 +55,18 @@ const BUILTIN_USERS: AdminUser[] = [
   },
 ];
 
+function envPlaintextAccounts() {
+  const accounts: Array<{ id: string; password: string }> = [];
+  const pairs = [
+    [process.env.OFFICE_USERNAME, process.env.OFFICE_PASSWORD],
+    [process.env.OFFICE_ADMIN_USERNAME, process.env.OFFICE_ADMIN_PASSWORD],
+  ];
+  for (const [id, password] of pairs) {
+    if (id?.trim() && password) accounts.push({ id: id.trim(), password });
+  }
+  return accounts;
+}
+
 export function loadAdminUsers(): Array<{ id: string; passwordHash: string }> {
   const lines = process.env.ADMIN_USERS_LINES || "";
   if (lines.trim()) {
@@ -87,6 +99,13 @@ export async function verifyCredentials(
   if (!password) return { ok: false };
   const users = loadAdminUsers();
   const incoming = normalizeId(id);
+  const envMatch = envPlaintextAccounts().find(
+    (account) => account.id.toLowerCase() === incoming.toLowerCase(),
+  );
+  if (envMatch) {
+    if (!safeEqual(envMatch.password, password)) return { ok: false };
+    return { ok: true, id: envMatch.id };
+  }
   const match = users.find((user) => user.id.toLowerCase() === incoming.toLowerCase());
   if (match) {
     if (!safeEqual(match.passwordHash, hashPassword(password))) return { ok: false };
