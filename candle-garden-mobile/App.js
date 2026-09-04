@@ -16,7 +16,7 @@ import { colors, navigationTheme, fonts } from './lib/theme';
 import { CartProvider, useCart } from './lib/cart';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import { setAuthTokenGetter, setAccessTokenGetter } from './lib/apiClient';
-import { APPLE_MERCHANT_IDENTIFIER, STRIPE_PUBLISHABLE_KEY } from './lib/stripeConfig';
+import { STRIPE_PUBLISHABLE_KEY } from './lib/stripeConfig';
 
 // Lazy-load Estimator so expo-image-picker / prepareImage are not required at app start
 const EstimatorScreen = lazy(() => import('./screens/EstimatorScreen'));
@@ -153,10 +153,7 @@ export default function App() {
     return <AppTree />;
   }
   return (
-    <StripeProvider
-      publishableKey={STRIPE_PUBLISHABLE_KEY}
-      merchantIdentifier={APPLE_MERCHANT_IDENTIFIER || undefined}
-    >
+    <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
       <AppTree />
     </StripeProvider>
   );

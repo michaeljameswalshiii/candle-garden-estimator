@@ -15,7 +15,6 @@ Create `candle-garden-mobile/.env` locally:
 
 ```dotenv
 EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
-EXPO_PUBLIC_APPLE_MERCHANT_IDENTIFIER=merchant.com.michaeljameswalshiii.candlegarden
 ```
 
 The publishable key is designed for the client. The secret key is not.
@@ -41,9 +40,10 @@ npx cdk deploy CandleSaasAPIStack -c stripeSecretArn="arn:aws:secretsmanager:us-
 Keep `stripeLiveEnabled` unset. The Lambda refuses `sk_live_` keys unless that
 setting is explicitly enabled.
 
-## 3. Apple Pay setup
+## 3. Optional Apple Pay setup
 
-In the Candle Garden Apple Developer account, create the Merchant ID
+Apple Pay is not enabled in the current release; standard card checkout works
+without it. To add Apple Pay later, create the Merchant ID
 `merchant.com.michaeljameswalshiii.candlegarden`, enable Apple Pay for the app
 identifier `com.michaeljameswalshiii.candlegarden`, and add the Merchant ID in
 Stripe's Apple Pay settings. Then make an iOS development build. Apple Pay does

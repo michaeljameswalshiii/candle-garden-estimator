@@ -18,7 +18,7 @@ import { SHOP_BASE } from '../lib/shopCatalog';
 import { useAuth } from '../lib/AuthContext';
 import { createOrder, createStripePaymentSheet, listOrders } from '../lib/apiClient';
 import { useStripe } from '../lib/stripeBridge';
-import { APPLE_MERCHANT_IDENTIFIER, stripeConfigured } from '../lib/stripeConfig';
+import { stripeConfigured } from '../lib/stripeConfig';
 
 export default function OrdersScreen() {
   if (stripeConfigured) {
@@ -100,7 +100,6 @@ function OrdersScreenBody({ stripe }) {
       const { error: initError } = await initPaymentSheet({
         merchantDisplayName: 'The Candle Garden',
         paymentIntentClientSecret: sheet.paymentIntentClientSecret,
-        applePay: APPLE_MERCHANT_IDENTIFIER ? { merchantCountryCode: 'US' } : undefined,
         googlePay: { merchantCountryCode: 'US', testEnv: true },
         allowsDelayedPaymentMethods: false,
       });
