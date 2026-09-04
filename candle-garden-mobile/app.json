@@ -31,7 +31,7 @@
         "NSPhotoLibraryUsageDescription": "Choose photos of candle vessels to estimate refill volume.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "buildNumber": "3"
+      "buildNumber": "4"
     },
     "android": {
       "package": "com.michaeljameswalshiii.candlegarden",
@@ -40,17 +40,13 @@
     "primaryColor": "#103831",
     "plugins": [
       "expo-secure-store",
-      [
-        "expo-notifications",
-        {
-          "color": "#103831"
-        }
-      ],
       "expo-status-bar",
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#103831"
+          "backgroundColor": "#103831",
+          "image": "./assets/splash.png",
+          "imageWidth": 200
         }
       ],
       "expo-font",
