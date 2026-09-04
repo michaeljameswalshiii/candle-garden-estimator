@@ -17,7 +17,7 @@ import { useCart } from '../lib/cart';
 import { SHOP_BASE } from '../lib/shopCatalog';
 import { useAuth } from '../lib/AuthContext';
 import { createOrder, createStripePaymentSheet, listOrders } from '../lib/apiClient';
-import { useStripe } from '@stripe/stripe-react-native';
+import { useStripe } from '../lib/stripeBridge';
 import { APPLE_MERCHANT_IDENTIFIER, stripeConfigured } from '../lib/stripeConfig';
 
 export default function OrdersScreen() {

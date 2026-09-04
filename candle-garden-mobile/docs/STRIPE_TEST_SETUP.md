@@ -22,13 +22,16 @@ The publishable key is designed for the client. The secret key is not.
 
 ## 2. Put the test secret in AWS Secrets Manager
 
-Create a secret named `candlesaas/stripe/test` with this JSON value:
+The AWS secret container `candlesaas/stripe/test` is already connected to the
+deployed payments Lambda. After rotating the exposed test key in Stripe, update
+that secret in the AWS Secrets Manager console with this JSON value:
 
 ```json
 {"STRIPE_SECRET_KEY":"sk_test_..."}
 ```
 
-Deploy the CDK API with the returned secret ARN:
+The API has already been deployed with the secret ARN. Only use this command
+again if the secret is recreated with a different ARN:
 
 ```powershell
 cd candle-saas-cdk

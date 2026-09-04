@@ -153,7 +153,9 @@ class APIStack(Stack):
         cognito_authorizer = apigw.CognitoUserPoolsAuthorizer(
             self, "CandleGardenAuthorizer",
             cognito_user_pools=[user_pool],
-            authorizer_name="CandleGardenCognito",
+            # A legacy authorizer with the original name still exists in this API.
+            # Use a managed, unique name so CloudFormation can deploy reliably.
+            authorizer_name="CandleGardenCognitoV2",
             identity_source="method.request.header.Authorization",
         )
         auth_opts = apigw.MethodOptions(
