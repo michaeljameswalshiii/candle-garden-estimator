@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { ACUITY_EMBED_HTML, ACUITY_SCHEDULER_URL } from '../lib/schedulingConfig';
 import { colors, fonts } from '../lib/theme';
 
-export default function AcuityScheduler({ url }) {
+export default function AcuityScheduler() {
   const [failed, setFailed] = useState(false);
 
   if (failed) {
@@ -17,15 +18,19 @@ export default function AcuityScheduler({ url }) {
 
   return (
     <WebView
-      source={{ uri: url }}
+      source={{ html: ACUITY_EMBED_HTML, baseUrl: 'https://app.acuityscheduling.com' }}
       style={styles.webView}
-      originWhitelist={['https://*']}
+      originWhitelist={['https://*', 'http://*']}
       javaScriptEnabled
       domStorageEnabled
       sharedCookiesEnabled
       thirdPartyCookiesEnabled
       setSupportMultipleWindows={false}
       startInLoadingState
+      nestedScrollEnabled
+      mixedContentMode="always"
+      allowsInlineMediaPlayback
+      mediaPlaybackRequiresUserAction={false}
       renderLoading={() => (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={colors.primary} />
@@ -36,8 +41,18 @@ export default function AcuityScheduler({ url }) {
       onHttpError={({ nativeEvent }) => {
         if (nativeEvent.statusCode >= 400) setFailed(true);
       }}
+      onShouldStartLoadWithRequest={(request) => {
+        const url = String(request.url || '');
+        return (
+          url.startsWith('about:') ||
+          url.startsWith('data:') ||
+          url.includes('acuityscheduling.com') ||
+          url.includes('squarespace.com') ||
+          url.includes('stripe.com') ||
+          url.startsWith(ACUITY_SCHEDULER_URL.slice(0, 40))
+        );
+      }}
       allowsBackForwardNavigationGestures
-      allowsInlineMediaPlayback
     />
   );
 }
@@ -71,4 +86,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

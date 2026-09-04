@@ -30,7 +30,7 @@ export default function ClassScheduleScreen() {
         </TouchableOpacity>
       </View>
       <View style={styles.scheduler}>
-        <AcuityScheduler url={ACUITY_SCHEDULER_URL} />
+        <AcuityScheduler />
       </View>
     </View>
   );
