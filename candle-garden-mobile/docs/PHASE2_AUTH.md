@@ -110,9 +110,9 @@ Files: `lib/cognitoClient.js` → `deleteUser`, `AuthContext.deleteAccount`, Pro
 - Detect rate-limit bucket: `device:{id}` for guests  
 
 ### Push notifications scaffold
-- `expo-notifications` + `expo-device` (runtime support remains installed; the
-  iOS config plugin is temporarily disabled until Push Notifications is enabled
-  for the App ID in Apple Developer)
+- Push registration is temporarily disabled until Push Notifications is enabled
+  for the App ID in Apple Developer. The Profile screen fails safely and keeps
+  its stable notification API in the meantime.
 - Profile toggle registers Expo push token on device  
 - Server send pipeline still Phase 3  
 
