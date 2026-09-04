@@ -112,7 +112,7 @@ Files: `lib/cognitoClient.js` → `deleteUser`, `AuthContext.deleteAccount`, Pro
 ### Push notifications scaffold
 - `expo-notifications` + `expo-device` (runtime support remains installed; the
   iOS config plugin is temporarily disabled until Push Notifications is enabled
-  for the App ID in Apple Developer)  
+  for the App ID in Apple Developer)
 - Profile toggle registers Expo push token on device  
 - Server send pipeline still Phase 3  
 
