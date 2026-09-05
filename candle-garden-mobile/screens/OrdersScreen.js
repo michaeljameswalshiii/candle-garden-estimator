@@ -45,6 +45,7 @@ function OrdersScreenBody({ stripe }) {
   const [collectingShipping, setCollectingShipping] = useState(false);
   const [shipping, setShipping] = useState({
     name: '',
+    email: '',
     phone: '',
     address: '',
     city: '',
@@ -96,11 +97,7 @@ function OrdersScreenBody({ stripe }) {
 
   const startCheckout = () => {
     if (!lines.length || checkingOut) return;
-    if (!isAuthenticated) {
-      Alert.alert('Sign in required', 'Please sign in on Profile before checkout.');
-      return;
-    }
-    if (needsShipping) {
+    if (needsShipping || !isAuthenticated) {
       setCollectingShipping(true);
       return;
     }
@@ -108,11 +105,19 @@ function OrdersScreenBody({ stripe }) {
   };
 
   const submitShippingAndPay = () => {
-    const missing = ['name', 'phone', 'address', 'city', 'state', 'zip'].filter(
-      (key) => !String(shipping[key] || '').trim()
-    );
+    const required = needsShipping
+      ? isAuthenticated
+        ? ['name', 'phone', 'address', 'city', 'state', 'zip']
+        : ['name', 'email', 'phone', 'address', 'city', 'state', 'zip']
+      : ['name', 'email', 'phone'];
+    const missing = required.filter((key) => !String(shipping[key] || '').trim());
     if (missing.length) {
-      Alert.alert('Shipping needed', 'Please fill in name, phone, and the full address so we can ship this order.');
+      Alert.alert(
+        needsShipping ? 'Shipping needed' : 'Contact needed',
+        needsShipping
+          ? 'Please fill in your name, phone, and address so we can complete this order.'
+          : 'Please add your name, email, and phone so we can complete this guest checkout.'
+      );
       return;
     }
     setCollectingShipping(false);
@@ -135,7 +140,8 @@ function OrdersScreenBody({ stripe }) {
           size: line.size,
           ounces: line.ounces,
           boxKey: line.boxKey,
-        }))
+        })),
+        { email: shipping.email, name: shipping.name }
       );
       const { error: initError } = await initPaymentSheet({
         merchantDisplayName: 'The Candle Garden',
@@ -150,23 +156,25 @@ function OrdersScreenBody({ stripe }) {
         return;
       }
       const paidTotal = Number(sheet.amount || 0) / 100;
-      await createOrder({
-        items: (sheet.items || lines).map((item) => ({
-          type: item.type || 'product',
-          productId: item.productId,
-          name: item.name,
-          quantity: item.quantity,
-          size: item.size,
-          unitPrice: item.unitCents != null ? item.unitCents / 100 : item.unitPrice,
-        })),
-        total: paidTotal || subtotal,
-        status: 'paid_test',
-        payment_provider: 'stripe',
-        payment_intent_id: sheet.paymentIntentId,
-        shipping: needsShipping ? shipping : undefined,
-      });
+      if (isAuthenticated) {
+        await createOrder({
+          items: (sheet.items || lines).map((item) => ({
+            type: item.type || 'product',
+            productId: item.productId,
+            name: item.name,
+            quantity: item.quantity,
+            size: item.size,
+            unitPrice: item.unitCents != null ? item.unitCents / 100 : item.unitPrice,
+          })),
+          total: paidTotal || subtotal,
+          status: 'paid_test',
+          payment_provider: 'stripe',
+          payment_intent_id: sheet.paymentIntentId,
+          shipping: needsShipping || shipping.email ? shipping : undefined,
+        });
+        await loadHistory();
+      }
       clearCart();
-      await loadHistory();
       Alert.alert('Test payment complete', 'Stripe accepted the test payment. No real charge was made.');
     } catch (error) {
       Alert.alert('Checkout unavailable', error.message || 'Stripe could not start checkout.');
@@ -288,18 +296,18 @@ function OrdersScreenBody({ stripe }) {
                 </View>
                 {collectingShipping ? (
                   <View style={styles.shippingBox}>
-                    <Text style={styles.shippingTitle}>Shipping</Text>
+                    <Text style={styles.shippingTitle}>{needsShipping ? 'Shipping' : 'Contact'}</Text>
                     <Text style={styles.shippingHint}>
-                      One address for this whole order. We’ll use it after you pay.
+                      {needsShipping
+                        ? 'One address for this whole order. Guests can pay without creating an account.'
+                        : 'Guests can pay without creating an account. Add a way to reach you.'}
                     </Text>
-                    {[
-                      ['name', 'Name'],
-                      ['phone', 'Phone'],
-                      ['address', 'Street address'],
-                      ['city', 'City'],
-                      ['state', 'State'],
-                      ['zip', 'ZIP'],
-                    ].map(([key, label]) => (
+                    {(needsShipping
+                      ? isAuthenticated
+                        ? [['name', 'Name'], ['phone', 'Phone'], ['address', 'Street address'], ['city', 'City'], ['state', 'State'], ['zip', 'ZIP']]
+                        : [['name', 'Name'], ['email', 'Email'], ['phone', 'Phone'], ['address', 'Street address'], ['city', 'City'], ['state', 'State'], ['zip', 'ZIP']]
+                      : [['name', 'Name'], ['email', 'Email'], ['phone', 'Phone']]
+                    ).map(([key, label]) => (
                       <TextInput
                         key={key}
                         style={styles.shippingInput}
@@ -307,8 +315,9 @@ function OrdersScreenBody({ stripe }) {
                         placeholderTextColor={colors.textFaint}
                         value={shipping[key]}
                         onChangeText={(value) => setShipping((current) => ({ ...current, [key]: value }))}
-                        autoCapitalize={key === 'state' || key === 'zip' ? 'characters' : 'words'}
-                        keyboardType={key === 'phone' || key === 'zip' ? 'numbers-and-punctuation' : 'default'}
+                        autoCapitalize={key === 'email' ? 'none' : key === 'state' || key === 'zip' ? 'characters' : 'words'}
+                        autoCorrect={key !== 'email'}
+                        keyboardType={key === 'email' ? 'email-address' : key === 'phone' || key === 'zip' ? 'numbers-and-punctuation' : 'default'}
                       />
                     ))}
                     <TouchableOpacity style={styles.checkoutBtn} onPress={submitShippingAndPay} disabled={checkingOut}>

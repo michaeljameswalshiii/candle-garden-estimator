@@ -263,7 +263,8 @@ class APIStack(Stack):
             vpc=vpc,
             security_groups=[sg],
             environment={
-                "STRIPE_SECRET_ARN": self.node.try_get_context("stripeSecretArn") or "",
+                "STRIPE_SECRET_ARN": self.node.try_get_context("stripeSecretArn")
+                or "arn:aws:secretsmanager:us-east-1:635449373837:secret:candlesaas/stripe/test-QNXlxT",
                 "STRIPE_LIVE_ENABLED": "true" if self.node.try_get_context("stripeLiveEnabled") == "true" else "false",
             },
             timeout=Duration.seconds(30),
@@ -386,15 +387,11 @@ class APIStack(Stack):
         order_confirm.add_method("POST", integration, **method_kwargs)
 
     def _setup_payments_endpoint(self, api: apigw.RestApi, function: lambda_.Function, auth_opts):
-        """Authenticated PaymentSheet plus a public, signature-checked webhook."""
+        """PaymentSheet is public so guests can check out. Signed-in JWT is still accepted when sent."""
         payments = api.root.add_resource("payments")
         integration = apigw.LambdaIntegration(function)
-        auth_kwargs = {
-            "authorization_type": auth_opts.authorization_type,
-            "authorizer": auth_opts.authorizer,
-        }
         payment_sheet = payments.add_resource("payment-sheet")
-        payment_sheet.add_method("POST", integration, **auth_kwargs)
+        payment_sheet.add_method("POST", integration)
         webhook = payments.add_resource("webhook")
         webhook.add_method("POST", integration)
     

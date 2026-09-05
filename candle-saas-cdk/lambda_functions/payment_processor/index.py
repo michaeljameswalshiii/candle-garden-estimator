@@ -54,6 +54,20 @@ def _response(status, body):
 def _claims(event):
     authorizer = ((event.get("requestContext") or {}).get("authorizer") or {})
     claims = authorizer.get("claims") or authorizer
+    if isinstance(claims, dict) and claims.get("sub"):
+        return claims
+    headers = event.get("headers") or {}
+    auth = headers.get("Authorization") or headers.get("authorization") or ""
+    if auth.lower().startswith("bearer "):
+        token = auth.split(" ", 1)[1].strip()
+        try:
+            payload = token.split(".")[1]
+            payload += "=" * (-len(payload) % 4)
+            data = json.loads(base64.urlsafe_b64decode(payload.encode()).decode("utf-8"))
+            if isinstance(data, dict) and data.get("sub"):
+                return data
+        except (ValueError, IndexError, json.JSONDecodeError, UnicodeDecodeError):
+            pass
     return claims if isinstance(claims, dict) else {}
 
 
@@ -267,21 +281,39 @@ def _body(event):
         raise ValueError("Checkout request was invalid") from error
 
 
+def _looks_like_email(value):
+    text = str(value or "").strip()
+    if "@" not in text or " " in text:
+        return False
+    local, _, domain = text.partition("@")
+    return bool(local) and "." in domain
+
+
 def _create_payment_sheet(event):
     claims = _claims(event)
-    customer_id = claims.get("sub") or claims.get("cognito:username")
-    if not customer_id:
-        return _response(401, {"error": "Please sign in before checkout"})
+    headers = event.get("headers") or {}
+    body = _body(event)
+    device = headers.get("X-Device-Id") or headers.get("x-device-id") or "unknown"
+    customer_id = claims.get("sub") or claims.get("cognito:username") or f"guest:{device}"
+    email = body.get("email") or claims.get("email")
+    name = body.get("name") or claims.get("name")
     try:
-        amount, priced = amount_from_catalog(_body(event).get("items"))
-        intent = _stripe_request("payment_intents", {
+        amount, priced = amount_from_catalog(body.get("items"))
+        payload = {
             "amount": amount,
             "currency": "usd",
             "automatic_payment_methods[enabled]": "true",
             "metadata[candle_garden_mode]": "test",
             "metadata[customer_id]": str(customer_id)[:80],
+            "metadata[guest]": "false" if claims.get("sub") else "true",
             "metadata[item_count]": str(len(priced)),
-        })
+        }
+        if _looks_like_email(email):
+            payload["receipt_email"] = str(email).strip()[:254]
+            payload["metadata[email]"] = str(email).strip()[:80]
+        if name:
+            payload["metadata[name]"] = str(name).strip()[:80]
+        intent = _stripe_request("payment_intents", payload)
         return _response(200, {
             "paymentIntentClientSecret": intent["client_secret"],
             "paymentIntentId": intent["id"],

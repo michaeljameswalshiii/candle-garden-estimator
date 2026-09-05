@@ -121,11 +121,14 @@ export async function createOrder(orderBody) {
 }
 
 /** Create a server-side Stripe PaymentIntent and return its mobile client secret. */
-export async function createStripePaymentSheet(items) {
+export async function createStripePaymentSheet(items, contact = {}) {
+  const body = { items };
+  if (contact.email) body.email = String(contact.email).trim();
+  if (contact.name) body.name = String(contact.name).trim();
   return apiFetch('/payments/payment-sheet', {
     method: 'POST',
-    body: { items },
-    requireAuth: true,
+    body,
+    requireAuth: false,
   });
 }
 

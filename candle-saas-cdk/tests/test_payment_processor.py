@@ -81,3 +81,65 @@ def test_empty_cart_is_rejected():
         assert False, "expected empty cart to fail"
     except ValueError as error:
         assert "empty" in str(error).lower()
+
+
+def test_guest_payment_sheet_does_not_require_signin():
+    import json
+
+    processor = load_processor()
+    captured = {}
+
+    def fake_stripe(_path, values):
+        captured["values"] = values
+        return {"client_secret": "pi_test_secret", "id": "pi_test"}
+
+    processor._stripe_request = fake_stripe
+    result = processor.handler(
+        {
+            "httpMethod": "POST",
+            "path": "/prod/payments/payment-sheet",
+            "headers": {"X-Device-Id": "dev_abc123"},
+            "body": json.dumps(
+                {
+                    "items": [{"productId": "65faf809b85f1d19a61c8374", "quantity": 1}],
+                    "email": "guest@example.com",
+                    "name": "Guest Shopper",
+                }
+            ),
+        },
+        None,
+    )
+    assert result["statusCode"] == 200
+    body = json.loads(result["body"])
+    assert body["paymentIntentClientSecret"] == "pi_test_secret"
+    assert captured["values"]["metadata[guest]"] == "true"
+    assert captured["values"]["metadata[customer_id]"].startswith("guest:dev_abc123")
+    assert captured["values"]["receipt_email"] == "guest@example.com"
+
+
+def test_signed_in_jwt_is_still_tagged_without_api_authorizer():
+    import base64
+    import json
+
+    processor = load_processor()
+    captured = {}
+
+    def fake_stripe(_path, values):
+        captured["values"] = values
+        return {"client_secret": "pi_test_secret", "id": "pi_test"}
+
+    processor._stripe_request = fake_stripe
+    payload = base64.urlsafe_b64encode(json.dumps({"sub": "user-123"}).encode()).decode().rstrip("=")
+    token = f"header.{payload}.sig"
+    result = processor.handler(
+        {
+            "httpMethod": "POST",
+            "path": "/prod/payments/payment-sheet",
+            "headers": {"Authorization": f"Bearer {token}", "X-Device-Id": "dev_abc123"},
+            "body": json.dumps({"items": [{"productId": "65faf809b85f1d19a61c8374", "quantity": 1}]}),
+        },
+        None,
+    )
+    assert result["statusCode"] == 200
+    assert captured["values"]["metadata[guest]"] == "false"
+    assert captured["values"]["metadata[customer_id]"] == "user-123"
