@@ -11,6 +11,7 @@ import { prepareImageForDetect, isImageManipulatorAvailable } from '../lib/prepa
 import { colors, fonts, radii, spacing } from '../lib/theme';
 import { postDetect } from '../lib/apiClient';
 import { useAuth } from '../lib/AuthContext';
+import { useCart } from '../lib/cart';
 
 // Custom Button component to avoid Fabric boolean prop issues
 function CustomButton({ title, onPress, disabled, color }) {
@@ -36,6 +37,7 @@ function CustomButton({ title, onPress, disabled, color }) {
 export default function EstimatorScreen() {
   const navigation = useNavigation();
   const { isAuthenticated } = useAuth();
+  const { addItem } = useCart();
   const [image, setImage] = useState(null);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -43,18 +45,32 @@ export default function EstimatorScreen() {
   const [manualOunces, setManualOunces] = useState('');
   const manipulatorOk = isImageManipulatorAvailable();
 
-  const continueToShipping = () => {
-    if (result && result.estimated_ounces) {
-      const vesselCount = Array.isArray(result.vessels) && result.vessels.length
-        ? result.vessels.length
-        : 1;
-      navigation.navigate('RefillStep4', {
+  const addEstimateToCart = () => {
+    if (!result?.estimated_ounces) return;
+    addItem(
+      {
+        id: 'refill',
+        type: 'refill',
+        name: `Candle refill · ${result.estimated_ounces} oz`,
+        price: Number(result.total_cost),
+      },
+      {
+        type: 'refill',
+        quantity: 1,
         ounces: result.estimated_ounces,
-        containerType: result.container_type,
         boxKey: result.box_key,
-        vesselCount,
-      });
-    }
+        detail: `${result.box_type} return shipping included`,
+        unitPrice: Number(result.total_cost),
+      }
+    );
+    Alert.alert(
+      'Added to cart',
+      'Your refill is in the cart. Add shop items or a class if you want, then check out. We’ll ask for shipping at the end.',
+      [
+        { text: 'Keep estimating', style: 'cancel' },
+        { text: 'Go to cart', onPress: () => navigation.navigate('Orders') },
+      ]
+    );
   };
 
   const pickerOptions = {
@@ -343,8 +359,8 @@ export default function EstimatorScreen() {
           </Text>
           <Text style={styles.total}>Total: ${result.total_cost}</Text>
           <CustomButton
-            title="Continue to Shipping & Quantity"
-            onPress={continueToShipping}
+            title="Add refill to cart"
+            onPress={addEstimateToCart}
           />
         </View>
       )}

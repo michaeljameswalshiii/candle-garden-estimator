@@ -10,6 +10,7 @@ import {
   Alert,
   RefreshControl,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors, fonts, radii, spacing } from '../lib/theme';
@@ -41,6 +42,17 @@ function OrdersScreenBody({ stripe }) {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState(null);
   const [checkingOut, setCheckingOut] = useState(false);
+  const [collectingShipping, setCollectingShipping] = useState(false);
+  const [shipping, setShipping] = useState({
+    name: '',
+    phone: '',
+    address: '',
+    city: '',
+    state: '',
+    zip: '',
+  });
+
+  const needsShipping = lines.some((line) => line.type !== 'class');
 
   const loadHistory = useCallback(async () => {
     if (!isAuthenticated) {
@@ -82,12 +94,33 @@ function OrdersScreenBody({ stripe }) {
     );
   };
 
-  const checkoutWithStripe = async () => {
+  const startCheckout = () => {
     if (!lines.length || checkingOut) return;
     if (!isAuthenticated) {
       Alert.alert('Sign in required', 'Please sign in on Profile before checkout.');
       return;
     }
+    if (needsShipping) {
+      setCollectingShipping(true);
+      return;
+    }
+    void checkoutWithStripe();
+  };
+
+  const submitShippingAndPay = () => {
+    const missing = ['name', 'phone', 'address', 'city', 'state', 'zip'].filter(
+      (key) => !String(shipping[key] || '').trim()
+    );
+    if (missing.length) {
+      Alert.alert('Shipping needed', 'Please fill in name, phone, and the full address so we can ship this order.');
+      return;
+    }
+    setCollectingShipping(false);
+    void checkoutWithStripe();
+  };
+
+  const checkoutWithStripe = async () => {
+    if (!lines.length || checkingOut) return;
     if (!stripeConfigured || !initPaymentSheet || !presentPaymentSheet) {
       Alert.alert('Stripe test mode is not configured', 'Add the Stripe test publishable key to the app build, then try again.');
       return;
@@ -130,6 +163,7 @@ function OrdersScreenBody({ stripe }) {
         status: 'paid_test',
         payment_provider: 'stripe',
         payment_intent_id: sheet.paymentIntentId,
+        shipping: needsShipping ? shipping : undefined,
       });
       clearCart();
       await loadHistory();
@@ -252,11 +286,47 @@ function OrdersScreenBody({ stripe }) {
                   </Text>
                   <Text style={styles.subtotalValue}>${subtotal.toFixed(2)}</Text>
                 </View>
-                <TouchableOpacity style={styles.checkoutBtn} onPress={checkoutWithStripe} disabled={checkingOut}>
-                  <Text style={styles.checkoutText}>
-                    {checkingOut ? 'Opening secure checkout…' : 'Test checkout with Stripe'}
-                  </Text>
-                </TouchableOpacity>
+                {collectingShipping ? (
+                  <View style={styles.shippingBox}>
+                    <Text style={styles.shippingTitle}>Shipping</Text>
+                    <Text style={styles.shippingHint}>
+                      One address for this whole order. We’ll use it after you pay.
+                    </Text>
+                    {[
+                      ['name', 'Name'],
+                      ['phone', 'Phone'],
+                      ['address', 'Street address'],
+                      ['city', 'City'],
+                      ['state', 'State'],
+                      ['zip', 'ZIP'],
+                    ].map(([key, label]) => (
+                      <TextInput
+                        key={key}
+                        style={styles.shippingInput}
+                        placeholder={label}
+                        placeholderTextColor={colors.textFaint}
+                        value={shipping[key]}
+                        onChangeText={(value) => setShipping((current) => ({ ...current, [key]: value }))}
+                        autoCapitalize={key === 'state' || key === 'zip' ? 'characters' : 'words'}
+                        keyboardType={key === 'phone' || key === 'zip' ? 'numbers-and-punctuation' : 'default'}
+                      />
+                    ))}
+                    <TouchableOpacity style={styles.checkoutBtn} onPress={submitShippingAndPay} disabled={checkingOut}>
+                      <Text style={styles.checkoutText}>
+                        {checkingOut ? 'Opening secure checkout…' : 'Continue to payment'}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.secondaryBtn} onPress={() => setCollectingShipping(false)}>
+                      <Text style={styles.secondaryText}>Back to cart</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity style={styles.checkoutBtn} onPress={startCheckout} disabled={checkingOut}>
+                    <Text style={styles.checkoutText}>
+                      {checkingOut ? 'Opening secure checkout…' : 'Test checkout with Stripe'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity style={styles.secondaryBtn} onPress={checkoutOnSite} disabled={checkingOut}>
                   <Text style={styles.secondaryText}>Continue on Squarespace instead</Text>
                 </TouchableOpacity>
@@ -466,6 +536,34 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 14,
     fontWeight: '600',
+  },
+  shippingBox: {
+    marginBottom: 12,
+  },
+  shippingTitle: {
+    fontFamily: fonts.heading,
+    fontSize: 18,
+    color: colors.primary,
+    marginBottom: 4,
+  },
+  shippingHint: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.textMuted,
+    marginBottom: 10,
+    lineHeight: 18,
+  },
+  shippingInput: {
+    fontFamily: fonts.body,
+    fontSize: 15,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 8,
+    backgroundColor: colors.white,
+    color: colors.text,
   },
   clearBtn: {
     alignItems: 'center',
