@@ -16,6 +16,27 @@ import urllib.request
 
 _secret_cache = {"value": None, "expires": 0}
 _catalog_cache = None
+_classes_cache = None
+
+WAX_CENTS_PER_OZ = 150
+REFILL_BOX_CENTS = {
+    "frb_small": 1365,
+    "small": 1365,
+    "frb_medium_top": 2480,
+    "medium": 2480,
+    "frb_medium_side": 2480,
+    "frb_large": 3400,
+    "large": 3400,
+}
+BOX_NAMES = {
+    "frb_small": "Small Flat Rate",
+    "small": "Small Flat Rate",
+    "frb_medium_top": "Medium Flat Rate",
+    "medium": "Medium Flat Rate",
+    "frb_medium_side": "Medium Flat Rate (wide)",
+    "frb_large": "Large Flat Rate",
+    "large": "Large Flat Rate",
+}
 
 
 def _headers():
@@ -56,6 +77,26 @@ def _load_catalog():
     raise RuntimeError("Product catalog is missing")
 
 
+def _load_classes():
+    global _classes_cache
+    if _classes_cache is not None:
+        return _classes_cache
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.path.join(here, "classes.json"),
+        os.path.join(here, "..", "..", "..", "packages", "catalog", "classes.json"),
+    ]
+    for path in candidates:
+        if os.path.isfile(path):
+            with open(path, encoding="utf-8") as handle:
+                data = json.load(handle)
+            if not isinstance(data, list):
+                raise RuntimeError("Class catalog is invalid")
+            _classes_cache = {str(item.get("id")): item for item in data if item.get("id")}
+            return _classes_cache
+    raise RuntimeError("Class catalog is missing")
+
+
 def catalog_unit_cents(product, size):
     """10oz / default uses price; 18oz uses priceMax when present."""
     base = float(product.get("price") or 0)
@@ -67,38 +108,104 @@ def catalog_unit_cents(product, size):
     return int(round(dollars * 100))
 
 
+def _qty(item):
+    try:
+        qty = int(item.get("quantity") or 0)
+    except (TypeError, ValueError) as error:
+        raise ValueError("One or more quantities are invalid") from error
+    if qty < 1 or qty > 20:
+        raise ValueError("One or more quantities are invalid")
+    return qty
+
+
+def _price_product(item):
+    catalog = _load_catalog()
+    product_id = str(item.get("productId") or item.get("id") or "")
+    product = catalog.get(product_id)
+    if not product:
+        raise ValueError("One or more items are not in the shop catalog")
+    if product.get("soldOut"):
+        raise ValueError(f"{product.get('name') or 'An item'} is sold out")
+    qty = _qty(item)
+    unit = catalog_unit_cents(product, item.get("size"))
+    return unit * qty, {
+        "type": "product",
+        "productId": product_id,
+        "name": product.get("name"),
+        "size": item.get("size") or None,
+        "quantity": qty,
+        "unitCents": unit,
+    }
+
+
+def _price_refill(item):
+    try:
+        ounces = float(item.get("ounces") or 0)
+    except (TypeError, ValueError) as error:
+        raise ValueError("Refill ounces are invalid") from error
+    if ounces <= 0 or ounces > 80:
+        raise ValueError("Refill ounces are outside the allowed range")
+    qty = _qty(item)
+    box_key = str(item.get("boxKey") or "frb_medium_top")
+    shipping = REFILL_BOX_CENTS.get(box_key)
+    if shipping is None:
+        raise ValueError("That refill shipping box is not available")
+    wax = int(round(ounces * WAX_CENTS_PER_OZ * qty))
+    total = wax + shipping
+    unit = int(round(total / qty))
+    box_name = BOX_NAMES.get(box_key, box_key)
+    return total, {
+        "type": "refill",
+        "productId": "refill",
+        "name": f"Candle refill · {ounces:g} oz",
+        "size": box_name,
+        "quantity": qty,
+        "unitCents": unit,
+        "ounces": ounces,
+        "boxKey": box_key,
+    }
+
+
+def _price_class(item):
+    classes = _load_classes()
+    class_id = str(item.get("productId") or item.get("id") or "")
+    course = classes.get(class_id)
+    if not course:
+        raise ValueError("One or more classes are not in the catalog")
+    if course.get("soldOut"):
+        raise ValueError(f"{course.get('title') or 'That class'} is sold out")
+    qty = _qty(item)
+    unit = int(round(float(course.get("price") or 0) * 100))
+    if unit <= 0:
+        raise ValueError("That class has no price")
+    label = course.get("scheduleLabel") or course.get("dateDisplay") or course.get("date")
+    return unit * qty, {
+        "type": "class",
+        "productId": class_id,
+        "name": course.get("title") or "Candle class",
+        "size": label,
+        "quantity": qty,
+        "unitCents": unit,
+        "date": course.get("date"),
+    }
+
+
 def amount_from_catalog(items):
-    """Price the cart from the server catalog. Client unitPrice is ignored."""
+    """Price the cart from server catalogs. Client unitPrice is ignored."""
     if not isinstance(items, list) or not items:
         raise ValueError("Your cart is empty")
-    catalog = _load_catalog()
     total = 0
     priced = []
     for item in items:
-        product_id = str(item.get("productId") or item.get("id") or "")
-        product = catalog.get(product_id)
-        if not product:
-            raise ValueError("One or more items are not in the shop catalog")
-        if product.get("soldOut"):
-            raise ValueError(f"{product.get('name') or 'An item'} is sold out")
-        try:
-            qty = int(item.get("quantity") or 0)
-        except (TypeError, ValueError) as error:
-            raise ValueError("One or more quantities are invalid") from error
-        if qty < 1 or qty > 20:
-            raise ValueError("One or more quantities are invalid")
-        unit = catalog_unit_cents(product, item.get("size"))
-        line = unit * qty
+        kind = str(item.get("type") or item.get("kind") or "product").lower()
+        if kind == "refill":
+            line, row = _price_refill(item)
+        elif kind == "class":
+            line, row = _price_class(item)
+        else:
+            line, row = _price_product(item)
         total += line
-        priced.append(
-            {
-                "productId": product_id,
-                "name": product.get("name"),
-                "size": item.get("size") or None,
-                "quantity": qty,
-                "unitCents": unit,
-            }
-        )
+        priced.append(row)
     if total < 50 or total > 100000:
         raise ValueError("Cart total is outside the allowed test range")
     return total, priced

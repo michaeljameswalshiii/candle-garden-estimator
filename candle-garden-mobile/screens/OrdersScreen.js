@@ -95,7 +95,14 @@ function OrdersScreenBody({ stripe }) {
     setCheckingOut(true);
     try {
       const sheet = await createStripePaymentSheet(
-        lines.map(({ productId, quantity, size }) => ({ productId, quantity, size }))
+        lines.map((line) => ({
+          type: line.type || 'product',
+          productId: line.productId,
+          quantity: line.quantity,
+          size: line.size,
+          ounces: line.ounces,
+          boxKey: line.boxKey,
+        }))
       );
       const { error: initError } = await initPaymentSheet({
         merchantDisplayName: 'The Candle Garden',
@@ -112,6 +119,7 @@ function OrdersScreenBody({ stripe }) {
       const paidTotal = Number(sheet.amount || 0) / 100;
       await createOrder({
         items: (sheet.items || lines).map((item) => ({
+          type: item.type || 'product',
           productId: item.productId,
           name: item.name,
           quantity: item.quantity,
@@ -146,7 +154,11 @@ function OrdersScreenBody({ stripe }) {
         <Text style={styles.lineName} numberOfLines={2}>
           {item.name}
         </Text>
-        {item.size ? <Text style={styles.lineMeta}>Size: {item.size}</Text> : null}
+        <Text style={styles.lineMeta}>
+          {item.type === 'class' ? 'Class' : item.type === 'refill' ? 'Refill' : 'Shop'}
+        </Text>
+        {item.size ? <Text style={styles.lineMeta}>{item.type === 'class' ? item.size : `Size: ${item.size}`}</Text> : null}
+        {item.detail ? <Text style={styles.lineMeta}>{item.detail}</Text> : null}
         <Text style={styles.lineMeta}>
           ${Number(item.unitPrice).toFixed(2)} each
         </Text>
@@ -211,7 +223,7 @@ function OrdersScreenBody({ stripe }) {
     <View style={styles.container}>
       <Text style={styles.title}>Cart & orders</Text>
       <Text style={styles.subtitle}>
-        Secure test checkout is available in this app; Squarespace remains a fallback.
+        Shop candles, refills, and classes pay together here. Test cards only.
       </Text>
 
       <FlatList

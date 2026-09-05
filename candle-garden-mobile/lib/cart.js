@@ -16,7 +16,14 @@ const CartContext = createContext(null);
 const CART_KEY = 'cg_cart_v1';
 
 function lineKey(item) {
-  return `${item.productId}::${item.size || 'default'}`;
+  const type = item.type || 'product';
+  if (type === 'refill') {
+    return `refill::${Number(item.ounces || 0).toFixed(1)}::${item.boxKey || 'box'}`;
+  }
+  if (type === 'class') {
+    return `class::${item.productId}`;
+  }
+  return `product::${item.productId}::${item.size || 'default'}`;
 }
 
 async function loadPersistedLines() {
@@ -71,20 +78,27 @@ export function CartProvider({ children }) {
   }, [lines, ready]);
 
   const addItem = useCallback((product, options = {}) => {
+    const type = options.type || product.type || 'product';
     const size =
       options.size ||
+      product.scheduleLabel ||
       (Array.isArray(product.sizes) && product.sizes.length ? product.sizes[0] : null);
     const qty = Math.max(1, Number(options.quantity) || 1);
-    const unitPrice = Number(product.price) || 0;
+    const unitPrice = Number(options.unitPrice != null ? options.unitPrice : product.price) || 0;
     const entry = {
       key: null,
-      productId: product.id,
+      type,
+      productId: type === 'refill' ? 'refill' : product.id,
       name: product.name,
       size,
       unitPrice,
       quantity: qty,
       image: product.image,
       url: product.url,
+      ounces: options.ounces != null ? Number(options.ounces) : undefined,
+      boxKey: options.boxKey,
+      detail: options.detail,
+      date: product.date,
     };
     entry.key = lineKey(entry);
 

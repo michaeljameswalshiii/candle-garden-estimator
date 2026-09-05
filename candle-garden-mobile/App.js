@@ -3,6 +3,7 @@ import React, { Suspense, lazy } from 'react';
 import { ActivityIndicator, View, Text, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { StripeProvider } from './lib/stripeBridge';
@@ -12,6 +13,7 @@ import ProductsScreen from './screens/ProductsScreen';
 import OrdersScreen from './screens/OrdersScreen';
 import ClassScheduleScreen from './screens/ClassScheduleScreen';
 import ProfileScreen from './screens/ProfileScreen';
+import RefillStep4 from './screens/RefillStep4';
 import { colors, navigationTheme, fonts } from './lib/theme';
 import { CartProvider, useCart } from './lib/cart';
 import { AuthProvider, useAuth } from './lib/AuthContext';
@@ -22,6 +24,7 @@ import { STRIPE_PUBLISHABLE_KEY } from './lib/stripeConfig';
 const EstimatorScreen = lazy(() => import('./screens/EstimatorScreen'));
 
 const Tab = createBottomTabNavigator();
+const EstimatorStackNav = createNativeStackNavigator();
 
 function EstimatorSuspense() {
   return (
@@ -47,6 +50,23 @@ function AuthTokenBridge({ children }) {
     setAccessTokenGetter(() => getAccessToken());
   }, [getIdToken, getAccessToken]);
   return children;
+}
+
+function EstimatorStack() {
+  return (
+    <EstimatorStackNav.Navigator>
+      <EstimatorStackNav.Screen
+        name="EstimatorHome"
+        component={EstimatorSuspense}
+        options={{ headerShown: false }}
+      />
+      <EstimatorStackNav.Screen
+        name="RefillStep4"
+        component={RefillStep4}
+        options={{ title: 'Shipping & quantity' }}
+      />
+    </EstimatorStackNav.Navigator>
+  );
 }
 
 function MainTabs() {
@@ -97,8 +117,8 @@ function MainTabs() {
       <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'The Candle Garden App' }} />
       <Tab.Screen
         name="Estimator"
-        component={EstimatorSuspense}
-        options={{ title: 'Refill Estimator' }}
+        component={EstimatorStack}
+        options={{ title: 'Refill Estimator', headerShown: false }}
       />
       <Tab.Screen name="Products" component={ProductsScreen} options={{ title: 'Shop' }} />
       <Tab.Screen

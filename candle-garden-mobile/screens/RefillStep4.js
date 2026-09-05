@@ -10,6 +10,7 @@ import {
 } from '../lib/pricing';
 import { BOX_FIT_ORDER } from '../lib/shippingConfig';
 import { colors, fonts, radii, spacing } from '../lib/theme';
+import { useCart } from '../lib/cart';
 
 function CustomButton({ title, onPress, disabled, color }) {
   return (
@@ -41,6 +42,7 @@ export default function RefillStep4() {
     vesselCount: vesselCountParam,
   } = route.params || {};
 
+  const { addItem } = useCart();
   const vesselCount = Math.max(1, Number(vesselCountParam) || 1);
   const recommendedBox =
     initialBoxKey || recommendBox(ounces, { vesselCount });
@@ -68,13 +70,29 @@ export default function RefillStep4() {
   const handleAddToCart = () => {
     Alert.alert(
       'Add to Cart',
-      `Adding ${quantity} candle(s) to cart for $${cost.total_cost}?`,
+      `Adding ${quantity} refill${quantity === 1 ? '' : 's'} for $${cost.total_cost}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Add to Cart',
           onPress: () => {
-            Alert.alert('Success', 'Items added to cart!');
+            addItem(
+              {
+                id: 'refill',
+                type: 'refill',
+                name: `Candle refill · ${ounces} oz`,
+                price: cost.total_cost_num / quantity,
+              },
+              {
+                type: 'refill',
+                quantity,
+                ounces,
+                boxKey: selectedBox,
+                detail: `${cost.box_type} return shipping included`,
+                unitPrice: cost.total_cost_num / quantity,
+              }
+            );
+            Alert.alert('Added to cart', 'Open the Cart tab to pay with your shop items and classes.');
             navigation.goBack();
           },
         },

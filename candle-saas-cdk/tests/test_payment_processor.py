@@ -11,6 +11,7 @@ def load_processor():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     module._catalog_cache = None
+    module._classes_cache = None
     return module
 
 
@@ -39,6 +40,38 @@ def test_unknown_product_is_rejected():
         assert False, "expected unknown product to fail"
     except ValueError as error:
         assert "catalog" in str(error).lower()
+
+
+def test_refill_uses_server_wax_and_box():
+    processor = load_processor()
+    total, priced = processor.amount_from_catalog(
+        [{"type": "refill", "ounces": 10, "quantity": 1, "boxKey": "frb_medium_top", "unitPrice": 1}]
+    )
+    assert priced[0]["type"] == "refill"
+    assert total == 1500 + 2480
+
+
+def test_class_uses_catalog_price():
+    processor = load_processor()
+    total, priced = processor.amount_from_catalog(
+        [{"type": "class", "productId": "6a3c45403645b97e2eae9160", "quantity": 1, "unitPrice": 1}]
+    )
+    assert priced[0]["type"] == "class"
+    assert priced[0]["unitCents"] == 6000
+    assert total == 6000
+
+
+def test_mixed_cart_sums_all_kinds():
+    processor = load_processor()
+    total, priced = processor.amount_from_catalog(
+        [
+            {"productId": "65faf809b85f1d19a61c8374", "quantity": 1},
+            {"type": "refill", "ounces": 10, "quantity": 1, "boxKey": "frb_small"},
+            {"type": "class", "productId": "6a3c45403645b97e2eae9160", "quantity": 1},
+        ]
+    )
+    assert [row["type"] for row in priced] == ["product", "refill", "class"]
+    assert total == 3400 + (1500 + 1365) + 6000
 
 
 def test_empty_cart_is_rejected():
