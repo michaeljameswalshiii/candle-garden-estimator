@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -33,14 +33,16 @@ function OrdersScreenCheckout() {
 
 function OrdersScreenBody({ stripe }) {
   const { lines, itemCount, subtotal, setQuantity, removeItem, clearCart } = useCart();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, signIn, busy: authBusy, user } = useAuth();
   const initPaymentSheet = stripe?.initPaymentSheet;
   const presentPaymentSheet = stripe?.presentPaymentSheet;
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState(null);
   const [checkingOut, setCheckingOut] = useState(false);
-  const [collectingShipping, setCollectingShipping] = useState(false);
+  const [checkoutStep, setCheckoutStep] = useState('choice');
+  const [accountEmail, setAccountEmail] = useState('');
+  const [accountPassword, setAccountPassword] = useState('');
   const [shipping, setShipping] = useState({
     name: '',
     email: '',
@@ -50,6 +52,7 @@ function OrdersScreenBody({ stripe }) {
     state: '',
     zip: '',
   });
+  const asGuest = checkoutStep === 'guest' || (!isAuthenticated && checkoutStep !== 'account');
 
   const needsShipping = lines.some((line) => line.type !== 'class');
 
@@ -78,36 +81,92 @@ function OrdersScreenBody({ stripe }) {
     }, [loadHistory])
   );
 
-  const startCheckout = () => {
+  useEffect(() => {
+    if (!lines.length && checkoutStep !== 'choice') {
+      setCheckoutStep('choice');
+    }
+  }, [lines.length, checkoutStep]);
+
+  const backToChoice = () => {
+    setCheckoutStep('choice');
+    setAccountPassword('');
+  };
+
+  const startGuestCheckout = () => {
     if (!lines.length || checkingOut) return;
-    if (needsShipping || !isAuthenticated) {
-      setCollectingShipping(true);
+    setCheckoutStep('guest');
+  };
+
+  const startAccountCheckout = () => {
+    if (!lines.length || checkingOut) return;
+    if (!isAuthenticated) {
+      setCheckoutStep('account');
       return;
     }
-    void checkoutWithStripe();
+    setShipping((current) => ({
+      ...current,
+      email: current.email || user?.email || '',
+      name: current.name || user?.name || '',
+      phone: current.phone || user?.phone || '',
+    }));
+    if (needsShipping) {
+      setCheckoutStep('shipping');
+      return;
+    }
+    void checkoutWithStripe({ saveOrder: true });
+  };
+
+  const submitAccountSignIn = async () => {
+    if (!accountEmail.trim() || !accountPassword) {
+      Alert.alert('Sign in needed', 'Enter the email and password for your account.');
+      return;
+    }
+    try {
+      const profile = await signIn({ email: accountEmail.trim(), password: accountPassword });
+      setAccountPassword('');
+      setShipping((current) => ({
+        ...current,
+        email: current.email || profile?.email || accountEmail.trim(),
+        name: current.name || profile?.name || '',
+      }));
+      if (needsShipping) {
+        setCheckoutStep('shipping');
+        return;
+      }
+      void checkoutWithStripe({ saveOrder: true });
+    } catch (error) {
+      if (String(error.message || '').includes('UserNotConfirmed')) {
+        Alert.alert(
+          'Confirm email',
+          'Open Profile and enter the verification code we emailed you, then come back to checkout.'
+        );
+        return;
+      }
+      Alert.alert('Sign in failed', error.message || 'Please try again');
+    }
   };
 
   const submitShippingAndPay = () => {
+    const guest = checkoutStep === 'guest' || !isAuthenticated;
     const required = needsShipping
-      ? isAuthenticated
-        ? ['name', 'phone', 'address', 'city', 'state', 'zip']
-        : ['name', 'email', 'phone', 'address', 'city', 'state', 'zip']
+      ? guest
+        ? ['name', 'email', 'phone', 'address', 'city', 'state', 'zip']
+        : ['name', 'phone', 'address', 'city', 'state', 'zip']
       : ['name', 'email', 'phone'];
     const missing = required.filter((key) => !String(shipping[key] || '').trim());
     if (missing.length) {
       Alert.alert(
         needsShipping ? 'Shipping needed' : 'Contact needed',
-        needsShipping
-          ? 'Please fill in your name, phone, and address so we can complete this order.'
-          : 'Please add your name, email, and phone so we can complete this guest checkout.'
+        guest
+          ? 'Please add your name, email, and phone so we can complete this guest checkout.'
+          : 'Please fill in your name, phone, and address so we can complete this order.'
       );
       return;
     }
-    setCollectingShipping(false);
-    void checkoutWithStripe();
+    void checkoutWithStripe({ saveOrder: checkoutStep !== 'guest' && (isAuthenticated || checkoutStep === 'shipping') });
   };
 
-  const checkoutWithStripe = async () => {
+  const checkoutWithStripe = async ({ saveOrder } = {}) => {
     if (!lines.length || checkingOut) return;
     if (!stripeConfigured || !initPaymentSheet || !presentPaymentSheet) {
       Alert.alert('Stripe test mode is not configured', 'Add the Stripe test publishable key to the app build, then try again.');
@@ -139,7 +198,8 @@ function OrdersScreenBody({ stripe }) {
         return;
       }
       const paidTotal = Number(sheet.amount || 0) / 100;
-      if (isAuthenticated) {
+      const shouldSaveOrder = saveOrder ?? isAuthenticated;
+      if (shouldSaveOrder) {
         await createOrder({
           items: (sheet.items || lines).map((item) => ({
             type: item.type || 'product',
@@ -157,6 +217,7 @@ function OrdersScreenBody({ stripe }) {
         });
         await loadHistory();
       }
+      setCheckoutStep('choice');
       clearCart();
       Alert.alert('Test payment complete', 'Stripe accepted the test payment. No real charge was made.');
     } catch (error) {
@@ -243,7 +304,7 @@ function OrdersScreenBody({ stripe }) {
     <View style={styles.container}>
       <Text style={styles.title}>Cart & orders</Text>
       <Text style={styles.subtitle}>
-        Shop candles, refills, and classes pay together here. Test cards only.
+        Checkout as a guest, or sign in if you already have an account. Test cards only.
       </Text>
 
       <FlatList
@@ -272,18 +333,60 @@ function OrdersScreenBody({ stripe }) {
                   </Text>
                   <Text style={styles.subtotalValue}>${subtotal.toFixed(2)}</Text>
                 </View>
-                {collectingShipping ? (
+                {checkoutStep === 'account' && !isAuthenticated ? (
                   <View style={styles.shippingBox}>
-                    <Text style={styles.shippingTitle}>{needsShipping ? 'Shipping' : 'Contact'}</Text>
+                    <Text style={styles.shippingTitle}>I have an account</Text>
                     <Text style={styles.shippingHint}>
-                      {needsShipping
-                        ? 'One address for this whole order. Guests can pay without creating an account.'
-                        : 'Guests can pay without creating an account. Add a way to reach you.'}
+                      Sign in to check out with your Candle Garden account. Your cart stays here.
+                    </Text>
+                    <TextInput
+                      style={styles.shippingInput}
+                      placeholder="Email"
+                      placeholderTextColor={colors.textFaint}
+                      value={accountEmail}
+                      onChangeText={setAccountEmail}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      keyboardType="email-address"
+                    />
+                    <TextInput
+                      style={styles.shippingInput}
+                      placeholder="Password"
+                      placeholderTextColor={colors.textFaint}
+                      value={accountPassword}
+                      onChangeText={setAccountPassword}
+                      secureTextEntry
+                      autoCapitalize="none"
+                    />
+                    <TouchableOpacity
+                      style={styles.checkoutBtn}
+                      onPress={submitAccountSignIn}
+                      disabled={checkingOut || authBusy}
+                    >
+                      <Text style={styles.checkoutText}>
+                        {authBusy || checkingOut ? 'Signing in…' : 'Sign in and continue'}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.secondaryBtn} onPress={backToChoice}>
+                      <Text style={styles.secondaryText}>Back to cart</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : checkoutStep === 'guest' || checkoutStep === 'shipping' ? (
+                  <View style={styles.shippingBox}>
+                    <Text style={styles.shippingTitle}>
+                      {checkoutStep === 'guest' ? 'Guest checkout' : needsShipping ? 'Shipping' : 'Contact'}
+                    </Text>
+                    <Text style={styles.shippingHint}>
+                      {checkoutStep === 'guest'
+                        ? needsShipping
+                          ? 'Pay without creating an account. We need a way to reach you and where to send this order.'
+                          : 'Pay without creating an account. Add a way to reach you.'
+                        : 'One address for this whole order.'}
                     </Text>
                     {(needsShipping
-                      ? isAuthenticated
-                        ? [['name', 'Name'], ['phone', 'Phone'], ['address', 'Street address'], ['city', 'City'], ['state', 'State'], ['zip', 'ZIP']]
-                        : [['name', 'Name'], ['email', 'Email'], ['phone', 'Phone'], ['address', 'Street address'], ['city', 'City'], ['state', 'State'], ['zip', 'ZIP']]
+                      ? asGuest
+                        ? [['name', 'Name'], ['email', 'Email'], ['phone', 'Phone'], ['address', 'Street address'], ['city', 'City'], ['state', 'State'], ['zip', 'ZIP']]
+                        : [['name', 'Name'], ['phone', 'Phone'], ['address', 'Street address'], ['city', 'City'], ['state', 'State'], ['zip', 'ZIP']]
                       : [['name', 'Name'], ['email', 'Email'], ['phone', 'Phone']]
                     ).map(([key, label]) => (
                       <TextInput
@@ -303,16 +406,29 @@ function OrdersScreenBody({ stripe }) {
                         {checkingOut ? 'Opening secure checkout…' : 'Continue to payment'}
                       </Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.secondaryBtn} onPress={() => setCollectingShipping(false)}>
+                    <TouchableOpacity style={styles.secondaryBtn} onPress={backToChoice}>
                       <Text style={styles.secondaryText}>Back to cart</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
-                  <TouchableOpacity style={styles.checkoutBtn} onPress={startCheckout} disabled={checkingOut}>
-                    <Text style={styles.checkoutText}>
-                      {checkingOut ? 'Opening secure checkout…' : 'Test checkout with Stripe'}
-                    </Text>
-                  </TouchableOpacity>
+                  <View>
+                    {isAuthenticated ? (
+                      <TouchableOpacity style={styles.checkoutBtn} onPress={startAccountCheckout} disabled={checkingOut}>
+                        <Text style={styles.checkoutText}>
+                          {checkingOut ? 'Opening secure checkout…' : 'Checkout with my account'}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <>
+                        <TouchableOpacity style={styles.checkoutBtn} onPress={startGuestCheckout} disabled={checkingOut}>
+                          <Text style={styles.checkoutText}>Checkout as guest</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.secondaryBtn} onPress={startAccountCheckout} disabled={checkingOut}>
+                          <Text style={styles.secondaryText}>I have an account</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </View>
                 )}
                 <TouchableOpacity style={styles.clearBtn} onPress={clearCart}>
                   <Text style={styles.clearText}>Clear cart</Text>
