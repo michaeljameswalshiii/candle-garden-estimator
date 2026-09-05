@@ -6,7 +6,6 @@ import {
   FlatList,
   TouchableOpacity,
   Image,
-  Linking,
   Alert,
   RefreshControl,
   ActivityIndicator,
@@ -15,7 +14,6 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 import { useCart } from '../lib/cart';
-import { SHOP_BASE } from '../lib/shopCatalog';
 import { useAuth } from '../lib/AuthContext';
 import { createOrder, createStripePaymentSheet, listOrders } from '../lib/apiClient';
 import { useStripe } from '../lib/stripeBridge';
@@ -79,21 +77,6 @@ function OrdersScreenBody({ stripe }) {
       loadHistory();
     }, [loadHistory])
   );
-
-  const checkoutOnSite = () => {
-    if (!lines.length) return;
-    Alert.alert(
-      'Continue on Squarespace',
-      'Your saved list cannot be transferred automatically. Choose product options again on the official store, where payment and live inventory are confirmed.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Open official store',
-          onPress: () => Linking.openURL(`${SHOP_BASE}/shop`).catch(() => {}),
-        },
-      ]
-    );
-  };
 
   const startCheckout = () => {
     if (!lines.length || checkingOut) return;
@@ -222,11 +205,6 @@ function OrdersScreenBody({ stripe }) {
             <Text style={styles.removeText}>Remove</Text>
           </TouchableOpacity>
         </View>
-        {item.url ? (
-          <TouchableOpacity onPress={() => Linking.openURL(item.url).catch(() => {})}>
-            <Text style={styles.productLink}>Choose options on Squarespace →</Text>
-          </TouchableOpacity>
-        ) : null}
       </View>
       <Text style={styles.lineTotal}>
         ${(item.unitPrice * item.quantity).toFixed(2)}
@@ -336,9 +314,6 @@ function OrdersScreenBody({ stripe }) {
                     </Text>
                   </TouchableOpacity>
                 )}
-                <TouchableOpacity style={styles.secondaryBtn} onPress={checkoutOnSite} disabled={checkingOut}>
-                  <Text style={styles.secondaryText}>Continue on Squarespace instead</Text>
-                </TouchableOpacity>
                 <TouchableOpacity style={styles.clearBtn} onPress={clearCart}>
                   <Text style={styles.clearText}>Clear cart</Text>
                 </TouchableOpacity>
@@ -467,13 +442,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.danger,
     fontWeight: '600',
-  },
-  productLink: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: colors.primary,
-    fontWeight: '700',
-    marginTop: 8,
   },
   lineTotal: {
     fontFamily: fonts.body,
