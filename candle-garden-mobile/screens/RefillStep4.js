@@ -1,14 +1,17 @@
 import React, { useState, useMemo } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Alert, ScrollView, TextInput } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import {
   calculateCost,
   recommendBox,
   WAX_PRICE_PER_OZ,
-  USPS_FLAT_RATE_BOXES,
+  UPS_BOXES,
   SHIPPING_POLICY,
+  quoteAllMethods,
+  SHIPPING_METHODS,
+  DEFAULT_SHIPPING_METHOD,
 } from '../lib/pricing';
-import { BOX_FIT_ORDER } from '../lib/shippingConfig';
+import { BOX_FIT_ORDER, resolveBoxKey } from '../lib/shippingConfig';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 import { useCart } from '../lib/cart';
 
@@ -45,9 +48,11 @@ export default function RefillStep4() {
   const { addItem } = useCart();
   const vesselCount = Math.max(1, Number(vesselCountParam) || 1);
   const recommendedBox =
-    initialBoxKey || recommendBox(ounces, { vesselCount });
+    resolveBoxKey(initialBoxKey) || recommendBox(ounces, { vesselCount });
   const [quantity, setQuantity] = useState(1);
   const [selectedBox, setSelectedBox] = useState(recommendedBox);
+  const [destZip, setDestZip] = useState('');
+  const [shippingMethod, setShippingMethod] = useState(DEFAULT_SHIPPING_METHOD);
 
   const cost = useMemo(
     () =>
@@ -55,8 +60,21 @@ export default function RefillStep4() {
         quantity,
         boxKey: selectedBox,
         vesselCount: Math.max(vesselCount, quantity),
+        destZip,
+        shippingMethod,
       }),
-    [ounces, quantity, selectedBox, vesselCount]
+    [ounces, quantity, selectedBox, vesselCount, destZip, shippingMethod]
+  );
+
+  const methodQuotes = useMemo(
+    () =>
+      quoteAllMethods(ounces, {
+        quantity,
+        boxKey: selectedBox,
+        vesselCount: Math.max(vesselCount, quantity),
+        destZip,
+      }),
+    [ounces, quantity, selectedBox, vesselCount, destZip]
   );
 
   const increaseQuantity = () => {
@@ -68,6 +86,11 @@ export default function RefillStep4() {
   };
 
   const handleAddToCart = () => {
+    if (!cost.quote_ok) {
+      Alert.alert('ZIP needed', cost.quote_reason || 'Enter your ZIP for UPS Ground Saver.');
+      return;
+    }
+    const method = SHIPPING_METHODS[shippingMethod];
     Alert.alert(
       'Add to Cart',
       `Adding ${quantity} refill${quantity === 1 ? '' : 's'} for $${cost.total_cost}?`,
@@ -88,7 +111,10 @@ export default function RefillStep4() {
                 quantity,
                 ounces,
                 boxKey: selectedBox,
-                detail: `${cost.box_type} return shipping included`,
+                destZip: cost.dest_zip,
+                shippingMethod,
+                vesselCount: Math.max(vesselCount, quantity),
+                detail: `${method?.title || 'UPS Ground Saver'} · ${cost.shipping_label}`,
                 unitPrice: cost.total_cost_num / quantity,
               }
             );
@@ -144,14 +170,56 @@ export default function RefillStep4() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Recommended box</Text>
+        <Text style={styles.sectionTitle}>Your ZIP</Text>
         <Text style={styles.hintText}>
-          Price shown is return shipping to you (included). Pack empties well —
-          packing material uses space. Use this size when you ship to us.
+          UPS Ground Saver from Atlantic Beach, FL (32233). Price is zone × packed weight.
+        </Text>
+        <TextInput
+          style={styles.zipInput}
+          value={destZip}
+          onChangeText={(t) => setDestZip(t.replace(/[^\d]/g, '').slice(0, 10))}
+          keyboardType="number-pad"
+          placeholder="32250"
+          placeholderTextColor={colors.textFaint}
+          maxLength={10}
+        />
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>How we’ll ship</Text>
+        {methodQuotes.map(({ methodKey, method, cost: methodCost }) => (
+          <TouchableOpacity
+            key={methodKey}
+            style={[
+              styles.boxOption,
+              shippingMethod === methodKey && styles.boxOptionSelected,
+            ]}
+            onPress={() => setShippingMethod(methodKey)}
+          >
+            <View style={styles.boxInfo}>
+              <Text style={styles.boxName}>{method.title}</Text>
+              <Text style={styles.boxDetails}>
+                {method.chargeCount} UPS {method.chargeCount === 1 ? 'trip' : 'trips'}
+              </Text>
+              <Text style={styles.boxDetails} numberOfLines={4}>
+                {method.summary}
+              </Text>
+            </View>
+            <Text style={styles.boxPrice}>
+              {methodCost.quote_ok ? `$${methodCost.shipping_cost}` : 'ZIP'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Recommended carton</Text>
+        <Text style={styles.hintText}>
+          Packed weight includes vessels, box, and packing. UPS bills the greater of scale and dim weight.
         </Text>
 
         {BOX_FIT_ORDER.map((key) => {
-          const box = USPS_FLAT_RATE_BOXES[key];
+          const box = UPS_BOXES[key];
           if (!box) return null;
           const dims = `${box.lengthIn}×${box.widthIn}×${box.heightIn} in`;
           return (
@@ -169,15 +237,12 @@ export default function RefillStep4() {
               <View style={styles.boxInfo}>
                 <Text style={styles.boxName}>{box.shortName}</Text>
                 <Text style={styles.boxDetails}>
-                  Inside ~{dims}
+                  {dims} · empty ~{box.emptyBoxOz} oz
                 </Text>
                 <Text style={styles.boxDetails} numberOfLines={2}>
                   {box.notes}
                 </Text>
               </View>
-              <Text style={styles.boxPrice}>
-                ${box.postageOneLegUsd.toFixed(2)}
-              </Text>
               {key === recommendedBox && (
                 <Text style={styles.recommendedBadge}>Recommended</Text>
               )}
@@ -188,17 +253,33 @@ export default function RefillStep4() {
 
       <View style={styles.totalSection}>
         <Text style={styles.totalLabel}>Estimate total</Text>
-        <Text style={styles.totalAmount}>${cost.total_cost}</Text>
-        <Text style={styles.totalBreakdown}>
-          Wax ${cost.wax_cost} + Return shipping ${cost.shipping_cost}
+        <Text style={styles.totalAmount}>
+          {cost.quote_ok ? `$${cost.total_cost}` : '—'}
         </Text>
+        <Text style={styles.totalBreakdown}>
+          Wax ${cost.wax_cost}
+          {cost.quote_ok ? ` + UPS ${cost.shipping_cost}` : ''}
+        </Text>
+        {cost.packed_weight ? (
+          <>
+            <Text style={styles.weightLine}>
+              Packed weight (refills): {cost.packed_weight.refillsOutboundLabel}
+            </Text>
+            <Text style={styles.weightDetail}>
+              {cost.packed_weight.breakdownOutbound}
+            </Text>
+            <Text style={styles.weightLine}>
+              Empties: {cost.packed_weight.emptiesInboundLabel}
+            </Text>
+          </>
+        ) : null}
         <Text style={styles.totalNote}>
-          Does not include your postage to ship empties to us
+          {cost.customer_note || SHIPPING_POLICY.summary}
         </Text>
       </View>
 
       <View style={styles.buttonContainer}>
-        <CustomButton title="Add to Cart" onPress={handleAddToCart} />
+        <CustomButton title="Add to Cart" onPress={handleAddToCart} disabled={!cost.quote_ok} />
         <CustomButton
           title="Back"
           onPress={() => navigation.goBack()}
@@ -305,6 +386,19 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     lineHeight: 17,
   },
+  zipInput: {
+    fontFamily: fonts.body,
+    fontSize: 20,
+    letterSpacing: 2,
+    textAlign: 'center',
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderRadius: radii.sm,
+    paddingVertical: 10,
+    color: colors.text,
+    marginTop: 4,
+  },
   boxOption: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -377,6 +471,20 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 12,
     color: colors.textMuted,
+  },
+  weightLine: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  weightDetail: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: colors.textMuted,
+    marginTop: 2,
+    textAlign: 'center',
   },
   totalNote: {
     fontFamily: fonts.body,

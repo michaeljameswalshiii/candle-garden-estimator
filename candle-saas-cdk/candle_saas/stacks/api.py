@@ -266,6 +266,8 @@ class APIStack(Stack):
                 "STRIPE_SECRET_ARN": self.node.try_get_context("stripeSecretArn")
                 or "arn:aws:secretsmanager:us-east-1:635449373837:secret:candlesaas/stripe/test-QNXlxT",
                 "STRIPE_LIVE_ENABLED": "true" if self.node.try_get_context("stripeLiveEnabled") == "true" else "false",
+                "UPS_SECRET_ARN": self.node.try_get_context("upsSecretArn")
+                or "arn:aws:secretsmanager:us-east-1:635449373837:secret:candlesaas/ups",
             },
             timeout=Duration.seconds(30),
             memory_size=512,
@@ -392,6 +394,10 @@ class APIStack(Stack):
         integration = apigw.LambdaIntegration(function)
         payment_sheet = payments.add_resource("payment-sheet")
         payment_sheet.add_method("POST", integration)
+        shipping_quote = payments.add_resource("shipping-quote")
+        shipping_quote.add_method("POST", integration)
+        refill_labels = payments.add_resource("refill-labels")
+        refill_labels.add_method("POST", integration)
         webhook = payments.add_resource("webhook")
         webhook.add_method("POST", integration)
     

@@ -125,9 +125,27 @@ export async function createStripePaymentSheet(items, contact = {}) {
   const body = { items };
   if (contact.email) body.email = String(contact.email).trim();
   if (contact.name) body.name = String(contact.name).trim();
+  if (contact.zip) body.destZip = String(contact.zip).replace(/\D/g, '').slice(0, 5);
+  if (contact.shipping) body.shipping = contact.shipping;
   return apiFetch('/payments/payment-sheet', {
     method: 'POST',
     body,
+    requireAuth: false,
+  });
+}
+
+export async function postShippingQuote(payload) {
+  return apiFetch('/payments/shipping-quote', {
+    method: 'POST',
+    body: payload,
+    requireAuth: false,
+  });
+}
+
+export async function createRefillLabels(payload) {
+  return apiFetch('/payments/refill-labels', {
+    method: 'POST',
+    body: payload,
     requireAuth: false,
   });
 }

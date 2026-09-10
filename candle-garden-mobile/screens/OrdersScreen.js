@@ -15,7 +15,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 import { useCart } from '../lib/cart';
 import { useAuth } from '../lib/AuthContext';
-import { createOrder, createStripePaymentSheet, listOrders } from '../lib/apiClient';
+import { createOrder, createStripePaymentSheet, createRefillLabels, listOrders } from '../lib/apiClient';
 import { useStripe } from '../lib/stripeBridge';
 import { stripeConfigured } from '../lib/stripeConfig';
 
@@ -182,8 +182,11 @@ function OrdersScreenBody({ stripe }) {
           size: line.size,
           ounces: line.ounces,
           boxKey: line.boxKey,
+          destZip: line.destZip || shipping.zip,
+          shippingMethod: line.shippingMethod || 'ship_own',
+          vesselCount: line.vesselCount,
         })),
-        { email: shipping.email, name: shipping.name }
+        { email: shipping.email, name: shipping.name, zip: shipping.zip, shipping }
       );
       const { error: initError } = await initPaymentSheet({
         merchantDisplayName: 'The Candle Garden',
@@ -198,6 +201,34 @@ function OrdersScreenBody({ stripe }) {
         return;
       }
       const paidTotal = Number(sheet.amount || 0) / 100;
+      let labelNote = '';
+      const refillLines = lines.filter(
+        (line) => line.type === 'refill' && line.shippingMethod && line.shippingMethod !== 'ship_own'
+      );
+      if (refillLines.length && shipping.zip && shipping.address) {
+        try {
+          const tracking = [];
+          for (const refill of refillLines) {
+            const made = await createRefillLabels({
+              ounces: refill.ounces,
+              quantity: refill.quantity,
+              boxKey: refill.boxKey,
+              shippingMethod: refill.shippingMethod,
+              vesselCount: refill.vesselCount,
+              dest: shipping,
+            });
+            (made.labels || []).forEach((lab) => {
+              if (lab.trackingNumber) tracking.push(lab.trackingNumber);
+            });
+          }
+          if (tracking.length) {
+            labelNote = ` UPS Ground Saver labels: ${tracking.join(', ')}.`;
+          }
+        } catch {
+          labelNote =
+            ' Prepaid UPS labels will be printed by the shop if they did not generate automatically.';
+        }
+      }
       const shouldSaveOrder = saveOrder ?? isAuthenticated;
       if (shouldSaveOrder) {
         await createOrder({
@@ -219,7 +250,10 @@ function OrdersScreenBody({ stripe }) {
       }
       setCheckoutStep('choice');
       clearCart();
-      Alert.alert('Test payment complete', 'Stripe accepted the test payment. No real charge was made.');
+      Alert.alert(
+        'Test payment complete',
+        `Stripe accepted the test payment. No real charge was made.${labelNote}`
+      );
     } catch (error) {
       Alert.alert('Checkout unavailable', error.message || 'Stripe could not start checkout.');
     } finally {
@@ -379,9 +413,9 @@ function OrdersScreenBody({ stripe }) {
                     <Text style={styles.shippingHint}>
                       {checkoutStep === 'guest'
                         ? needsShipping
-                          ? 'Pay without creating an account. We need a way to reach you and where to send this order.'
+                          ? 'Pay without creating an account. We need a way to reach you and where to send this order. Refill shipping is UPS Ground Saver, repriced from this ZIP.'
                           : 'Pay without creating an account. Add a way to reach you.'
-                        : 'One address for this whole order.'}
+                        : 'One address for this whole order. Refill shipping is UPS Ground Saver, repriced from this ZIP.'}
                     </Text>
                     {(needsShipping
                       ? asGuest

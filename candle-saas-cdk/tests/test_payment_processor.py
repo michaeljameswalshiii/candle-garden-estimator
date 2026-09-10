@@ -1,9 +1,13 @@
 """Catalog pricing for Stripe test checkout — client amounts are ignored."""
 import importlib.util
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE_PATH = ROOT / "lambda_functions" / "payment_processor" / "index.py"
+PAY_DIR = ROOT / "lambda_functions" / "payment_processor"
+MODULE_PATH = PAY_DIR / "index.py"
+if str(PAY_DIR) not in sys.path:
+    sys.path.insert(0, str(PAY_DIR))
 
 
 def load_processor():
@@ -42,13 +46,70 @@ def test_unknown_product_is_rejected():
         assert "catalog" in str(error).lower()
 
 
-def test_refill_uses_server_wax_and_box():
+def test_refill_uses_server_wax_and_ups():
     processor = load_processor()
+    from refill_shipping import quote_refill_shipping
+
+    expected = quote_refill_shipping(
+        10, quantity=1, box_key="ups_medium", dest_zip="32250", shipping_method="ship_own"
+    )
     total, priced = processor.amount_from_catalog(
-        [{"type": "refill", "ounces": 10, "quantity": 1, "boxKey": "frb_medium_top", "unitPrice": 1}]
+        [
+            {
+                "type": "refill",
+                "ounces": 10,
+                "quantity": 1,
+                "boxKey": "ups_medium",
+                "destZip": "32250",
+                "shippingMethod": "ship_own",
+                "unitPrice": 1,
+            }
+        ]
     )
     assert priced[0]["type"] == "refill"
-    assert total == 1500 + 2480
+    assert priced[0]["shippingMethod"] == "ship_own"
+    assert total == expected["total_cents"]
+    assert total > expected["wax_cents"]
+
+
+def test_refill_requires_zip():
+    processor = load_processor()
+    try:
+        processor.amount_from_catalog(
+            [{"type": "refill", "ounces": 10, "quantity": 1, "boxKey": "ups_medium"}]
+        )
+        assert False, "expected missing ZIP to fail"
+    except ValueError as error:
+        assert "zip" in str(error).lower()
+
+
+def test_refill_kit_costs_more_than_ship_own():
+    from refill_shipping import quote_refill_shipping
+
+    own = quote_refill_shipping(12, dest_zip="10001", shipping_method="ship_own")
+    labels = quote_refill_shipping(12, dest_zip="10001", shipping_method="prepaid_labels")
+    kit = quote_refill_shipping(12, dest_zip="10001", shipping_method="kit_roundtrip")
+    assert own["shipping_cents"] < labels["shipping_cents"] < kit["shipping_cents"]
+
+
+def test_refill_empties_in_is_commercial():
+    from refill_shipping import quote_refill_shipping
+
+    labels = quote_refill_shipping(12, dest_zip="32250", shipping_method="prepaid_labels")
+    inn = next(leg for leg in labels["legs"] if leg["key"] == "empties_in")
+    out = next(leg for leg in labels["legs"] if leg["key"] == "refills_out")
+    assert inn["billedLb"] == out["billedLb"]
+    assert out["cents"] - inn["cents"] == 465
+
+
+def test_refill_rejects_alaska():
+    from refill_shipping import quote_refill_shipping
+
+    try:
+        quote_refill_shipping(12, dest_zip="99501", shipping_method="ship_own")
+        assert False, "expected Alaska ZIP to fail"
+    except ValueError as error:
+        assert "48" in str(error)
 
 
 def test_class_uses_catalog_price():
@@ -63,15 +124,20 @@ def test_class_uses_catalog_price():
 
 def test_mixed_cart_sums_all_kinds():
     processor = load_processor()
+    from refill_shipping import quote_refill_shipping
+
+    refill = quote_refill_shipping(
+        10, quantity=1, box_key="ups_small", dest_zip="32250", shipping_method="ship_own"
+    )
     total, priced = processor.amount_from_catalog(
         [
             {"productId": "65faf809b85f1d19a61c8374", "quantity": 1},
-            {"type": "refill", "ounces": 10, "quantity": 1, "boxKey": "frb_small"},
+            {"type": "refill", "ounces": 10, "quantity": 1, "boxKey": "ups_small", "destZip": "32250", "shippingMethod": "ship_own"},
             {"type": "class", "productId": "6a3c45403645b97e2eae9160", "quantity": 1},
         ]
     )
     assert [row["type"] for row in priced] == ["product", "refill", "class"]
-    assert total == 3400 + (1500 + 1365) + 6000
+    assert total == 3400 + refill["total_cents"] + 6000
 
 
 def test_empty_cart_is_rejected():

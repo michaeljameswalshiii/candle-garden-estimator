@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Alert, Image, ScrollView, TextInput } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
@@ -6,10 +6,15 @@ import {
   calculateCost,
   isValidOunces,
   isAcceptableDetection,
+  quoteAllMethods,
+  SHIPPING_METHODS,
+  UPS_BOXES,
+  DEFAULT_SHIPPING_METHOD,
 } from '../lib/pricing';
+import { BOX_FIT_ORDER, PACKING_INSTRUCTIONS } from '../lib/shippingConfig';
 import { prepareImageForDetect, isImageManipulatorAvailable } from '../lib/prepareImage';
 import { colors, fonts, radii, spacing } from '../lib/theme';
-import { postDetect } from '../lib/apiClient';
+import { postDetect, postShippingQuote } from '../lib/apiClient';
 import { useAuth } from '../lib/AuthContext';
 import { useCart } from '../lib/cart';
 
@@ -43,29 +48,99 @@ export default function EstimatorScreen() {
   const [loading, setLoading] = useState(false);
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [manualOunces, setManualOunces] = useState('');
+  const [destZip, setDestZip] = useState('');
+  const [shippingMethod, setShippingMethod] = useState(DEFAULT_SHIPPING_METHOD);
+  const [selectedBox, setSelectedBox] = useState(null);
+  const [liveQuotes, setLiveQuotes] = useState([]);
   const manipulatorOk = isImageManipulatorAvailable();
 
+  const vesselCount = Array.isArray(result?.vessels) && result.vessels.length
+    ? result.vessels.length
+    : 1;
+  const perVesselOz = Array.isArray(result?.vessels)
+    ? result.vessels
+        .map((v) => Number(v.wax_needed_oz ?? v.estimated_ounces ?? v.volume_oz))
+        .filter((n) => Number.isFinite(n) && n > 0)
+    : undefined;
+
+  const cost = useMemo(() => {
+    if (!result?.estimated_ounces) return null;
+    return calculateCost(result.estimated_ounces, {
+      vesselCount,
+      perVesselOz,
+      destZip,
+      shippingMethod,
+      boxKey: selectedBox,
+    });
+  }, [result, vesselCount, perVesselOz, destZip, shippingMethod, selectedBox]);
+
+  useEffect(() => {
+    const zip = String(destZip || '').replace(/\D/g, '');
+    if (!result?.estimated_ounces || zip.length < 5) {
+      setLiveQuotes([]);
+      return undefined;
+    }
+    let cancelled = false;
+    postShippingQuote({
+      ounces: result.estimated_ounces,
+      destZip: zip,
+      boxKey: selectedBox,
+      vesselCount,
+      methods: ['ship_own', 'kit_roundtrip', 'prepaid_labels'],
+    })
+      .then((data) => {
+        if (!cancelled) setLiveQuotes(Array.isArray(data?.quotes) ? data.quotes : []);
+      })
+      .catch(() => {
+        if (!cancelled) setLiveQuotes([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [result, destZip, selectedBox, vesselCount]);
+
+  const methodQuotes = useMemo(() => {
+    if (!result?.estimated_ounces) return [];
+    return quoteAllMethods(result.estimated_ounces, {
+      vesselCount,
+      perVesselOz,
+      destZip,
+      boxKey: selectedBox,
+    });
+  }, [result, vesselCount, perVesselOz, destZip, selectedBox]);
+
   const addEstimateToCart = () => {
-    if (!result?.estimated_ounces) return;
+    if (!result?.estimated_ounces || !cost) return;
+    if (!cost.quote_ok) {
+      Alert.alert(
+        'ZIP needed',
+        cost.quote_reason || 'Enter your 5-digit ZIP so we can quote UPS Ground Saver.'
+      );
+      return;
+    }
+    const method = SHIPPING_METHODS[shippingMethod];
     addItem(
       {
         id: 'refill',
         type: 'refill',
         name: `Candle refill · ${result.estimated_ounces} oz`,
-        price: Number(result.total_cost),
+        price: Number(cost.total_cost),
       },
       {
         type: 'refill',
         quantity: 1,
         ounces: result.estimated_ounces,
-        boxKey: result.box_key,
-        detail: `${result.box_type} return shipping included`,
-        unitPrice: Number(result.total_cost),
+        boxKey: cost.box_key,
+        destZip: cost.dest_zip,
+        shippingMethod,
+        vesselCount,
+        detail: `${method?.title || 'UPS Ground Saver'} · ${cost.shipping_label}`,
+        unitPrice: Number(cost.total_cost),
       }
     );
     Alert.alert(
       'Added to cart',
-      'Your refill is in the cart. Add shop items or a class if you want, then check out. We’ll ask for shipping at the end.',
+      'Your refill is in the cart. Add shop items or a class if you want, then check out. We’ll confirm your address at the end.',
       [
         { text: 'Keep estimating', style: 'cancel' },
         { text: 'Go to cart', onPress: () => navigation.navigate('Orders') },
@@ -197,22 +272,25 @@ export default function EstimatorScreen() {
         return;
       }
 
-      const vesselCount = Array.isArray(detectData.vessels) && detectData.vessels.length
+      const detectedCount = Array.isArray(detectData.vessels) && detectData.vessels.length
         ? detectData.vessels.length
         : 1;
-      const perVesselOz = Array.isArray(detectData.vessels)
+      const detectedPerVessel = Array.isArray(detectData.vessels)
         ? detectData.vessels
             .map((v) => Number(v.wax_needed_oz ?? v.estimated_ounces ?? v.volume_oz))
             .filter((n) => Number.isFinite(n) && n > 0)
         : undefined;
-      const costData = calculateCost(check.ounces, { vesselCount, perVesselOz });
+      const firstQuote = calculateCost(check.ounces, {
+        vesselCount: detectedCount,
+        perVesselOz: detectedPerVessel,
+      });
+      setSelectedBox(firstQuote.box_key);
       setResult({
         estimated_ounces: check.ounces,
         container_type: check.container_type,
         confidence: check.confidence,
         explanation: detectData.explanation,
         vessels: detectData.vessels,
-        ...costData,
       });
     } catch (error) {
       Alert.alert(
@@ -234,12 +312,12 @@ export default function EstimatorScreen() {
       return;
     }
 
-    const costData = calculateCost(ounces);
+    const firstQuote = calculateCost(ounces);
+    setSelectedBox(firstQuote.box_key);
     setResult({
       estimated_ounces: ounces,
       container_type: 'Manual Entry',
       confidence: 1.0,
-      ...costData,
     });
     setShowManualEntry(false);
     setManualOunces('');
@@ -249,7 +327,7 @@ export default function EstimatorScreen() {
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Refill Estimator</Text>
       <Text style={styles.buildTag}>
-        build: multi-vessel-v5 · {isAuthenticated ? 'signed in' : 'guest'}
+        build: ups-ground-saver-v1 · {isAuthenticated ? 'signed in' : 'guest'}
       </Text>
       <Text style={styles.instruction}>
         Put every vessel you want refilled in the foreground (include small jars). Place a 12 oz drink can beside them for scale only — we will not count the can. Empty glass with wick visible works best.
@@ -326,9 +404,9 @@ export default function EstimatorScreen() {
         </View>
       )}
 
-      {result && (
+      {result && cost && (
         <View style={styles.result}>
-          <Text style={styles.resultTitle}>Estimate Results:</Text>
+          <Text style={styles.resultTitle}>Estimate</Text>
           <Text style={styles.resultText}>
             Total wax needed: {result.estimated_ounces} oz
             {result.vessels?.length
@@ -350,17 +428,133 @@ export default function EstimatorScreen() {
               Confidence: {Math.round(result.confidence * 100)}%
             </Text>
           )}
-          <Text style={styles.resultText}>Wax Cost: ${result.wax_cost}</Text>
-          <Text style={styles.resultText}>
-            Return shipping (included): ${result.shipping_cost} ({result.box_type})
-          </Text>
+          <Text style={styles.resultText}>Wax: ${cost.wax_cost}</Text>
+
+          <Text style={styles.sectionLabel}>Your ZIP</Text>
           <Text style={styles.shipNote}>
-            You ship empties to us (your postage). We ship refills back in this box size — that leg is in the estimate.
+            UPS Ground Saver is priced by zone and packed weight from Atlantic Beach, FL (32233).
           </Text>
-          <Text style={styles.total}>Total: ${result.total_cost}</Text>
+          <TextInput
+            style={styles.zipInput}
+            value={destZip}
+            onChangeText={(t) => setDestZip(t.replace(/[^\d]/g, '').slice(0, 10))}
+            keyboardType="number-pad"
+            placeholder="32250"
+            placeholderTextColor={colors.textFaint}
+            maxLength={10}
+          />
+
+          <Text style={styles.sectionLabel}>How we’ll ship</Text>
+          {methodQuotes.map(({ methodKey, method, cost: methodCost }) => {
+            const selected = shippingMethod === methodKey;
+            const live = liveQuotes.find((q) => q.method === methodKey);
+            const liveShip = live && live.shipping_cents != null
+              ? (live.shipping_cents / 100).toFixed(2)
+              : null;
+            const priceLabel = liveShip
+              ? `$${liveShip}`
+              : methodCost.quote_ok
+              ? `$${methodCost.shipping_cost}`
+              : methodCost.needs_zip
+                ? 'Enter ZIP'
+                : 'See note';
+            return (
+              <TouchableOpacity
+                key={methodKey}
+                style={[styles.methodCard, selected && styles.methodCardSelected]}
+                onPress={() => setShippingMethod(methodKey)}
+                activeOpacity={0.8}
+              >
+                <View style={styles.methodHeader}>
+                  <Text style={styles.methodTitle}>{method.title}</Text>
+                  <Text style={styles.methodPrice}>{priceLabel}</Text>
+                </View>
+                <Text style={styles.methodMeta}>
+                  {method.chargeCount} UPS Ground Saver {method.chargeCount === 1 ? 'trip' : 'trips'}
+                </Text>
+                <Text style={styles.methodBody}>{method.summary}</Text>
+                {methodCost.quote_ok && methodCost.legs?.length
+                  ? methodCost.legs.map((leg) => (
+                      <Text key={leg.key} style={styles.legLine}>
+                        • {leg.title}: ${leg.totalUsd.toFixed(2)} ({leg.billedLb} lb, zone {leg.zone})
+                      </Text>
+                    ))
+                  : null}
+                {!methodCost.quote_ok && methodCost.quote_reason && !methodCost.needs_zip ? (
+                  <Text style={styles.methodWarn}>{methodCost.quote_reason}</Text>
+                ) : null}
+              </TouchableOpacity>
+            );
+          })}
+
+          <Text style={styles.sectionLabel}>Carton</Text>
+          <Text style={styles.shipNote}>
+            Packed weight includes vessels, cardboard, and packing. UPS bills the greater of scale weight and dimensional weight.
+          </Text>
+          {BOX_FIT_ORDER.map((key) => {
+            const box = UPS_BOXES[key];
+            if (!box) return null;
+            const active = (selectedBox || cost.box_key) === key;
+            return (
+              <TouchableOpacity
+                key={key}
+                style={[styles.boxOption, active && styles.boxOptionSelected]}
+                onPress={() => setSelectedBox(key)}
+              >
+                <Text style={styles.boxName}>{box.shortName}</Text>
+                <Text style={styles.boxDetails}>
+                  {box.lengthIn}×{box.widthIn}×{box.heightIn} in · empty ~{box.emptyBoxOz} oz
+                </Text>
+                <Text style={styles.boxDetails}>{box.notes}</Text>
+              </TouchableOpacity>
+            );
+          })}
+
+          {cost.packed_weight ? (
+            <View style={styles.weightBlock}>
+              <Text style={styles.resultText}>
+                Refills packed: {cost.packed_weight.refillsOutboundLabel}
+              </Text>
+              <Text style={styles.weightBreakdown}>
+                {cost.packed_weight.breakdownOutbound}
+              </Text>
+              <Text style={styles.resultText}>
+                Empties packed: {cost.packed_weight.emptiesInboundLabel}
+              </Text>
+              {shippingMethod === 'kit_roundtrip' ? (
+                <Text style={styles.resultText}>
+                  Packing kit: {cost.packed_weight.kitLabel}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+
+          {shippingMethod === 'prepaid_labels' ? (
+            <View style={styles.instructBox}>
+              <Text style={styles.sectionLabel}>Packing instructions</Text>
+              {PACKING_INSTRUCTIONS.map((line, i) => (
+                <Text key={i} style={styles.instructLine}>
+                  {i + 1}. {line}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+
+          {cost.customer_note ? (
+            <Text style={styles.shipNote}>{cost.customer_note}</Text>
+          ) : null}
+
+          <Text style={styles.total}>
+            Total: {cost.quote_ok ? `$${cost.total_cost}` : '—'}
+          </Text>
+          <Text style={styles.weightBreakdown}>
+            Wax ${cost.wax_cost}
+            {cost.quote_ok ? ` + UPS ${cost.shipping_cost}` : ''}
+          </Text>
           <CustomButton
             title="Add refill to cart"
             onPress={addEstimateToCart}
+            disabled={!cost.quote_ok}
           />
         </View>
       )}
@@ -580,5 +774,141 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginBottom: 4,
     paddingHorizontal: 8,
+  },
+  weightBreakdown: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  sectionLabel: {
+    fontFamily: fonts.heading,
+    fontSize: 16,
+    color: colors.primary,
+    marginTop: 16,
+    marginBottom: 6,
+    alignSelf: 'flex-start',
+  },
+  zipInput: {
+    fontFamily: fonts.body,
+    fontSize: 20,
+    letterSpacing: 2,
+    textAlign: 'center',
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderRadius: radii.sm,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    width: 160,
+    color: colors.text,
+    marginBottom: 8,
+  },
+  methodCard: {
+    width: '100%',
+    backgroundColor: colors.white,
+    borderWidth: 2,
+    borderColor: colors.borderStrong,
+    borderRadius: radii.md,
+    padding: 12,
+    marginBottom: 10,
+    alignItems: 'flex-start',
+  },
+  methodCardSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft,
+  },
+  methodHeader: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
+  },
+  methodTitle: {
+    fontFamily: fonts.body,
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.text,
+    flex: 1,
+  },
+  methodPrice: {
+    fontFamily: fonts.body,
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  methodMeta: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.primaryMid,
+    marginTop: 2,
+  },
+  methodBody: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 17,
+    marginTop: 6,
+  },
+  methodWarn: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.danger,
+    marginTop: 6,
+  },
+  legLine: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: colors.textMuted,
+    marginTop: 4,
+  },
+  boxOption: {
+    width: '100%',
+    padding: 10,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderRadius: radii.sm,
+    marginBottom: 8,
+    backgroundColor: colors.white,
+  },
+  boxOptionSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft,
+  },
+  boxName: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  boxDetails: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  weightBlock: {
+    width: '100%',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  instructBox: {
+    width: '100%',
+    backgroundColor: colors.white,
+    borderRadius: radii.sm,
+    padding: 12,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  instructLine: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 17,
+    marginBottom: 4,
+    textAlign: 'left',
   },
 });

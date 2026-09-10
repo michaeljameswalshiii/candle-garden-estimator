@@ -14,29 +14,12 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from refill_shipping import quote_refill_shipping, METHODS
+import ups_client
+
 _secret_cache = {"value": None, "expires": 0}
 _catalog_cache = None
 _classes_cache = None
-
-WAX_CENTS_PER_OZ = 150
-REFILL_BOX_CENTS = {
-    "frb_small": 1365,
-    "small": 1365,
-    "frb_medium_top": 2480,
-    "medium": 2480,
-    "frb_medium_side": 2480,
-    "frb_large": 3400,
-    "large": 3400,
-}
-BOX_NAMES = {
-    "frb_small": "Small Flat Rate",
-    "small": "Small Flat Rate",
-    "frb_medium_top": "Medium Flat Rate",
-    "medium": "Medium Flat Rate",
-    "frb_medium_side": "Medium Flat Rate (wide)",
-    "frb_large": "Large Flat Rate",
-    "large": "Large Flat Rate",
-}
 
 
 def _headers():
@@ -160,24 +143,45 @@ def _price_refill(item):
     if ounces <= 0 or ounces > 80:
         raise ValueError("Refill ounces are outside the allowed range")
     qty = _qty(item)
-    box_key = str(item.get("boxKey") or "frb_medium_top")
-    shipping = REFILL_BOX_CENTS.get(box_key)
-    if shipping is None:
-        raise ValueError("That refill shipping box is not available")
-    wax = int(round(ounces * WAX_CENTS_PER_OZ * qty))
-    total = wax + shipping
-    unit = int(round(total / qty))
-    box_name = BOX_NAMES.get(box_key, box_key)
-    return total, {
+    dest_zip = (
+        item.get("destZip")
+        or item.get("dest_zip")
+        or item.get("zip")
+        or item.get("_checkoutZip")
+    )
+    method = str(item.get("shippingMethod") or item.get("shipping_method") or "ship_own")
+    box_key = item.get("boxKey") or item.get("box_key")
+    try:
+        quote = quote_refill_shipping(
+            ounces,
+            quantity=qty,
+            box_key=box_key,
+            dest_zip=dest_zip,
+            shipping_method=method,
+            vessel_count=item.get("vesselCount") or item.get("vessel_count") or qty,
+            dest=item.get("dest") or item.get("shipping"),
+        )
+    except ValueError as error:
+        raise ValueError(str(error)) from error
+    unit = int(round(quote["total_cents"] / qty))
+    size = f"{quote['method_title']} · {quote['box_name']}"
+    return quote["total_cents"], {
         "type": "refill",
         "productId": "refill",
         "name": f"Candle refill · {ounces:g} oz",
-        "size": box_name,
+        "size": size,
         "quantity": qty,
         "unitCents": unit,
         "ounces": ounces,
-        "boxKey": box_key,
+        "boxKey": quote["box_key"],
+        "destZip": _zip_or_none(dest_zip),
+        "shippingMethod": quote["method"],
     }
+
+
+def _zip_or_none(value):
+    digits = "".join(ch for ch in str(value or "") if ch.isdigit())
+    return digits[:5] if len(digits) >= 5 else None
 
 
 def _price_class(item):
@@ -220,8 +224,8 @@ def amount_from_catalog(items):
             line, row = _price_product(item)
         total += line
         priced.append(row)
-    if total < 50 or total > 100000:
-        raise ValueError("Cart total is outside the allowed test range")
+    if total < 50 or total > 250000:
+        raise ValueError("Cart total is outside the allowed range")
     return total, priced
 
 
@@ -298,7 +302,22 @@ def _create_payment_sheet(event):
     email = body.get("email") or claims.get("email")
     name = body.get("name") or claims.get("name")
     try:
-        amount, priced = amount_from_catalog(body.get("items"))
+        checkout_zip = body.get("destZip") or body.get("zip")
+        dest = body.get("shipping") or body.get("dest")
+        items = body.get("items")
+        if (checkout_zip or dest) and isinstance(items, list):
+            z = _zip_or_none((dest or {}).get("zip") if isinstance(dest, dict) else None) or _zip_or_none(checkout_zip)
+            patched = []
+            for item in items:
+                row = dict(item)
+                kind = str(row.get("type") or row.get("kind") or "").lower()
+                if kind == "refill" and z:
+                    row["destZip"] = z
+                    if isinstance(dest, dict):
+                        row["dest"] = dest
+                patched.append(row)
+            items = patched
+        amount, priced = amount_from_catalog(items)
         payload = {
             "amount": amount,
             "currency": "usd",
@@ -347,6 +366,130 @@ def _verify_webhook(event):
         return False
 
 
+def _shipping_quote(event):
+    body = _body(event)
+    try:
+        ounces = float(body.get("ounces") or 0)
+        if ounces <= 0:
+            raise ValueError("Ounces are required")
+        dest = body.get("dest") or body.get("shipping") or {}
+        dest_zip = body.get("destZip") or dest.get("zip")
+        quotes = []
+        methods = body.get("methods") or list(METHODS.keys())
+        for method in methods:
+            q = quote_refill_shipping(
+                ounces,
+                quantity=int(body.get("quantity") or 1),
+                box_key=body.get("boxKey"),
+                dest_zip=dest_zip,
+                shipping_method=method,
+                vessel_count=body.get("vesselCount"),
+                dest=dest,
+            )
+            quotes.append(q)
+        return _response(200, {
+            "ok": True,
+            "upsConfigured": ups_client.configured(),
+            "quotes": quotes,
+        })
+    except (ValueError, RuntimeError) as error:
+        return _response(400, {"error": str(error)})
+    except Exception:
+        return _response(502, {"error": "Could not quote UPS shipping"})
+
+
+def _refill_labels(event):
+    if not ups_client.configured():
+        return _response(503, {"error": "UPS Shipping API is not configured yet"})
+    body = _body(event)
+    try:
+        dest = body.get("dest") or body.get("shipping")
+        if not isinstance(dest, dict) or not dest.get("zip") or not dest.get("address"):
+            raise ValueError("A full ship-to address is required to print labels")
+        ounces = float(body.get("ounces") or 0)
+        quote = quote_refill_shipping(
+            ounces,
+            quantity=int(body.get("quantity") or 1),
+            box_key=body.get("boxKey"),
+            dest_zip=dest.get("zip"),
+            shipping_method=body.get("shippingMethod") or "ship_own",
+            vessel_count=body.get("vesselCount"),
+            dest=dest,
+        )
+        method = quote["method"]
+        if method == "ship_own":
+            return _response(200, {
+                "ok": True,
+                "labels": [],
+                "note": "Ship on your own does not include prepaid labels.",
+            })
+        box = quote["box"]
+        weights = quote["weights"]
+        customer = {
+            "name": dest.get("name") or "Customer",
+            "attention": dest.get("name") or "Customer",
+            "phone": dest.get("phone") or "9043167608",
+            "address": dest.get("address"),
+            "city": dest.get("city") or "City",
+            "state": str(dest.get("state") or "FL")[:2].upper(),
+            "zip": "".join(ch for ch in str(dest.get("zip")) if ch.isdigit())[:5],
+            "country": "US",
+            "residential": True,
+        }
+        origin = dict(ups_client.ORIGIN)
+        labels = []
+        if method == "kit_roundtrip":
+            labels.append(
+                {
+                    "key": "kit_out",
+                    **ups_client.create_ground_saver_label(
+                        origin,
+                        customer,
+                        weights["kit_billed"],
+                        12,
+                        10,
+                        2,
+                        description="Candle Garden packing kit",
+                    ),
+                }
+            )
+        if method in ("kit_roundtrip", "prepaid_labels"):
+            labels.append(
+                {
+                    "key": "empties_in",
+                    **ups_client.create_ground_saver_label(
+                        customer,
+                        origin,
+                        weights["empties_billed"],
+                        box["l"],
+                        box["w"],
+                        box["h"],
+                        description="Empty vessels to Candle Garden",
+                        return_label=True,
+                    ),
+                }
+            )
+        labels.append(
+            {
+                "key": "refills_out",
+                **ups_client.create_ground_saver_label(
+                    origin,
+                    customer,
+                    weights["refills_billed"],
+                    box["l"],
+                    box["w"],
+                    box["h"],
+                    description="Candle Garden refill return",
+                ),
+            }
+        )
+        return _response(200, {"ok": True, "method": method, "labels": labels})
+    except (ValueError, RuntimeError) as error:
+        return _response(400, {"error": str(error)})
+    except Exception:
+        return _response(502, {"error": "Could not create UPS labels"})
+
+
 def handler(event, context):
     method = (event.get("httpMethod") or "").upper()
     path = (event.get("path") or event.get("resource") or "").rstrip("/")
@@ -354,6 +497,10 @@ def handler(event, context):
         return _response(200, {"ok": True})
     if method == "POST" and path.endswith("/payments/payment-sheet"):
         return _create_payment_sheet(event)
+    if method == "POST" and path.endswith("/payments/shipping-quote"):
+        return _shipping_quote(event)
+    if method == "POST" and path.endswith("/payments/refill-labels"):
+        return _refill_labels(event)
     if method == "POST" and path.endswith("/payments/webhook"):
         if not os.environ.get("STRIPE_WEBHOOK_SECRET"):
             return _response(503, {"error": "Stripe webhook is not configured"})

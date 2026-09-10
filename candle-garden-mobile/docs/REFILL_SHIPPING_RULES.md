@@ -1,10 +1,11 @@
 # Refill shipping rules (The Candle Garden)
 
 **Status:** Active product rules  
-**Last updated:** 2026-07-18  
-**Code source of truth:** `lib/shippingConfig.js` + `lib/pricing.js`
+**Last updated:** 2026-09-10  
+**Code source of truth:** `lib/upsRates.js` + `lib/shippingConfig.js` + `lib/pricing.js`  
+**Checkout source of truth:** `candle-saas-cdk/lambda_functions/payment_processor/refill_shipping.py` (must match the app)
 
-When rates, boxes, or packing assumptions change, update **this doc** and **`shippingConfig.js`** together.
+When rates, boxes, packing, or methods change, update **this doc**, **`upsRates.js` / `shippingConfig.js`**, and **`refill_shipping.py`** together.
 
 ---
 
@@ -13,117 +14,105 @@ When rates, boxes, or packing assumptions change, update **this doc** and **`shi
 The refill estimator must:
 
 1. Estimate **wax volume (oz)** for the customer’s empty vessel(s).
-2. Recommend a **box size** large enough for those vessels **with packing material**.
-3. Quote a price that includes:
-   - Wax refill at the configured $/oz
-   - **One leg of USPS shipping: Candle Garden → customer** (return of refilled vessels)
+2. Recommend a **carton** large enough for those vessels **with packing material**.
+3. Estimate **packed shipment weight** (vessels + box + packing, plus wax on the return).
+4. Quote **UPS Ground Saver** from Atlantic Beach, FL (`32233`) using destination ZIP, billed pounds, and one of three shipping methods.
 
-The customer is responsible for shipping **empties → Candle Garden** on their own. We tell them **which box to use** so both legs use the same size class and packing assumptions.
-
----
-
-## Shipping charge policy (confirmed)
-
-| Direction | Who pays | In app quote? |
-|-----------|----------|----------------|
-| Empties **customer → Candle Garden** | **Customer** (their own postage) | **No** — we only recommend the box size |
-| Refills **Candle Garden → customer** | **Included** in order total | **Yes** — one-way postage for recommended box |
-
-**Assumption:** Cost to ship the packed box back to the customer is represented by the single shipping line item on the estimate. We do **not** charge two legs.
-
-**Implication:** The recommended box is both:
-
-- The box they should use (or match) when shipping empties to us  
-- The box size we use for the **included** return shipment  
+Ground Saver is **zone × weight**, not a flat-rate box. A ZIP is required to quote.
 
 ---
 
-## Box catalog (USPS Priority Mail Flat Rate)
+## Carrier
 
-Dimensions are **inside** where available (usable packing volume).  
-Postage values are **retail/post-office style** placeholders for quotes; update when USPS Notice 123 changes. Prefer commercial rates later if CG ships online.
+| Field | Value |
+|-------|--------|
+| Carrier | UPS |
+| Service | Ground Saver |
+| Origin | 363 Atlantic Boulevard, Suite 8, Atlantic Beach, FL **32233** |
+| Coverage | 48 contiguous states (no AK/HI in this quote) |
+| Rates | Published Ground Saver 1 lb+ table, effective **2026-04-01** |
+| Per package | List rate + **$4.65** residential surcharge |
+| Billable weight | Greater of scale pounds (ceil oz/16) and dim weight `(L×W×H)/166` |
 
-| Key | Name | Inside (approx. in) | L×W×H (in³) | Quote postage (one leg) | Source notes |
-|-----|------|---------------------|-------------|-------------------------|--------------|
-| `frb_small` | USPS Small Flat Rate Box | 8.625 × 5.375 × 1.625 | ~75 | ~$13.65 | Thin — rarely fits glass vessels with wrap |
-| `frb_medium_top` | USPS Medium Flat Rate Box (top-load) | 11 × 8.5 × 5.5 | ~515 | ~$24.80 | Default for 1–2 typical jars/mugs |
-| `frb_medium_side` | USPS Medium Flat Rate Box (side-load) | 13.625 × 11.875 × 3.375 | ~546 | ~$24.80 | Wide/flat vessels |
-| `frb_large` | USPS Large Flat Rate Box | 12 × 11.75 × 5.5 | ~776 | ~$34.00 | Multi-vessel / large bowls |
-
-**Authoritative size reference:** [USPS Priority Mail Flat Rate](https://www.usps.com/ship/priority-mail.htm) / Postal Explorer Notice 123.  
-**Rates as-of:** document in `shippingConfig.js` (`ratesAsOf`).
-
-Optional later: customer’s own box (weight/zone rates via API) — not in MVP quote.
+Checkout and the estimator call **UPS Rating** (Ground Saver service 93) when `candlesaas/ups` credentials exist; otherwise they use this published table so the app still quotes. After payment, methods 2 and 3 call **UPS Shipping** to print prepaid Ground Saver labels (return label for empties). Fuel/residential in the table path: **16%** fuel on the list rate; **$4.65** residential only on packages to the customer.
 
 ---
 
-## Packing material rules
+## Three shipping methods (charges = Ground Saver trips Candle Garden pays)
 
-Glass vessels must be packed well. Packing **consumes volume**.
+| Key | Customer-facing name | UPS trips in the quote | What happens |
+|-----|----------------------|------------------------|--------------|
+| `ship_own` | **Ship on your own** | **1** — refills CG → customer | Customer packs and ships empties at **their** cost. We include only the refill return. |
+| `kit_roundtrip` | **We send packing** | **3** — kit out + empties in + refills out | We mail a packing kit (folded carton + wrap + labels). Customer sends empties on a prepaid label. We refill and ship back. The kit is **not** glass. |
+| `prepaid_labels` | **Prepaid labels** | **2** — empties in + refills out | We email packing instructions and a prepaid label. Customer uses **their own** box matching the recommended size. We receive, refill, and ship back. |
 
-| Rule | Default | Notes |
-|------|---------|--------|
-| Volume packing factor | **1.65×** vessel volume | Wrap + void fill; conservative |
-| Min cushion per side | **0.5 in** | Used when we have L×W×H |
-| Usable box volume | **65%** of inner cubic inches | Efficiency after packing reality |
-| Stack glass without divider | **No** (MVP) | Prefer side-by-side or larger box |
-| Max vessels per box (soft) | **4** typical jars | Over → prefer large or split (future) |
+All three need a destination ZIP (zone is the same both directions in this quote).
 
-If both **wax oz** and **vessel count/size** exist, **physical fit wins** over wax-oz heuristics for box choice. Wax oz still drives material charge.
+**Method 3 caps:** billed weight ≤ 20 lb, longest side ≤ 18 in, length + girth ≤ 84 in. Over that, the method is unavailable.
 
 ---
 
-## Fit determination (MVP algorithm)
+## Cartons (not USPS Flat Rate)
 
-1. Estimate each vessel’s volume (from vision oz as proxy, or size class defaults).  
-2. `packedVolume = sum(vesselVolume × packingFactor)`.  
-3. For each box (smallest first):  
-   `fits = packedVolume <= innerVolume × usableFraction`  
-   and (if dimensions known) max vessel footprint fits with cushion.  
-4. Recommend **smallest fitting box**.  
-5. If none fit → recommend large + flag “may need custom / contact us”.  
+| Key | Size (in) | Empty (oz) | Typical use |
+|-----|-----------|------------|-------------|
+| `ups_small` | 10 × 8 × 6 | ~8 | One typical jar |
+| `ups_medium` | 12 × 10 × 8 | ~12 | 1–2 vessels |
+| `ups_large` | 14 × 12 × 10 | ~16 | Multi-vessel / large bowls |
+| `kit_pack` (method 2 only) | 12 × 10 × 2 | ~14 | Folded carton + wrap, no glass |
 
-**Round-trip consistency:** Same recommended box key for customer outbound empties and CG return shipment.
+Old USPS keys (`frb_small`, `frb_medium_top`, …) still map to these cartons so in-flight carts don’t break.
 
 ---
 
-## Price components (estimate)
+## Packed weight
+
+| Component | Default |
+|-----------|---------|
+| Empty vessel (glass) | **max(5 oz, fill oz × 1.1)** |
+| Wax (outbound only) | **fill oz × 1.0** |
+| Box tare | from carton table |
+| Wrap per vessel | **1.75 oz** |
+| Void fill | **max(1 oz, unused inner in³ × 0.008)** |
+| Tape + label | **1 oz** |
+
+- **Empties → CG:** vessels + box + packing  
+- **Refills → customer:** same + wax  
+- **Kit → customer:** folded carton + wrap (no glass)
+
+---
+
+## Price components
 
 | Line | Included? | Formula |
 |------|-----------|---------|
-| Wax | Yes | `ounces × WAX_PRICE_PER_OZ × quantity` |
-| Shipping (CG → customer) | Yes | Flat rate for recommended box (one leg) |
-| Customer → CG postage | No | Customer pays; we only show box guidance |
-| Packing materials kit | Optional later | Config flag; $0 for now |
+| Wax | Yes | `ounces × $1.50 × quantity` |
+| UPS Ground Saver | Yes, for the legs of the chosen method | zone/weight list + residential per package |
+| Customer → CG postage on **Ship on your own** | No | Customer pays their own carrier |
+| Packing kit materials | In method 2 as a **shipping** leg, not a product SKU | Kit billed as a light Ground Saver package |
+
+Checkout **recomputes** wax + UPS from ounces, ZIP, method, and box. Client `unitPrice` is ignored.
 
 ---
 
 ## Customer-facing copy (intent)
 
-- “We’ll ship your refilled vessels back in a **[box name]** — **return shipping is included** in this estimate.”  
-- “Please pack empties carefully and ship them **to us** in a box of this size (or the same USPS Flat Rate box). **Outbound shipping to The Candle Garden is your responsibility.**”  
-- “Packing materials (bubble wrap / paper) take space — this size accounts for safe packing.”
+- Ship on your own: “You pack and ship empties to us. We send refills back via UPS Ground Saver — that one trip is included.”
+- We send packing: “We mail you a packing kit and prepaid labels, you send empties in, then we ship refills back. Three Ground Saver trips.”
+- Prepaid labels: “We’ll email packing instructions and a prepaid UPS Ground Saver label. After we refill, we ship them back. You provide a sturdy box that matches the size we recommend.”
+- Weight always: “Packed weight includes your vessels, the box, and packing supplies. UPS bills the next whole pound, or dimensional weight if that’s higher.”
 
 ---
 
 ## Future change checklist
 
-When something changes, update:
-
 1. This markdown  
-2. `lib/shippingConfig.js` (boxes, rates, packing factors, `ratesAsOf`)  
-3. Any unit tests around fit/recommend  
-4. Estimator / RefillStep4 copy if policy changes  
+2. `lib/upsRates.js` (table, origin, residential)  
+3. `lib/shippingConfig.js` (boxes, packing, methods)  
+4. `refill_shipping.py` (must match)  
+5. Estimator / RefillStep4 copy  
+6. Payment processor tests  
 
 ---
 
-## Open product decisions (not blocking MVP)
-
-- [ ] Do we **mail them** an empty FRB, or only **recommend** they buy/use that size?  
-- [ ] Insurance / tracking included in quote messaging?  
-- [ ] Multi-box orders when vessels don’t fit one FRB  
-- [ ] Live USPS rates API vs static table  
-
----
-
-*Policy confirmed with product: one-leg shipping charge = CG → customer only; customer ships empties at their cost; box recommendation serves both directions.*
+*Policy: UPS Ground Saver only; three methods; ZIP required; packed weight drives billed pounds.*
