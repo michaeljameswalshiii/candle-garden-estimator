@@ -183,10 +183,10 @@ def ddb_create_order(customer_id, body, claims):
     normalized = []
     for item in items:
         qty = int(item.get("quantity") or 1)
-        price = _to_decimal(item.get("price") or 0)
+        price = _to_decimal(item.get("price") or item.get("unitPrice") or item.get("unit_price") or 0)
         total += price * qty
         normalized.append({
-            "product_id": str(item.get("product_id") or item.get("id") or ""),
+            "product_id": str(item.get("product_id") or item.get("productId") or item.get("id") or ""),
             "name": item.get("name") or "",
             "size": item.get("size") or "",
             "quantity": qty,
@@ -202,6 +202,9 @@ def ddb_create_order(customer_id, body, claims):
         "total_amount": total,
         "status": "pending",
         "source": body.get("source") or "mobile",
+        "payment_provider": body.get("payment_provider") or "",
+        "payment_intent_id": body.get("payment_intent_id") or "",
+        "shipping": body.get("shipping") or {},
         "items": normalized,
         "created_at": created,
         "updated_at": created,

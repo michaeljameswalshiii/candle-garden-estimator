@@ -520,7 +520,10 @@ export function quoteShippingMethod({
     zone: legs[0]?.zone,
     legs,
     shippingCostUsd,
-    shippingLabel: `${SERVICE_NAME} · ${method.chargeCount} ${chargeWord} · ${formatUsd(shippingCostUsd)}`,
+    shippingLabel:
+      method.key === 'ship_own'
+        ? `${SERVICE_NAME} · return shipping to you · ${formatUsd(shippingCostUsd)}`
+        : `${SERVICE_NAME} · ${method.chargeCount} ${chargeWord} · ${formatUsd(shippingCostUsd)}`,
     customerNote:
       method.key === 'ship_own'
         ? 'Does not include postage for empties you ship to us.'

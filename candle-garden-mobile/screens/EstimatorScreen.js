@@ -134,8 +134,13 @@ export default function EstimatorScreen() {
         destZip: cost.dest_zip,
         shippingMethod,
         vesselCount,
-        detail: `${method?.title || 'UPS Ground Saver'} · ${cost.shipping_label}`,
+        detail:
+          shippingMethod === 'ship_own'
+            ? `Ship empties on your own · Return shipping to you: UPS Ground Saver · $${cost.shipping_cost}`
+            : `${method?.title || 'UPS Ground Saver'} · ${cost.shipping_label}`,
         unitPrice: Number(cost.total_cost),
+        waxUnitPrice: cost.wax_cost_num,
+        returnShippingUnitPrice: cost.shipping_cost_num,
       }
     );
     Alert.alert(
@@ -470,7 +475,9 @@ export default function EstimatorScreen() {
                   <Text style={styles.methodPrice}>{priceLabel}</Text>
                 </View>
                 <Text style={styles.methodMeta}>
-                  {method.chargeCount} UPS Ground Saver {method.chargeCount === 1 ? 'trip' : 'trips'}
+                  {methodKey === 'ship_own'
+                    ? '1 UPS Ground Saver return trip to you'
+                    : `${method.chargeCount} UPS Ground Saver trips`}
                 </Text>
                 <Text style={styles.methodBody}>{method.summary}</Text>
                 {methodCost.quote_ok && methodCost.legs?.length
@@ -549,7 +556,7 @@ export default function EstimatorScreen() {
           </Text>
           <Text style={styles.weightBreakdown}>
             Wax ${cost.wax_cost}
-            {cost.quote_ok ? ` + UPS ${cost.shipping_cost}` : ''}
+            {cost.quote_ok ? ` + return shipping to you ${cost.shipping_cost}` : ''}
           </Text>
           <CustomButton
             title="Add refill to cart"

@@ -41,6 +41,7 @@ function OrdersScreenBody({ stripe }) {
   const [historyError, setHistoryError] = useState(null);
   const [checkingOut, setCheckingOut] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState('choice');
+  const [lastCompletedOrder, setLastCompletedOrder] = useState(null);
   const [accountEmail, setAccountEmail] = useState('');
   const [accountPassword, setAccountPassword] = useState('');
   const [shipping, setShipping] = useState({
@@ -248,12 +249,24 @@ function OrdersScreenBody({ stripe }) {
         });
         await loadHistory();
       }
+      const completedOrder = {
+        paymentIntentId: sheet.paymentIntentId,
+        total: paidTotal || subtotal,
+        items: lines.map((item) => ({
+          key: item.key,
+          name: item.name,
+          quantity: item.quantity,
+          size: item.size,
+          lineTotal: Number(item.unitPrice) * Number(item.quantity),
+        })),
+        customerName: shipping.name,
+        email: shipping.email,
+        shipping: needsShipping ? { ...shipping } : null,
+        labelNote: labelNote.trim(),
+      };
+      setLastCompletedOrder(completedOrder);
       setCheckoutStep('choice');
       clearCart();
-      Alert.alert(
-        'Test payment complete',
-        `Stripe accepted the test payment. No real charge was made.${labelNote}`
-      );
     } catch (error) {
       Alert.alert('Checkout unavailable', error.message || 'Stripe could not start checkout.');
     } finally {
@@ -279,6 +292,11 @@ function OrdersScreenBody({ stripe }) {
         </Text>
         {item.size ? <Text style={styles.lineMeta}>{item.type === 'class' ? item.size : `Size: ${item.size}`}</Text> : null}
         {item.detail ? <Text style={styles.lineMeta}>{item.detail}</Text> : null}
+        {item.type === 'refill' && Number.isFinite(item.waxUnitPrice) && Number.isFinite(item.returnShippingUnitPrice) ? (
+          <Text style={styles.lineMeta}>
+            ${item.waxUnitPrice.toFixed(2)} refill + ${item.returnShippingUnitPrice.toFixed(2)} return shipping
+          </Text>
+        ) : null}
         <Text style={styles.lineMeta}>
           ${Number(item.unitPrice).toFixed(2)} each
         </Text>
@@ -350,12 +368,78 @@ function OrdersScreenBody({ stripe }) {
           <RefreshControl refreshing={historyLoading} onRefresh={loadHistory} />
         }
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>Your cart is empty</Text>
-            <Text style={styles.emptySubtext}>
-              Browse the Shop tab and tap Add to cart
-            </Text>
-          </View>
+          lastCompletedOrder ? (
+            <View style={styles.successCard}>
+              <View style={styles.successIcon}>
+                <Text style={styles.successIconText}>✓</Text>
+              </View>
+              <Text style={styles.successEyebrow}>PAYMENT CONFIRMED</Text>
+              <Text style={styles.successTitle}>
+                Thank you{lastCompletedOrder.customerName ? `, ${lastCompletedOrder.customerName}` : ''}!
+              </Text>
+              <Text style={styles.successMessage}>
+                Your test order is complete. No real charge was made.
+              </Text>
+
+              <View style={styles.successSummary}>
+                <View style={styles.successSummaryHeader}>
+                  <Text style={styles.successSummaryTitle}>Order summary</Text>
+                  <Text style={styles.testBadge}>TEST ORDER</Text>
+                </View>
+                {lastCompletedOrder.items.map((item) => (
+                  <View key={item.key} style={styles.successItemRow}>
+                    <View style={styles.successItemInfo}>
+                      <Text style={styles.successItemName}>{item.name}</Text>
+                      <Text style={styles.successItemMeta}>
+                        Qty {item.quantity}{item.size ? ` · ${item.size}` : ''}
+                      </Text>
+                    </View>
+                    <Text style={styles.successItemPrice}>${item.lineTotal.toFixed(2)}</Text>
+                  </View>
+                ))}
+                <View style={styles.successTotalRow}>
+                  <Text style={styles.successTotalLabel}>Total paid</Text>
+                  <Text style={styles.successTotal}>${lastCompletedOrder.total.toFixed(2)}</Text>
+                </View>
+              </View>
+
+              <View style={styles.successDetails}>
+                <Text style={styles.successDetailLabel}>Confirmation</Text>
+                <Text style={styles.successDetailValue}>
+                  {lastCompletedOrder.paymentIntentId || 'Stripe test payment'}
+                </Text>
+                {lastCompletedOrder.email ? (
+                  <>
+                    <Text style={styles.successDetailLabel}>Contact email</Text>
+                    <Text style={styles.successDetailValue}>{lastCompletedOrder.email}</Text>
+                  </>
+                ) : null}
+                {lastCompletedOrder.shipping ? (
+                  <>
+                    <Text style={styles.successDetailLabel}>Ship to</Text>
+                    <Text style={styles.successDetailValue}>
+                      {lastCompletedOrder.shipping.address}{'\n'}
+                      {lastCompletedOrder.shipping.city}, {lastCompletedOrder.shipping.state} {lastCompletedOrder.shipping.zip}
+                    </Text>
+                  </>
+                ) : null}
+                {lastCompletedOrder.labelNote ? (
+                  <Text style={styles.successNote}>{lastCompletedOrder.labelNote}</Text>
+                ) : null}
+              </View>
+
+              <TouchableOpacity style={styles.secondaryBtn} onPress={() => setLastCompletedOrder(null)}>
+                <Text style={styles.secondaryText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>Your cart is empty</Text>
+              <Text style={styles.emptySubtext}>
+                Browse the Shop tab and tap Add to cart
+              </Text>
+            </View>
+          )
         }
         ListFooterComponent={
           <View>
@@ -615,6 +699,159 @@ const styles = StyleSheet.create({
     color: colors.textFaint,
     marginTop: 8,
     textAlign: 'center',
+  },
+  successCard: {
+    marginTop: 12,
+    padding: 20,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+  },
+  successIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    marginBottom: 12,
+  },
+  successIconText: {
+    color: colors.white,
+    fontSize: 30,
+    fontWeight: '700',
+    lineHeight: 34,
+  },
+  successEyebrow: {
+    fontFamily: fonts.body,
+    color: colors.primary,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.4,
+    marginBottom: 5,
+  },
+  successTitle: {
+    fontFamily: fonts.heading,
+    color: colors.primary,
+    fontSize: 26,
+    textAlign: 'center',
+  },
+  successMessage: {
+    fontFamily: fonts.body,
+    color: colors.textMuted,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginTop: 6,
+    marginBottom: 18,
+  },
+  successSummary: {
+    width: '100%',
+    padding: 14,
+    borderRadius: radii.sm,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  successSummaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  successSummaryTitle: {
+    fontFamily: fonts.heading,
+    color: colors.text,
+    fontSize: 18,
+  },
+  testBadge: {
+    fontFamily: fonts.body,
+    color: colors.primary,
+    backgroundColor: colors.lightAccent,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+  },
+  successItemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 9,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    gap: 12,
+  },
+  successItemInfo: {
+    flex: 1,
+  },
+  successItemName: {
+    fontFamily: fonts.body,
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  successItemMeta: {
+    fontFamily: fonts.body,
+    color: colors.textMuted,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  successItemPrice: {
+    fontFamily: fonts.body,
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  successTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 12,
+    marginTop: 2,
+    borderTopWidth: 1,
+    borderTopColor: colors.primary,
+  },
+  successTotalLabel: {
+    fontFamily: fonts.body,
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  successTotal: {
+    fontFamily: fonts.heading,
+    color: colors.primary,
+    fontSize: 20,
+  },
+  successDetails: {
+    width: '100%',
+    paddingVertical: 16,
+  },
+  successDetailLabel: {
+    fontFamily: fonts.body,
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+    marginTop: 8,
+  },
+  successDetailValue: {
+    fontFamily: fonts.body,
+    color: colors.text,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 2,
+  },
+  successNote: {
+    fontFamily: fonts.body,
+    color: colors.textMuted,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 12,
   },
   footer: {
     marginTop: 8,

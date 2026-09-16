@@ -114,8 +114,13 @@ export default function RefillStep4() {
                 destZip: cost.dest_zip,
                 shippingMethod,
                 vesselCount: Math.max(vesselCount, quantity),
-                detail: `${method?.title || 'UPS Ground Saver'} · ${cost.shipping_label}`,
+                detail:
+                  shippingMethod === 'ship_own'
+                    ? `Ship empties on your own · Return shipping to you: UPS Ground Saver · $${cost.shipping_cost}`
+                    : `${method?.title || 'UPS Ground Saver'} · ${cost.shipping_label}`,
                 unitPrice: cost.total_cost_num / quantity,
+                waxUnitPrice: cost.wax_cost_num / quantity,
+                returnShippingUnitPrice: cost.shipping_cost_num / quantity,
               }
             );
             Alert.alert('Added to cart', 'Open the Cart tab to pay with your shop items and classes.');
@@ -199,7 +204,9 @@ export default function RefillStep4() {
             <View style={styles.boxInfo}>
               <Text style={styles.boxName}>{method.title}</Text>
               <Text style={styles.boxDetails}>
-                {method.chargeCount} UPS {method.chargeCount === 1 ? 'trip' : 'trips'}
+                {methodKey === 'ship_own'
+                  ? '1 UPS return trip to you'
+                  : `${method.chargeCount} UPS trips`}
               </Text>
               <Text style={styles.boxDetails} numberOfLines={4}>
                 {method.summary}
@@ -258,7 +265,7 @@ export default function RefillStep4() {
         </Text>
         <Text style={styles.totalBreakdown}>
           Wax ${cost.wax_cost}
-          {cost.quote_ok ? ` + UPS ${cost.shipping_cost}` : ''}
+          {cost.quote_ok ? ` + return shipping to you ${cost.shipping_cost}` : ''}
         </Text>
         {cost.packed_weight ? (
           <>

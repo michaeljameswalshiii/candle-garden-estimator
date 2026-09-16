@@ -1,5 +1,5 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, ScanCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, GetCommand, ScanCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 
 export type MobileOrder = {
   id: string;
@@ -8,6 +8,10 @@ export type MobileOrder = {
   total_amount?: number;
   status?: string;
   source?: string;
+  payment_provider?: string;
+  payment_intent_id?: string;
+  refund_id?: string;
+  refunded_amount?: number;
   items?: Array<{ name?: string; size?: string; quantity?: number; price?: number }>;
   created_at?: string;
   updated_at?: string;
@@ -17,11 +21,12 @@ const client = DynamoDBDocumentClient.from(
   new DynamoDBClient({ region: process.env.AWS_REGION || "us-east-1" }),
   { marshallOptions: { removeUndefinedValues: true } },
 );
+const ordersTable = process.env.CANDLE_ORDERS_TABLE || "candle-garden-orders";
 
 export async function listMobileOrders(): Promise<MobileOrder[]> {
   try {
     const response = await client.send(new ScanCommand({
-      TableName: process.env.CANDLE_ORDERS_TABLE || "candle-garden-orders",
+      TableName: ordersTable,
       Limit: 500,
     }));
     return ((response.Items || []) as MobileOrder[])
@@ -30,6 +35,30 @@ export async function listMobileOrders(): Promise<MobileOrder[]> {
   } catch {
     return [];
   }
+}
+
+export function orderChannel(order: MobileOrder) {
+  if (String(order.customer_id || "").startsWith("guest:")) return "Guest checkout";
+  if (order.payment_provider === "stripe") return "Signed-in Stripe";
+  return order.source === "mobile" ? "Signed-in app" : order.source || "Mobile app";
+}
+
+export async function updateMobileOrder(id: string, patch: { status?: string; total_amount?: number; refund_id?: string; refunded_amount?: number }) {
+  const names: Record<string, string> = { "#updated": "updated_at" };
+  const values: Record<string, unknown> = { ":updated": new Date().toISOString() };
+  const sets = ["#updated = :updated"];
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === undefined) continue;
+    names[`#${key}`] = key;
+    values[`:${key}`] = value;
+    sets.push(`#${key} = :${key}`);
+  }
+  await client.send(new UpdateCommand({ TableName: ordersTable, Key: { id }, UpdateExpression: `SET ${sets.join(", ")}`, ExpressionAttributeNames: names, ExpressionAttributeValues: values }));
+}
+
+export async function getMobileOrder(id: string) {
+  const response = await client.send(new GetCommand({ TableName: ordersTable, Key: { id } }));
+  return response.Item as MobileOrder | undefined;
 }
 
 export function mobileSnapshot(orders: MobileOrder[]) {

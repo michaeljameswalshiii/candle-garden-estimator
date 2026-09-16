@@ -100,6 +100,11 @@ export function CartProvider({ children }) {
       destZip: options.destZip,
       shippingMethod: options.shippingMethod,
       vesselCount: options.vesselCount,
+      waxUnitPrice: options.waxUnitPrice != null ? Number(options.waxUnitPrice) : undefined,
+      returnShippingUnitPrice:
+        options.returnShippingUnitPrice != null
+          ? Number(options.returnShippingUnitPrice)
+          : undefined,
       detail: options.detail,
       date: product.date,
     };
