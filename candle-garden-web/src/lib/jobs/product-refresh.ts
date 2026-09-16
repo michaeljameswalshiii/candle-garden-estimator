@@ -27,8 +27,15 @@ const RUNS_RECORD = "scheduled-job-runs";
 const MAX_RUNS = 100;
 const fallbackCatalog = rawProducts as CatalogProduct[];
 
+function looksLikeBrokenScrape(products: CatalogProduct[]) {
+  if (products.length < 3) return false;
+  return products.every((product) => product.name === "The Candle Garden") && products.every((product) => !product.variants?.length);
+}
+
 export async function getProductCatalog(): Promise<CatalogProduct[]> {
-  return loadRecord<CatalogProduct[]>(CATALOG_RECORD, fallbackCatalog);
+  const stored = await loadRecord<CatalogProduct[]>(CATALOG_RECORD, fallbackCatalog);
+  if (looksLikeBrokenScrape(stored)) return fallbackCatalog;
+  return stored;
 }
 
 export async function getCommerceCapture(): Promise<CommerceCapture | null> {
