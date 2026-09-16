@@ -1,0 +1,175 @@
+{
+  "source": "squarespace-public-json",
+  "capturedAt": "2026-09-16T22:17:48.593Z",
+  "containsCustomerData": false,
+  "containsOrderHistory": false,
+  "website": {
+    "id": "65fae805de7d9316f58ac65f",
+    "title": "The Candle Garden",
+    "primaryDomain": "www.thecandlegarden.co",
+    "authenticUrl": "https://www.thecandlegarden.co",
+    "identifier": "ocelot-mauve-h6wt",
+    "language": "en-US",
+    "timeZone": "America/New_York",
+    "location": {
+      "title": "The Candle Garden",
+      "line1": "363 Atlantic Boulevard Suite 8",
+      "line2": "Atlantic Beach, FL, 32233",
+      "country": "United States",
+      "lat": 30.325117,
+      "lng": -81.3984905
+    },
+    "social": [
+      {
+        "service": "instagram-unauth",
+        "url": "https://www.instagram.com/thecandlegardenco/"
+      },
+      {
+        "service": "facebook-unauth",
+        "url": "https://www.facebook.com/thecandlegardenjax/"
+      }
+    ],
+    "contactEmail": "jordan@thecandlegarden.co",
+    "contactPhone": "904-316-7608",
+    "businessHours": {
+      "monday": {
+        "text": "11am - 6pm",
+        "ranges": [
+          {
+            "from": 660,
+            "to": 1080
+          }
+        ]
+      },
+      "tuesday": {
+        "text": "11am - 6pm",
+        "ranges": [
+          {
+            "from": 660,
+            "to": 1080
+          }
+        ]
+      },
+      "wednesday": {
+        "text": "11am - 6pm",
+        "ranges": [
+          {
+            "from": 660,
+            "to": 1080
+          }
+        ]
+      },
+      "thursday": {
+        "text": "11am - 6pm",
+        "ranges": [
+          {
+            "from": 660,
+            "to": 1080
+          }
+        ]
+      },
+      "friday": {
+        "text": "11am - 6pm",
+        "ranges": [
+          {
+            "from": 660,
+            "to": 1080
+          }
+        ]
+      },
+      "saturday": {
+        "text": "11am - 6pm",
+        "ranges": [
+          {
+            "from": 660,
+            "to": 1080
+          }
+        ]
+      },
+      "sunday": {
+        "text": "11am - 3pm",
+        "ranges": [
+          {
+            "from": 660,
+            "to": 900
+          }
+        ]
+      }
+    }
+  },
+  "storePage": {
+    "id": "65faf809b85f1d19a61c8359",
+    "title": "Shop",
+    "url": "/shop",
+    "itemCount": 71
+  },
+  "merchandising": {
+    "announcementBar": "Free Shipping over $50!",
+    "customSoldOutText": "Sold Out",
+    "scarcityEnabled": true,
+    "scarcityThreshold": 10,
+    "relatedProductsEnabled": true,
+    "defaultCurrency": "USD",
+    "shippingCountryDefault": "US",
+    "showShippingPhoneNumber": true,
+    "shippingPhoneRequired": true,
+    "showBillingPhoneNumber": true,
+    "billingPhoneRequired": true,
+    "billToShippingDefault": true,
+    "expressCheckout": false,
+    "continueShoppingLinkUrl": "/",
+    "checkoutMarketingOptIn": true,
+    "userAccounts": {
+      "loginAllowed": true,
+      "signupAllowed": true
+    }
+  },
+  "policies": {
+    "returnAndCancellationHtml": "<p class=\"\" style=\"white-space:pre-wrap;\"><strong>Start Time &amp; Cancellations</strong> - Classes start on time. Please call/text me (904) 316-7608 if you’re running late, I lock the door during classes. </p><p class=\"\" style=\"white-space:pre-wrap;\">I don’t accept cancellations or rescheduling for private classes.</p><p class=\"\" style=\"white-space:pre-wrap;\">For public classes, you may reschedule if notified <strong>one week</strong> in advance. If you need to cancel within a week before your class, you can pick your scent and I’ll have your candles ready for pickup. By signing up, you agree to these terms.</p>",
+    "returnAndCancellationText": "Start Time & Cancellations - Classes start on time. Please call/text me (904) 316-7608 if you’re running late, I lock the door during classes. I don’t accept cancellations or rescheduling for private classes. For public classes, you may reschedule if notified one week in advance. If you need to cancel within a week before your class, you can pick your scent and I’ll have your candles ready for pickup. By signing up, you agree to these terms.",
+    "termsOfServiceHtml": "<p class=\"\" style=\"white-space:pre-wrap;\"><strong>One seat</strong> = $55 or listed price, no spectators :)</p><p style=\"text-align:start;white-space:pre-wrap;\" class=\"\"><strong>BYOB :) No food please  </strong>(wine, beer, champs. please bring your own cups I don’t keep any at the store)</p><p style=\"text-align:start;white-space:pre-wrap;\" class=\"\"><strong>Classes last around an hour</strong>, and you are welcome to stay and shop afterwards until 7pm. Your candles will cool over night, and you can pick them up the next day, or within the next week. </p>",
+    "termsOfServiceText": "One seat = $55 or listed price, no spectators :) BYOB :) No food please (wine, beer, champs. please bring your own cups I don’t keep any at the store) Classes last around an hour , and you are welcome to stay and shop afterwards until 7pm. Your candles will cool over night, and you can pick them up the next day, or within the next week.",
+    "privacyPolicyHtml": "",
+    "privacyPolicyText": "",
+    "privacyUrl": "https://www.thecandlegarden.co/privacy-policy",
+    "termsUrl": "https://www.thecandlegarden.co/terms-of-service",
+    "supportUrl": "https://www.thecandlegarden.co/get-in-touch",
+    "classesUrl": "https://www.thecandlegarden.co/candle-garden-events"
+  },
+  "categories": [
+    {
+      "id": "6a886d6031e02f46bf5ade68",
+      "name": "Fall",
+      "slug": "fall",
+      "path": "/shop/fall"
+    },
+    {
+      "id": "6a6121c171fdf20d4070fd40",
+      "name": "Summer",
+      "slug": "summer",
+      "path": "/shop/summer"
+    },
+    {
+      "id": "679aee8d6c9a8e41d1c947ab",
+      "name": "Subscription Boxes",
+      "slug": "subscription",
+      "path": "/shop/subscription-boxes"
+    },
+    {
+      "id": "65fb9f3ecb7c714836050749",
+      "name": "Classic",
+      "slug": "classic",
+      "path": "/shop/classic"
+    }
+  ],
+  "notes": {
+    "giftCards": "Gift-card products, if any, appear in the product export with type gift_card. None are assumed until listed in the catalog.",
+    "discounts": "Discount codes are not in the public collection JSON. Use the Discounts API with a Commerce API key.",
+    "tax": "Tax calculation happens on Squarespace checkout. Native app checkout uses Stripe Tax only if configured separately.",
+    "pickup": "Local pickup is not exposed in the public collection JSON. Confirm in Squarespace Settings > Selling > Shipping.",
+    "webhooks": "Squarespace webhook topics are order.create, order.update, contact.*, address.*, and extension.uninstall. There is no product or inventory topic; inventory is refreshed from the Inventory API and after order webhooks."
+  },
+  "productCount": 27,
+  "variantCount": 58,
+  "classCount": 4
+}

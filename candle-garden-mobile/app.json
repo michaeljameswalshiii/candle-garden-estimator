@@ -10,13 +10,11 @@
     "assetBundlePatterns": [
       "**/*"
     ],
+    "scheme": "candlegarden",
     "web": {
       "bundler": "metro",
       "output": "single",
       "favicon": "./assets/icon.png"
-    },
-    "experiments": {
-      "typedRoutes": true
     },
     "extra": {
       "eas": {
@@ -25,17 +23,35 @@
     },
     "ios": {
       "bundleIdentifier": "com.michaeljameswalshiii.candlegarden",
+      "associatedDomains": [
+        "applinks:candle-garden-web.vercel.app",
+        "applinks:www.thecandlegarden.co"
+      ],
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "Take photos of candle vessels to estimate refill volume.",
         "NSPhotoLibraryUsageDescription": "Choose photos of candle vessels to estimate refill volume.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "buildNumber": "8"
+      "buildNumber": "10"
     },
     "android": {
       "package": "com.michaeljameswalshiii.candlegarden",
-      "versionCode": 4
+      "versionCode": 4,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "candle-garden-web.vercel.app",
+              "pathPrefix": "/app/return"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "primaryColor": "#103831",
     "plugins": [

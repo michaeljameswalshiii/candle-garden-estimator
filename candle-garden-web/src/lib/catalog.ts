@@ -4,14 +4,26 @@ import rawProducts from "../../../packages/catalog/products.json";
 export type Product = {
   id: string;
   name: string;
+  sku?: string;
   price: number;
   priceMax?: number;
   soldOut: boolean;
   description: string;
   image: string;
+  images?: string[];
   url: string;
+  urlId?: string;
   sizes: string[];
   categories: string[];
+  type?: string;
+  isSubscribable?: boolean;
+  variants?: Array<{
+    id: string;
+    sku: string;
+    size: string | null;
+    price: number;
+    soldOut: boolean;
+  }>;
 };
 
 export type CandleClass = {

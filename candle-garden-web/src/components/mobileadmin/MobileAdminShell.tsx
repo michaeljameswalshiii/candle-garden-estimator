@@ -10,7 +10,7 @@ const NAV = [
   { href: "/mobileadmin/orders", label: "Orders", detail: "Search every order", Icon: PackageSearch },
   { href: "/mobileadmin/customers", label: "Customers", detail: "People using the app", Icon: Users },
   { href: "/mobileadmin/engagement", label: "Engagement", detail: "Downloads and usage", Icon: BarChart3 },
-  { href: "/mobileadmin/operations", label: "App health", detail: "Services and tracking", Icon: Settings },
+  { href: "/mobileadmin/operations", label: "Jobs & health", detail: "Automation, APIs, and services", Icon: Settings },
 ];
 
 export function MobileAdminShell({ id, children }: { id?: string; children: React.ReactNode }) {

@@ -23,6 +23,23 @@ const EstimatorScreen = lazy(() => import('./screens/EstimatorScreen'));
 
 const Tab = createBottomTabNavigator();
 
+const linking = {
+  prefixes: [
+    'candlegarden://',
+    'https://candle-garden-web.vercel.app',
+    'https://www.thecandlegarden.co',
+  ],
+  config: {
+    screens: {
+      Orders: 'orders',
+      Classes: 'classes',
+      Products: 'shop',
+      Profile: 'profile',
+      Home: '',
+    },
+  },
+};
+
 function EstimatorSuspense() {
   return (
     <Suspense
@@ -138,7 +155,7 @@ function AppTree() {
     <AuthProvider>
       <AuthTokenBridge>
         <CartProvider>
-          <NavigationContainer theme={navigationTheme}>
+          <NavigationContainer theme={navigationTheme} linking={linking}>
             <StatusBar style="dark" />
             <MainTabs />
           </NavigationContainer>

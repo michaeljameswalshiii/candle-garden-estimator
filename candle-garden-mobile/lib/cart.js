@@ -10,7 +10,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import * as SecureStore from 'expo-secure-store';
+import { deleteStoredItem, getStoredItem, setStoredItem } from './storage';
 
 const CartContext = createContext(null);
 const CART_KEY = 'cg_cart_v1';
@@ -23,12 +23,12 @@ function lineKey(item) {
   if (type === 'class') {
     return `class::${item.productId}`;
   }
-  return `product::${item.productId}::${item.size || 'default'}`;
+  return `product::${item.productId}::${item.variantId || item.sku || item.size || 'default'}`;
 }
 
 async function loadPersistedLines() {
   try {
-    const raw = await SecureStore.getItemAsync(CART_KEY);
+    const raw = await getStoredItem(CART_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -40,10 +40,10 @@ async function loadPersistedLines() {
 async function persistLines(lines) {
   try {
     if (!lines.length) {
-      await SecureStore.deleteItemAsync(CART_KEY);
+      await deleteStoredItem(CART_KEY);
       return;
     }
-    await SecureStore.setItemAsync(CART_KEY, JSON.stringify(lines));
+    await setStoredItem(CART_KEY, JSON.stringify(lines));
   } catch (e) {
     console.warn('Cart persist failed', e?.message);
   }
@@ -89,6 +89,8 @@ export function CartProvider({ children }) {
       key: null,
       type,
       productId: type === 'refill' ? 'refill' : product.id,
+      variantId: options.variantId || product.variantId || null,
+      sku: options.sku || product.sku || null,
       name: product.name,
       size,
       unitPrice,

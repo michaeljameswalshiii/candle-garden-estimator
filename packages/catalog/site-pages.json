@@ -1,0 +1,35 @@
+{
+  "capturedAt": "2026-09-16T22:17:48.992Z",
+  "containsCustomerData": false,
+  "urls": {
+    "home": "https://www.thecandlegarden.co/",
+    "shop": "https://www.thecandlegarden.co/shop",
+    "classes": "https://www.thecandlegarden.co/candle-garden-events",
+    "support": "https://www.thecandlegarden.co/get-in-touch",
+    "story": "https://www.thecandlegarden.co/my-story",
+    "giftCard": "https://www.thecandlegarden.co/giftcard",
+    "privacy": "https://www.thecandlegarden.co/privacy-policy",
+    "terms": "https://www.thecandlegarden.co/terms-of-service"
+  },
+  "privacy": {
+    "title": "Privacy Policy",
+    "seo": {
+      "seoTitle": "Terms of Service 1",
+      "seoHidden": false
+    },
+    "text": ""
+  },
+  "terms": {
+    "title": "Terms of Service",
+    "seo": {
+      "seoTitle": "Terms of Service 1",
+      "seoHidden": false
+    },
+    "text": ""
+  },
+  "story": {
+    "title": "My Story",
+    "text": ""
+  },
+  "announcement": "Free Shipping over $50!"
+}

@@ -1,5 +1,15 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "ignoreCommand": "git diff HEAD^ HEAD --quiet -- . ../packages/catalog"
+  "ignoreCommand": "git diff HEAD^ HEAD --quiet -- . ../packages/catalog",
+  "crons": [
+    {
+      "path": "/api/cron/product-refresh",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/class-refresh",
+      "schedule": "7,22,37,52 * * * *"
+    }
+  ]
 }

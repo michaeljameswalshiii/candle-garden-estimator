@@ -1,355 +1,1876 @@
 [
     {
-        "id":  "65faf809b85f1d19a61c8374",
-        "name":  "Atlantic Beach",
-        "price":  34,
-        "priceMax":  39,
-        "soldOut":  false,
-        "description":  "Scent notes: Amber, Sea salt, Orange, Ozone, Freesia, Light Musk",
-        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1712778217308-W4FIBXLU016C1C9ZAQ5E/TheCandleGardenCo_Spring2024_3636.jpg",
-        "url":  "https://www.thecandlegarden.co/shop/p/atlantic-beach-soy-candle",
-        "sizes":  [
-                      "10oz",
-                      "18oz"
-                  ],
-        "categories":  [
-                           "classic"
-                       ]
+        "id": "689e0a74373b960a5f82722c",
+        "name": "Almond",
+        "sku": "SQ6386024",
+        "price": 35,
+        "priceMax": 42,
+        "soldOut": false,
+        "description": "Candle Scent Notes: cinnamon, nutmeg, amaretto, vanilla, sugar, almond, cherry extract",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/44e24b97-f7b4-4065-ac96-daf301a7f560/CandleGardenFall2025-4.jpg",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/44e24b97-f7b4-4065-ac96-daf301a7f560/CandleGardenFall2025-4.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/b8ec491e-4662-4c2c-b5e7-fcd8e43a379b/CandleGardenFall2025-5.jpg"
+        ],
+        "url": "https://www.thecandlegarden.co/shop/p/almond-soy-candle-autumn-fall",
+        "urlId": "almond-soy-candle-autumn-fall",
+        "sizes": [
+            "10oz",
+            "18oz"
+        ],
+        "categories": [
+            "fall"
+        ],
+        "tags": [],
+        "type": "physical",
+        "isSubscribable": false,
+        "subscription": null,
+        "variants": [
+            {
+                "id": "fdc685d4-ee62-4129-aad0-62e3ecbc8fca",
+                "sku": "SQ6386024",
+                "size": "10oz",
+                "price": 35,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 2,
+                "width": 4,
+                "height": 5,
+                "length": 5,
+                "attributes": {
+                    "Size": "10oz"
+                },
+                "subscription": null
+            },
+            {
+                "id": "eb42c70a-65b2-4787-ad26-9e4189200362",
+                "sku": "SQ4165518",
+                "size": "18oz",
+                "price": 42,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 3,
+                "width": 6,
+                "height": 6,
+                "length": 6,
+                "attributes": {
+                    "Size": "18oz"
+                },
+                "subscription": null
+            }
+        ],
+        "updatedOn": "2026-08-30T05:02:56.342Z"
     },
     {
-        "id":  "68e6cd88ac7af54391a3e33b",
-        "name":  "Bills Candle",
-        "price":  40,
-        "priceMax":  40,
-        "soldOut":  false,
-        "description":  "Scent notes: oak, cedar, light tobacco, vanilla, bourbon...smells like we'll get em next year! 10oz pure soy candle with gold screen print",
-        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/a2f1761a-ce78-47d0-97af-9bfb6d055d7d/IMG_6068.JPG",
-        "url":  "https://www.thecandlegarden.co/shop/p/buffalo-bills-soy-candle-hand-poured-show-girl-ealdj-2x37n",
-        "sizes":  [
-
-                  ],
-        "categories":  [
-                           "classic"
-                       ]
+        "id": "689e076efe73e540c7ddfffe",
+        "name": "Apple Cinnamon",
+        "sku": "SQ8230482",
+        "price": 35,
+        "priceMax": 42,
+        "soldOut": false,
+        "description": "Candle Scent Notes: apple, cedar, vanilla, green leaves, pear, cinnamon, nutmeg, clove",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/8071cd3c-3594-4f12-9ded-8abfe188ed82/CandleGardenFall2025-46.jpg",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/8071cd3c-3594-4f12-9ded-8abfe188ed82/CandleGardenFall2025-46.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/138c3caf-8013-446b-9306-f86ca607495b/CandleGardenFall2025-45.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/7a8b340f-f638-46bd-9bb5-f4e266a23f3c/CandleGardenFall2025-46.jpg"
+        ],
+        "url": "https://www.thecandlegarden.co/shop/p/apple-cinnamon-soy-candle-autumn-rzwd3-b45l2-fs7yy",
+        "urlId": "apple-cinnamon-soy-candle-autumn-rzwd3-b45l2-fs7yy",
+        "sizes": [
+            "10oz",
+            "18oz"
+        ],
+        "categories": [
+            "fall"
+        ],
+        "tags": [],
+        "type": "physical",
+        "isSubscribable": false,
+        "subscription": null,
+        "variants": [
+            {
+                "id": "c9a3085b-584c-4272-a17c-6a1d0bb8182a",
+                "sku": "SQ8230482",
+                "size": "10oz",
+                "price": 35,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 2,
+                "width": 4,
+                "height": 5,
+                "length": 5,
+                "attributes": {
+                    "Size": "10oz"
+                },
+                "subscription": null
+            },
+            {
+                "id": "441c799b-0a56-48a4-a390-dfed2601e9ca",
+                "sku": "SQ1231815",
+                "size": "18oz",
+                "price": 42,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 3,
+                "width": 6,
+                "height": 6,
+                "length": 6,
+                "attributes": {
+                    "Size": "18oz"
+                },
+                "subscription": null
+            }
+        ],
+        "updatedOn": "2026-08-30T05:02:50.939Z"
     },
     {
-        "id":  "698656bffffb05166e409a96",
-        "name":  "Black Currant \u0026 Jasmine",
-        "price":  34,
-        "priceMax":  39,
-        "soldOut":  false,
-        "description":  "Scent notes: citrus, red currant, black currant, jasmine, peach, black tea, amber, anise, tonka bean",
-        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/203472bf-05df-498b-a8ff-4e64a41e2936/TCGSPRINGLAUNCH-44.jpg",
-        "url":  "https://www.thecandlegarden.co/shop/p/black-currant-soy-candle-the-candle-garden-jasmine",
-        "sizes":  [
-                      "10oz",
-                      "18oz"
-                  ],
-        "categories":  [
-                           "spring"
-                       ]
+        "id": "689e0618b8b38e4e07b0afe6",
+        "name": "Apple Picking",
+        "sku": "SQ4200084",
+        "price": 35,
+        "priceMax": 42,
+        "soldOut": false,
+        "description": "Candle Scent Notes: apple, cedar, vanilla, green leaves, pear",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/48010f99-12f2-447a-8c9f-71229f522971/CandleGardenFall2025-94.jpg",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/48010f99-12f2-447a-8c9f-71229f522971/CandleGardenFall2025-94.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/16f8cc73-c5ee-4190-8026-e5944f6058a5/CandleGardenFall2025-99.jpg"
+        ],
+        "url": "https://www.thecandlegarden.co/shop/p/apple-picking-soy-candle-autumn-rzwd3-b45l2",
+        "urlId": "apple-picking-soy-candle-autumn-rzwd3-b45l2",
+        "sizes": [
+            "10oz",
+            "18oz"
+        ],
+        "categories": [
+            "fall"
+        ],
+        "tags": [],
+        "type": "physical",
+        "isSubscribable": false,
+        "subscription": null,
+        "variants": [
+            {
+                "id": "f066db4f-b4dd-4e66-b526-b57f9cd90497",
+                "sku": "SQ4200084",
+                "size": "10oz",
+                "price": 35,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 2,
+                "width": 4,
+                "height": 5,
+                "length": 5,
+                "attributes": {
+                    "Size": "10oz"
+                },
+                "subscription": null
+            },
+            {
+                "id": "308cb522-00b8-4d97-93a7-f714efdaeb50",
+                "sku": "SQ3162035",
+                "size": "18oz",
+                "price": 42,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 3,
+                "width": 6,
+                "height": 6,
+                "length": 6,
+                "attributes": {
+                    "Size": "18oz"
+                },
+                "subscription": null
+            }
+        ],
+        "updatedOn": "2026-08-30T05:02:48.523Z"
     },
     {
-        "id":  "69862c301a06235655c4c079",
-        "name":  "Blueberry Fizz",
-        "price":  34,
-        "priceMax":  39,
-        "soldOut":  false,
-        "description":  "Scent notes: strawberry, blueberry, apple, raspberry, honey, cinnamon, bourbon, smoke, oak, caramel",
-        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/86b8ee6b-1f89-4d2c-b96d-2dfb54b4df38/TCGSPRINGLAUNCH-37.jpg",
-        "url":  "https://www.thecandlegarden.co/shop/p/blueberry-fizz-soy-candle-the-candle-garden-l3kyw",
-        "sizes":  [
-                      "10oz",
-                      "18oz"
-                  ],
-        "categories":  [
-                           "spring"
-                       ]
+        "id": "65faf809b85f1d19a61c8374",
+        "name": "Atlantic Beach",
+        "sku": "SQ7748874",
+        "price": 35,
+        "priceMax": 42,
+        "soldOut": false,
+        "description": "Candle Scent Notes : Amber, Sea salt, Orange, Ozone, Freesia, Light Musk",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1712778217308-W4FIBXLU016C1C9ZAQ5E/TheCandleGardenCo_Spring2024_3636.jpg",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1712778217308-W4FIBXLU016C1C9ZAQ5E/TheCandleGardenCo_Spring2024_3636.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1712778229226-Z1O5I4I1F60KZGHC4X8L/TheCandleGardenCo_Spring2024_3640.jpg"
+        ],
+        "url": "https://www.thecandlegarden.co/shop/p/atlantic-beach-soy-candle",
+        "urlId": "atlantic-beach-soy-candle",
+        "sizes": [
+            "10oz",
+            "18oz"
+        ],
+        "categories": [
+            "classic"
+        ],
+        "tags": [],
+        "type": "physical",
+        "isSubscribable": false,
+        "subscription": null,
+        "variants": [
+            {
+                "id": "8728e95f-e99a-4521-9ac0-4e02aa8c5f40",
+                "sku": "SQ7748874",
+                "size": "10oz",
+                "price": 35,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 2,
+                "width": 4,
+                "height": 5,
+                "length": 5,
+                "attributes": {
+                    "Size": "10oz"
+                },
+                "subscription": null
+            },
+            {
+                "id": "c6b050d8-3daa-4ff1-abf9-37b28e0890aa",
+                "sku": "SQ3192628",
+                "size": "18oz",
+                "price": 42,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 2,
+                "width": 6,
+                "height": 6,
+                "length": 6,
+                "attributes": {
+                    "Size": "18oz"
+                },
+                "subscription": null
+            }
+        ],
+        "updatedOn": "2026-08-28T01:37:35.014Z"
     },
     {
-        "id":  "65faf809b85f1d19a61c836f",
-        "name":  "Bougie Bougie",
-        "price":  135,
-        "priceMax":  135,
-        "soldOut":  false,
-        "description":  "Over 110 hour burn time! The Bougie Bougie is the perfect center piece for a night in, hosting an event, and of course would make a great bougie gift...for someone else or yourself ;) Grapefruit Spice â€” Grapefruit, Orange peel, Mangosteen, Nutmeg and Cinnamon Oakmoss \u0026 Amber â€” Oak Moss, Amber, Lavender, Sage, Orange and Grapefruit Atlantic Beach â€” Amber, Sea salt, Orange, Ozone, Freesia, and Light Musk Ponte Vedra â€” Cardamom, Orange peel, Sea salt, Palm, Light Musk, and Ozone Jax Beach â€” Bergamot, Tangerine, Coconut, and Lemon VerbenaÂ Neptune Beach â€” Sandalwood, Musk, Amber, and Coriander Santal Coconut â€” Coconut Milk, Coconut, Sandalwood, Cedar, Tonka Bean and Amyris Oh, Christmas Tree â€” Pine, Eucalyptus, Cypress, Tonka Bean and White Birch Juniper â€” Ozone, Red Currant, Berry, Juniper, Pear, Citrus, Sage and Cherry Blossom The Grinch â€” Bergamot, Spruce, Cypress, Sage, Palo Santo and Musk",
-        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1711112110589-UP7WLYR0K8U2OHWH2JDA/CandleGardenWinter2024-18.jpg",
-        "url":  "https://www.thecandlegarden.co/shop/p/bougie-bougie-large-luxury-candle",
-        "sizes":  [
-
-                  ],
-        "categories":  [
-                           "classic"
-                       ]
+        "id": "68af77ba17fb1a67dddb3689",
+        "name": "Autumn Ambrette",
+        "sku": "SQ4821708",
+        "price": 35,
+        "priceMax": 42,
+        "soldOut": false,
+        "description": "Candle Scent Notes: maple, cinnamon, milk, sandalwood, orange blossom, vanilla",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/11f3733f-2a1f-48e4-9fa4-519d1215a938/CandleGardenFall2025-207.jpg",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/11f3733f-2a1f-48e4-9fa4-519d1215a938/CandleGardenFall2025-207.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/9cd2df12-34c4-4c5c-bee5-c7e4344bc123/CandleGardenFall2025-204.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/8b25fc67-f90f-41ac-961d-9915e04d69c5/CandleGardenFall2025-205.jpg"
+        ],
+        "url": "https://www.thecandlegarden.co/shop/p/autumn-ambrette-candle-soy-fall-jacksonville-ls3le-pnxm8-gaake-dgwdp",
+        "urlId": "autumn-ambrette-candle-soy-fall-jacksonville-ls3le-pnxm8-gaake-dgwdp",
+        "sizes": [
+            "10oz",
+            "18oz"
+        ],
+        "categories": [
+            "fall"
+        ],
+        "tags": [],
+        "type": "physical",
+        "isSubscribable": false,
+        "subscription": null,
+        "variants": [
+            {
+                "id": "7fae3345-f7c9-439d-ae72-105b9a2ee1a8",
+                "sku": "SQ4821708",
+                "size": "10oz",
+                "price": 35,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 2,
+                "width": 4,
+                "height": 5,
+                "length": 5,
+                "attributes": {
+                    "Size": "10oz"
+                },
+                "subscription": null
+            },
+            {
+                "id": "68239852-422f-494f-991c-dc2a6e58be57",
+                "sku": "SQ2812173",
+                "size": "18oz",
+                "price": 42,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 3,
+                "width": 6,
+                "height": 6,
+                "length": 6,
+                "attributes": {
+                    "Size": "18oz"
+                },
+                "subscription": null
+            }
+        ],
+        "updatedOn": "2026-08-30T06:43:17.052Z"
     },
     {
-        "id":  "67016d8629123a302136428f",
-        "name":  "But First, Coffee",
-        "price":  34,
-        "priceMax":  39,
-        "soldOut":  false,
-        "description":  "Scent notes: coffee, sugar, caramel, vanilla...but really strong coffee :)",
-        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/b4984e16-0c8c-45ed-bf0f-8584f2b2f7a9/TCGSPRINGLAUNCH-162.jpg",
-        "url":  "https://www.thecandlegarden.co/shop/p/but-first-soy-candle-fall-45zxk-c4eka-coffee",
-        "sizes":  [
-                      "10oz",
-                      "18oz"
-                  ],
-        "categories":  [
-                           "classic",
-                           "spring"
-                       ]
+        "id": "68e6cd88ac7af54391a3e33b",
+        "name": "Bills Candle",
+        "sku": "SQ6383752",
+        "price": 40,
+        "priceMax": 40,
+        "soldOut": false,
+        "description": "Candle Scent Notes: oak, cedar, light tobacco, vanilla, bourbon…smells like we’ll get em next year! 10oz pure soy candle with gold screen print",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/a2f1761a-ce78-47d0-97af-9bfb6d055d7d/IMG_6068.JPG",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/a2f1761a-ce78-47d0-97af-9bfb6d055d7d/IMG_6068.JPG",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/83e2dc3c-9fd6-479a-ac81-676d8dce6e66/IMG_6078.JPG"
+        ],
+        "url": "https://www.thecandlegarden.co/shop/p/buffalo-bills-soy-candle-hand-poured-show-girl-ealdj-2x37n",
+        "urlId": "buffalo-bills-soy-candle-hand-poured-show-girl-ealdj-2x37n",
+        "sizes": [],
+        "categories": [
+            "classic"
+        ],
+        "tags": [],
+        "type": "physical",
+        "isSubscribable": false,
+        "subscription": null,
+        "variants": [
+            {
+                "id": "bc97fe9a-376c-4dc8-adcd-c4fa5c03b7fd",
+                "sku": "SQ6383752",
+                "size": null,
+                "price": 40,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": false,
+                "quantity": 28,
+                "weight": 0,
+                "width": 0,
+                "height": 0,
+                "length": 0,
+                "attributes": {},
+                "subscription": null
+            }
+        ],
+        "updatedOn": "2026-08-30T12:10:33.335Z"
     },
     {
-        "id":  "65fd8faf6b87b67fd11cd873",
-        "name":  "Conrad New York Downtown Signature Candle",
-        "price":  45,
-        "priceMax":  45,
-        "soldOut":  true,
-        "description":  "Scent notes: Â Bergamot, White tea, Violet florals, Aromatic Thyme and AmberÂ",
-        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1711116240270-WTPE93VM3U2WLS4ZS138/IMG_1591.jpeg",
-        "url":  "https://www.thecandlegarden.co/shop/p/conrad-new-york-downtown-signature-candle",
-        "sizes":  [
-                      "16oz"
-                  ],
-        "categories":  [
-                           "classic"
-                       ]
+        "id": "65faf809b85f1d19a61c836f",
+        "name": "Bougie Bougie",
+        "sku": "SQ9469681",
+        "price": 135,
+        "priceMax": 135,
+        "soldOut": false,
+        "description": "Over 110 hour burn time! The Bougie Bougie is the perfect center piece for a night in, hosting an event, and of course would make a great bougie gift…for someone else or yourself ;) Grapefruit Spice — Grapefruit, Orange peel, Mangosteen, Nutmeg and Cinnamon Oakmoss & Amber — Oak Moss, Amber, Lavender, Sage, Orange and Grapefruit Atlantic Beach — Amber, Sea salt, Orange, Ozone, Freesia, and Light Musk Ponte Vedra — Cardamom, Orange peel, Sea salt, Palm, Light Musk, and Ozone Jax Beach — Bergamot, Tangerine, Coconut, and Lemon Verbena Neptune Beach — Sandalwood, Musk, Amber, and Coriander Santal Coconut — Coconut Milk, Coconut, Sandalwood, Cedar, Tonka Bean and Amyris Oh, Christmas Tree — Pine, Eucalyptus, Cypress, Tonka Bean and White Birch Juniper — Ozone, Red Currant, Berry, Juniper, Pear, Citrus, Sage and Cherry Blossom The Grinch — Bergamot, Spruce, Cypress, Sage, Palo Santo and Musk",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1711112110589-UP7WLYR0K8U2OHWH2JDA/CandleGardenWinter2024-18.jpg",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1711112110589-UP7WLYR0K8U2OHWH2JDA/CandleGardenWinter2024-18.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1711112110585-RY2W3GBN4WAR6ILZRZAH/CandleGardenWinter2024-21.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1711112110589-94MO7M5F3RU3QEX6GIMZ/CandleGardenWinter2024-25.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1711112110586-RTN4S9A6SN85VKSYRF3Q/CandleGardenWinter2024-83.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1711112110256-K5A40MO8ZNV2FKUESSAR/CandleGardenWinter2024-42.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1711112109001-GSWYFFIZWP7IR1NOFHRE/CandleGardenWinter2024-45.jpg"
+        ],
+        "url": "https://www.thecandlegarden.co/shop/p/bougie-bougie-large-luxury-candle",
+        "urlId": "bougie-bougie-large-luxury-candle",
+        "sizes": [],
+        "categories": [
+            "classic"
+        ],
+        "tags": [],
+        "type": "physical",
+        "isSubscribable": false,
+        "subscription": null,
+        "variants": [
+            {
+                "id": "79bfba9c-252b-4ff2-abe7-01ecea35df9d",
+                "sku": "SQ9469681",
+                "size": null,
+                "price": 135,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": false,
+                "quantity": 95,
+                "weight": 10,
+                "width": 9,
+                "height": 9,
+                "length": 9,
+                "attributes": {
+                    "Scent": "Grapefruit Spice"
+                },
+                "subscription": null
+            },
+            {
+                "id": "4846fa13-423b-4b5f-8428-0c57f756b669",
+                "sku": "SQ2875121",
+                "size": null,
+                "price": 135,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": false,
+                "quantity": 98,
+                "weight": 10,
+                "width": 9,
+                "height": 9,
+                "length": 9,
+                "attributes": {
+                    "Scent": "Oakmoss & Amber"
+                },
+                "subscription": null
+            },
+            {
+                "id": "7e6c63a3-af01-44b0-8098-bbc48d2dd76b",
+                "sku": "SQ8079092",
+                "size": null,
+                "price": 135,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": false,
+                "quantity": 100,
+                "weight": 10,
+                "width": 9,
+                "height": 9,
+                "length": 9,
+                "attributes": {
+                    "Scent": "Atlantic Beach"
+                },
+                "subscription": null
+            },
+            {
+                "id": "45e9781c-7f8d-4a7e-892c-dbbc9a0a19fe",
+                "sku": "SQ7550828",
+                "size": null,
+                "price": 135,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": false,
+                "quantity": 100,
+                "weight": 10,
+                "width": 9,
+                "height": 9,
+                "length": 9,
+                "attributes": {
+                    "Scent": "Neptune Beach"
+                },
+                "subscription": null
+            },
+            {
+                "id": "abe8a2fb-d032-43ac-99d1-99347b1f92b5",
+                "sku": "SQ8027415",
+                "size": null,
+                "price": 135,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": false,
+                "quantity": 98,
+                "weight": 10,
+                "width": 9,
+                "height": 9,
+                "length": 9,
+                "attributes": {
+                    "Scent": "Ponte Vedra"
+                },
+                "subscription": null
+            },
+            {
+                "id": "36fce0ef-b23f-44b3-a0be-a91e580e7acd",
+                "sku": "SQ0052848",
+                "size": null,
+                "price": 135,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": false,
+                "quantity": 100,
+                "weight": 10,
+                "width": 9,
+                "height": 9,
+                "length": 9,
+                "attributes": {
+                    "Scent": "Jax Beach"
+                },
+                "subscription": null
+            },
+            {
+                "id": "3c96ad7b-d1f1-405c-b44f-11eed731fc8e",
+                "sku": "SQ8893909",
+                "size": null,
+                "price": 135,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": false,
+                "quantity": 99,
+                "weight": 10,
+                "width": 9,
+                "height": 9,
+                "length": 9,
+                "attributes": {
+                    "Scent": "Santal Coconut"
+                },
+                "subscription": null
+            },
+            {
+                "id": "21420f47-dca2-4a34-a3e9-d58432bc6905",
+                "sku": "SQ8551406",
+                "size": null,
+                "price": 135,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": false,
+                "quantity": 98,
+                "weight": 10,
+                "width": 9,
+                "height": 9,
+                "length": 9,
+                "attributes": {
+                    "Scent": "Oh Christmas Tree"
+                },
+                "subscription": null
+            },
+            {
+                "id": "28f500f1-3a97-478a-ac5b-0a401dd107ba",
+                "sku": "SQ1213127",
+                "size": null,
+                "price": 135,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": false,
+                "quantity": 100,
+                "weight": 10,
+                "width": 9,
+                "height": 9,
+                "length": 9,
+                "attributes": {
+                    "Scent": "Juniper"
+                },
+                "subscription": null
+            },
+            {
+                "id": "0666958f-acf7-4237-b3d8-b0891bdc6ee7",
+                "sku": "SQ2042481",
+                "size": null,
+                "price": 135,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": false,
+                "quantity": 100,
+                "weight": 10,
+                "width": 9,
+                "height": 9,
+                "length": 9,
+                "attributes": {
+                    "Scent": "The Grinch"
+                },
+                "subscription": null
+            }
+        ],
+        "updatedOn": "2026-08-28T01:37:35.008Z"
     },
     {
-        "id":  "69862a1612099a65f951f050",
-        "name":  "English Garden",
-        "price":  34,
-        "priceMax":  39,
-        "soldOut":  false,
-        "description":  "Scent notes: lily of the valley, green leaves, pear, rose, jasmine, lilac, vanilla, carnation",
-        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/b3fec193-ccb4-4a5c-bdfc-6c16365b91d2/TCGSPRINGLAUNCH-153.jpg",
-        "url":  "https://www.thecandlegarden.co/shop/p/english-garden-soy-candle-the-candle-garden-candle-classes-jacksonville",
-        "sizes":  [
-                      "10oz",
-                      "18oz"
-                  ],
-        "categories":  [
-                           "spring"
-                       ]
+        "id": "67016d8629123a302136428f",
+        "name": "But First, Coffee",
+        "sku": "SQ2102875",
+        "price": 35,
+        "priceMax": 42,
+        "soldOut": false,
+        "description": "Candle Scent Notes: coffee, sugar, caramel, vanilla...but really strong coffee :)",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/b4984e16-0c8c-45ed-bf0f-8584f2b2f7a9/TCGSPRINGLAUNCH-162.jpg",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/b4984e16-0c8c-45ed-bf0f-8584f2b2f7a9/TCGSPRINGLAUNCH-162.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/e6c0b0c3-bdb2-4515-a892-ad5bab605698/TCGSPRINGLAUNCH-160.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/6e9cc35d-b922-4c0c-9230-8a66cb4963b6/TCGSPRINGLAUNCH-163.jpg"
+        ],
+        "url": "https://www.thecandlegarden.co/shop/p/but-first-soy-candle-fall-45zxk-c4eka-coffee",
+        "urlId": "but-first-soy-candle-fall-45zxk-c4eka-coffee",
+        "sizes": [
+            "10oz",
+            "18oz"
+        ],
+        "categories": [
+            "classic"
+        ],
+        "tags": [],
+        "type": "physical",
+        "isSubscribable": false,
+        "subscription": null,
+        "variants": [
+            {
+                "id": "282b6655-5cce-4c6a-b4e8-907b135153c3",
+                "sku": "SQ2102875",
+                "size": "10oz",
+                "price": 35,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 2,
+                "width": 4,
+                "height": 5,
+                "length": 5,
+                "attributes": {
+                    "Size": "10oz"
+                },
+                "subscription": null
+            },
+            {
+                "id": "60313cd3-e170-407f-9d02-7df3d15e93a3",
+                "sku": "SQ3251720",
+                "size": "18oz",
+                "price": 42,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 3,
+                "width": 6,
+                "height": 6,
+                "length": 6,
+                "attributes": {
+                    "Size": "18oz"
+                },
+                "subscription": null
+            }
+        ],
+        "updatedOn": "2026-08-28T12:09:49.812Z"
     },
     {
-        "id":  "698662d183d7eb240f008750",
-        "name":  "Flaky Croissant",
-        "price":  34,
-        "priceMax":  39,
-        "soldOut":  false,
-        "description":  "Scent notes: sugar, honey, lemon, butter, walnut, almond, caramel",
-        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/4e541144-92a1-48bf-887e-834bc8ee0b8f/TCGSPRINGLAUNCH-46.jpg",
-        "url":  "https://www.thecandlegarden.co/shop/p/flaky-croissant-soy-candle-the-candle-garden-jasmine-js6rk",
-        "sizes":  [
-                      "10oz",
-                      "18oz"
-                  ],
-        "categories":  [
-                           "spring"
-                       ]
+        "id": "661eb69f5660476758a10959",
+        "name": "Candle Class Gift Card",
+        "sku": "SQ3052356",
+        "price": 60,
+        "priceMax": 390,
+        "soldOut": false,
+        "description": "Purchasing this digital gift card creates a unique REDEMPTION code! This gift card can ONLY be used for candle classes! Please read: 1) Gift the REDEMPTION code to your special person. Come into the store and I can give you a nice card and envelope to write the code to present them! 2) You will purchase the gift card and receive the REDEMPTION code via email (ignore the confirmation code email that’s just an order code for you, saying your purchase went through. The REDEMPTION code is what is important and is the code your person will need) :) 3) The gift card recipient can pick whatever class they want, and when checking out will enter this REDEMPTION code at checkout. NOT the confirmation code! Candle classes are $67 and Monday night classes are $45. For one candle class seat, purchase the $45/$67 amount. For two candle class seats, purchase the $134 amount, and so on :) This gift card never expires. Thank you so much!",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1711128845711-SOURUT3DYHK5KBLEYUTC/IMG_4796.jpeg",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1711128845711-SOURUT3DYHK5KBLEYUTC/IMG_4796.jpeg"
+        ],
+        "url": "https://www.thecandlegarden.co/giftcard/p/candle-class-gift-card",
+        "urlId": "candle-class-gift-card",
+        "sizes": [],
+        "categories": [
+            "gift-card"
+        ],
+        "tags": [],
+        "type": "gift_card",
+        "isSubscribable": false,
+        "subscription": null,
+        "variants": [
+            {
+                "id": "5962bdb2-4550-43b6-b7d9-e06e95239601",
+                "sku": "SQ3052356",
+                "size": null,
+                "price": 130,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 0,
+                "width": 0,
+                "height": 0,
+                "length": 0,
+                "attributes": {
+                    "Value": "$130.00"
+                },
+                "subscription": null
+            },
+            {
+                "id": "6a6e723e-7022-4f23-81bf-c4bf62d6693d",
+                "sku": "SQ7153537",
+                "size": null,
+                "price": 195,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 0,
+                "width": 0,
+                "height": 0,
+                "length": 0,
+                "attributes": {
+                    "Value": "$195.00"
+                },
+                "subscription": null
+            },
+            {
+                "id": "93234ecc-38ea-48a1-9a7d-9a8cd8d085c7",
+                "sku": "SQ0349746",
+                "size": null,
+                "price": 260,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 0,
+                "width": 0,
+                "height": 0,
+                "length": 0,
+                "attributes": {
+                    "Value": "$260.00"
+                },
+                "subscription": null
+            },
+            {
+                "id": "dfb4e42f-e2ce-4c66-b5cd-03bdfdb0b704",
+                "sku": "SQ8581285",
+                "size": null,
+                "price": 325,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 0,
+                "width": 0,
+                "height": 0,
+                "length": 0,
+                "attributes": {
+                    "Value": "$325.00"
+                },
+                "subscription": null
+            },
+            {
+                "id": "1639606c-c198-4e2b-9c5c-e9d73e6ac51c",
+                "sku": "SQ4906475",
+                "size": null,
+                "price": 390,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 0,
+                "width": 0,
+                "height": 0,
+                "length": 0,
+                "attributes": {
+                    "Value": "$390.00"
+                },
+                "subscription": null
+            },
+            {
+                "id": "d96740ce-05f1-4b8b-b059-79a4fc65766c",
+                "sku": "SQ7187712",
+                "size": null,
+                "price": 90,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 0,
+                "width": 0,
+                "height": 0,
+                "length": 0,
+                "attributes": {
+                    "Value": "$90.00"
+                },
+                "subscription": null
+            },
+            {
+                "id": "ee7ff3c6-785b-401c-a631-23ac1c8ee2b0",
+                "sku": "SQ3288749",
+                "size": null,
+                "price": 60,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 0,
+                "width": 0,
+                "height": 0,
+                "length": 0,
+                "attributes": {
+                    "Value": "$60.00"
+                },
+                "subscription": null
+            }
+        ],
+        "updatedOn": "2026-08-28T02:42:41.004Z"
     },
     {
-        "id":  "698625c1ed96482fd6f97ccb",
-        "name":  "Fruit Loops",
-        "price":  34,
-        "priceMax":  39,
-        "soldOut":  false,
-        "description":  "Scent notes: lemon, lime, citrus, cereal, milk, vanilla, sandalwood",
-        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/f9393b8e-3577-47b3-8b1e-0b34db0eaf35/TCGSPRINGLAUNCH-66.jpg",
-        "url":  "https://www.thecandlegarden.co/shop/p/fruit-loop-soy-candle-the-candle-garden",
-        "sizes":  [
-                      "10oz",
-                      "18oz"
-                  ],
-        "categories":  [
-                           "spring"
-                       ]
+        "id": "689e562ea40cd758ae24c21f",
+        "name": "Cashmere Plum",
+        "sku": "SQ1574344",
+        "price": 35,
+        "priceMax": 42,
+        "soldOut": false,
+        "description": "Candle Scent Notes: light musk, citrus, plum, sugar, amber, freesia, black cherry",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/265ab645-961b-405e-b8ac-93ad5edb5033/CandleGardenFall2025-90.jpg",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/265ab645-961b-405e-b8ac-93ad5edb5033/CandleGardenFall2025-90.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/c3abfc1d-b90a-4da3-a602-872af27b42eb/CandleGardenFall2025-78.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/ef87ec42-bf3f-41ac-8b7b-02ac53c4a8d4/CandleGardenFall2025-87.jpg"
+        ],
+        "url": "https://www.thecandlegarden.co/shop/p/autumn-evening-candle-soy-fall-jacksonville-ls3le",
+        "urlId": "autumn-evening-candle-soy-fall-jacksonville-ls3le",
+        "sizes": [
+            "10oz",
+            "18oz"
+        ],
+        "categories": [
+            "fall"
+        ],
+        "tags": [],
+        "type": "physical",
+        "isSubscribable": false,
+        "subscription": null,
+        "variants": [
+            {
+                "id": "b91bd396-86cd-4975-afc0-b68d177d5e3f",
+                "sku": "SQ1574344",
+                "size": "10oz",
+                "price": 35,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 2,
+                "width": 4,
+                "height": 5,
+                "length": 5,
+                "attributes": {
+                    "Size": "10oz"
+                },
+                "subscription": null
+            },
+            {
+                "id": "d869de70-b244-408b-8ed0-3955fb0008f8",
+                "sku": "SQ4242655",
+                "size": "18oz",
+                "price": 42,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 3,
+                "width": 6,
+                "height": 6,
+                "length": 6,
+                "attributes": {
+                    "Size": "18oz"
+                },
+                "subscription": null
+            }
+        ],
+        "updatedOn": "2026-08-30T05:05:55.506Z"
     },
     {
-        "id":  "6986648057d9071c7117378e",
-        "name":  "Garden Mint",
-        "price":  34,
-        "priceMax":  39,
-        "soldOut":  false,
-        "description":  "Scent notes: spearmint, eucalyptus, tomato leaf, anise, mint, wood",
-        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/e9af3da4-d4b8-43f9-8062-f18f166aea82/TCGSPRINGLAUNCH-81.jpg",
-        "url":  "https://www.thecandlegarden.co/shop/p/garden-mint-candle-the-candle-garden-soy-jacksonville",
-        "sizes":  [
-                      "10oz",
-                      "18oz"
-                  ],
-        "categories":  [
-                           "spring"
-                       ]
+        "id": "689e02693c93b1074ad4e9ae",
+        "name": "Cashmere Pumpkin",
+        "sku": "SQ7832667",
+        "price": 35,
+        "priceMax": 42,
+        "soldOut": false,
+        "description": "Candle Scent Notes: green leaves, pumpkin vine, clove, cinnamon, embers",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/e33e3349-7124-471e-8b8e-a24e8553821f/CandleGardenFall2025-73.jpg",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/e33e3349-7124-471e-8b8e-a24e8553821f/CandleGardenFall2025-73.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/2ecc037e-6333-4f08-b70c-a83db5ad04c2/CandleGardenFall2025-65.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/fd8bf397-2b4a-4604-a708-e0bb60153359/CandleGardenFall2025-60.jpg"
+        ],
+        "url": "https://www.thecandlegarden.co/shop/p/cashmere-pumpkin-soy-candle-fall-autumn",
+        "urlId": "cashmere-pumpkin-soy-candle-fall-autumn",
+        "sizes": [
+            "10oz",
+            "18oz"
+        ],
+        "categories": [
+            "fall"
+        ],
+        "tags": [],
+        "type": "physical",
+        "isSubscribable": false,
+        "subscription": null,
+        "variants": [
+            {
+                "id": "43bfc875-448d-468c-96c8-e20f64ef9682",
+                "sku": "SQ7832667",
+                "size": "10oz",
+                "price": 35,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 2,
+                "width": 4,
+                "height": 5,
+                "length": 5,
+                "attributes": {
+                    "Size": "10oz"
+                },
+                "subscription": null
+            },
+            {
+                "id": "bfd9e3e0-fb6b-47f4-9d98-828c0c74b315",
+                "sku": "SQ1028711",
+                "size": "18oz",
+                "price": 42,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 3,
+                "width": 6,
+                "height": 6,
+                "length": 6,
+                "attributes": {
+                    "Size": "18oz"
+                },
+                "subscription": null
+            }
+        ],
+        "updatedOn": "2026-08-30T05:02:40.322Z"
     },
     {
-        "id":  "65fd8e7d0f8af918b3add37d",
-        "name":  "Grapefruit Spice",
-        "price":  34,
-        "priceMax":  39,
-        "soldOut":  false,
-        "description":  "Scent notes: Grapefruit, Orange peel, Mangosteen, Nutmeg, Cinnamon.",
-        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1711115923886-WRABU9GGIHRCLHKRDAY1/3-19_TheCandleGardenCo_6517.jpg",
-        "url":  "https://www.thecandlegarden.co/shop/p/grapefruit-spice",
-        "sizes":  [
-                      "10oz",
-                      "18oz"
-                  ],
-        "categories":  [
-                           "classic"
-                       ]
+        "id": "65fd8faf6b87b67fd11cd873",
+        "name": "Conrad New York Downtown Signature Candle",
+        "sku": "SQ8111919",
+        "price": 45,
+        "priceMax": 45,
+        "soldOut": true,
+        "description": "Candle Scent Notes: Bergamot, White tea, Violet florals, Aromatic Thyme and Amber",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1711116240270-WTPE93VM3U2WLS4ZS138/IMG_1591.jpeg",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1711116240270-WTPE93VM3U2WLS4ZS138/IMG_1591.jpeg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1711116428256-XVV7ZF6KV6ZEV8NJMESE/Conrad%2BCandle%2B1.jpeg"
+        ],
+        "url": "https://www.thecandlegarden.co/shop/p/conrad-new-york-downtown-signature-candle",
+        "urlId": "conrad-new-york-downtown-signature-candle",
+        "sizes": [
+            "16oz"
+        ],
+        "categories": [
+            "classic"
+        ],
+        "tags": [],
+        "type": "physical",
+        "isSubscribable": false,
+        "subscription": null,
+        "variants": [
+            {
+                "id": "a1235cd9-5b18-42f0-925f-56294c1cdd98",
+                "sku": "SQ8111919",
+                "size": "16oz",
+                "price": 45,
+                "onSale": false,
+                "soldOut": true,
+                "unlimited": false,
+                "quantity": 0,
+                "weight": 2,
+                "width": 6,
+                "height": 6,
+                "length": 6,
+                "attributes": {
+                    "Size": "16oz"
+                },
+                "subscription": null
+            }
+        ],
+        "updatedOn": "2026-08-28T01:42:47.126Z"
     },
     {
-        "id":  "6985173d4a57a338fec1f5d8",
-        "name":  "High Tea",
-        "price":  34,
-        "priceMax":  39,
-        "soldOut":  false,
-        "description":  "Scent notes: black tea, bergamot, lemon, lavender, amber, musk",
-        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/6c25f3ff-fe94-4574-a8ff-5854a002aeee/TCGSPRINGLAUNCH-20.jpg",
-        "url":  "https://www.thecandlegarden.co/shop/p/high-tea-soy-candle-spring-amber-musk-garden",
-        "sizes":  [
-                      "10oz",
-                      "18oz"
-                  ],
-        "categories":  [
-                           "spring"
-                       ]
+        "id": "698625c1ed96482fd6f97ccb",
+        "name": "Fruit Loops",
+        "sku": "SQ6081050",
+        "price": 35,
+        "priceMax": 42,
+        "soldOut": false,
+        "description": "Candle Scent Notes: lemon, lime, citrus, cereal, milk, vanilla, sandalwood",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/f9393b8e-3577-47b3-8b1e-0b34db0eaf35/TCGSPRINGLAUNCH-66.jpg",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/f9393b8e-3577-47b3-8b1e-0b34db0eaf35/TCGSPRINGLAUNCH-66.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/fd71b2fb-29c2-4479-b8fb-a66e01e5b399/TCGSPRINGLAUNCH-62.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/2f10f99e-6b84-4658-adf0-b5ec09a6f804/TCGSPRINGLAUNCH-59.jpg"
+        ],
+        "url": "https://www.thecandlegarden.co/shop/p/fruit-loop-soy-candle-the-candle-garden",
+        "urlId": "fruit-loop-soy-candle-the-candle-garden",
+        "sizes": [
+            "10oz",
+            "18oz"
+        ],
+        "categories": [
+            "classic"
+        ],
+        "tags": [],
+        "type": "physical",
+        "isSubscribable": false,
+        "subscription": null,
+        "variants": [
+            {
+                "id": "d3089658-d947-4273-b379-a45c0dfcf1c5",
+                "sku": "SQ6081050",
+                "size": "10oz",
+                "price": 35,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 2,
+                "width": 4,
+                "height": 5,
+                "length": 5,
+                "attributes": {
+                    "Size": "10oz"
+                },
+                "subscription": null
+            },
+            {
+                "id": "4153917c-8178-4984-97c0-296cdf6fcae7",
+                "sku": "SQ8064425",
+                "size": "18oz",
+                "price": 42,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 3,
+                "width": 6,
+                "height": 6,
+                "length": 6,
+                "attributes": {
+                    "Size": "18oz"
+                },
+                "subscription": null
+            }
+        ],
+        "updatedOn": "2026-08-31T06:02:45.678Z"
     },
     {
-        "id":  "65fd8c62aa1d0858f5af58fc",
-        "name":  "Jax Beach",
-        "price":  34,
-        "priceMax":  39,
-        "soldOut":  false,
-        "description":  "Scent notes: Bergamot, Tangerine, Coconut, Lemon verbenaÂ",
-        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1712794791402-UU4C7FA4GH04LH5XN84S/TheCandleGardenCo_Spring2024_3661.jpg",
-        "url":  "https://www.thecandlegarden.co/shop/p/jax-beach",
-        "sizes":  [
-                      "10oz",
-                      "18oz"
-                  ],
-        "categories":  [
-                           "classic"
-                       ]
+        "id": "65fd8e7d0f8af918b3add37d",
+        "name": "Grapefruit Spice",
+        "sku": "SQ4521097",
+        "price": 35,
+        "priceMax": 42,
+        "soldOut": false,
+        "description": "Candle Scent Notes : Grapefruit, Orange peel, Mangosteen, Nutmeg, Cinnamon.",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1711115923886-WRABU9GGIHRCLHKRDAY1/3-19_TheCandleGardenCo_6517.jpg",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1711115923886-WRABU9GGIHRCLHKRDAY1/3-19_TheCandleGardenCo_6517.jpg"
+        ],
+        "url": "https://www.thecandlegarden.co/shop/p/grapefruit-spice",
+        "urlId": "grapefruit-spice",
+        "sizes": [
+            "10oz",
+            "18oz"
+        ],
+        "categories": [
+            "classic"
+        ],
+        "tags": [],
+        "type": "physical",
+        "isSubscribable": false,
+        "subscription": null,
+        "variants": [
+            {
+                "id": "2f6c781c-e8f2-4a77-b859-399d3009759e",
+                "sku": "SQ4521097",
+                "size": "10oz",
+                "price": 35,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 2,
+                "width": 4,
+                "height": 5,
+                "length": 5,
+                "attributes": {
+                    "Size": "10oz"
+                },
+                "subscription": null
+            },
+            {
+                "id": "4da1ed8e-8d94-4573-a568-d8d80a65c0c1",
+                "sku": "SQ9420531",
+                "size": "18oz",
+                "price": 42,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 3,
+                "width": 6,
+                "height": 6,
+                "length": 6,
+                "attributes": {
+                    "Size": "18oz"
+                },
+                "subscription": null
+            }
+        ],
+        "updatedOn": "2026-08-28T01:42:46.565Z"
     },
     {
-        "id":  "65faf809b85f1d19a61c835f",
-        "name":  "Neptune Beach",
-        "price":  34,
-        "priceMax":  39,
-        "soldOut":  false,
-        "description":  "Scent notes: Sandalwood, Musk, Amber, Coriander",
-        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1712778258843-Z6A4CH64U9U3BRRIXLD3/TheCandleGardenCo_Spring2024_3655.jpg",
-        "url":  "https://www.thecandlegarden.co/shop/p/neptune-beach-soy-candle",
-        "sizes":  [
-                      "10oz",
-                      "18oz"
-                  ],
-        "categories":  [
-                           "classic"
-                       ]
+        "id": "689e50fea373d378a28013f9",
+        "name": "Honey Butter",
+        "sku": "SQ4070736",
+        "price": 35,
+        "priceMax": 42,
+        "soldOut": false,
+        "description": "Candle Scent Notes: sea salt, honey, caramel, butter, pecan, spice",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/c75b25c1-94b5-4973-bf0d-723dad9ee3a4/CandleGardenFall2025-216.jpg",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/c75b25c1-94b5-4973-bf0d-723dad9ee3a4/CandleGardenFall2025-216.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/c56ca347-3635-4fd8-b2c6-79bfae4f8c5b/CandleGardenFall2025-210.jpg"
+        ],
+        "url": "https://www.thecandlegarden.co/shop/p/honey-butter-candle-soy-fall-jacksonville",
+        "urlId": "honey-butter-candle-soy-fall-jacksonville",
+        "sizes": [
+            "10oz",
+            "18oz"
+        ],
+        "categories": [
+            "fall"
+        ],
+        "tags": [],
+        "type": "physical",
+        "isSubscribable": false,
+        "subscription": null,
+        "variants": [
+            {
+                "id": "ce46e967-5fe8-408e-bf3d-ba67a935459e",
+                "sku": "SQ4070736",
+                "size": "10oz",
+                "price": 35,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 2,
+                "width": 4,
+                "height": 5,
+                "length": 5,
+                "attributes": {
+                    "Size": "10oz"
+                },
+                "subscription": null
+            },
+            {
+                "id": "3c91544a-659e-460b-af61-f17f57580128",
+                "sku": "SQ2028212",
+                "size": "18oz",
+                "price": 42,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 3,
+                "width": 6,
+                "height": 6,
+                "length": 6,
+                "attributes": {
+                    "Size": "18oz"
+                },
+                "subscription": null
+            }
+        ],
+        "updatedOn": "2026-08-30T05:05:46.600Z"
     },
     {
-        "id":  "65fd810c0f8af918b3adcd09",
-        "name":  "Ponte Vedra",
-        "price":  34,
-        "priceMax":  39,
-        "soldOut":  false,
-        "description":  "Scent notes: Cardamom, Orange peel, Sea salt, Palm, Light musk, Ozone",
-        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1712794728487-LAEDKEWIUXZJLT3IA6MP/TheCandleGardenCo_Spring2024_3692.jpg",
-        "url":  "https://www.thecandlegarden.co/shop/p/ponte-vedra",
-        "sizes":  [
-                      "10oz",
-                      "18oz"
-                  ],
-        "categories":  [
-                           "classic"
-                       ]
+        "id": "65fd8c62aa1d0858f5af58fc",
+        "name": "Jax Beach",
+        "sku": "SQ8108355",
+        "price": 35,
+        "priceMax": 42,
+        "soldOut": false,
+        "description": "Candle Scent Notes : Bergamot, Tangerine, Coconut, Lemon verbena",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1712794791402-UU4C7FA4GH04LH5XN84S/TheCandleGardenCo_Spring2024_3661.jpg",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1712794791402-UU4C7FA4GH04LH5XN84S/TheCandleGardenCo_Spring2024_3661.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1712794783479-HQDQIW2QT3XGQ8Q8LIZ4/TheCandleGardenCo_Spring2024_3668.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1712794786888-LZ9CRBQ3AQKPHLQMK33D/TheCandleGardenCo_Spring2024_3673.jpg"
+        ],
+        "url": "https://www.thecandlegarden.co/shop/p/jax-beach",
+        "urlId": "jax-beach",
+        "sizes": [
+            "10oz",
+            "18oz"
+        ],
+        "categories": [
+            "classic"
+        ],
+        "tags": [],
+        "type": "physical",
+        "isSubscribable": false,
+        "subscription": null,
+        "variants": [
+            {
+                "id": "5b805f90-03e4-450e-9d45-c30659fed82b",
+                "sku": "SQ8108355",
+                "size": "10oz",
+                "price": 35,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 2,
+                "width": 4,
+                "height": 5,
+                "length": 5,
+                "attributes": {
+                    "Size": "10oz"
+                },
+                "subscription": null
+            },
+            {
+                "id": "efcd45bd-0c06-460d-b34d-9d7640038636",
+                "sku": "SQ6788843",
+                "size": "18oz",
+                "price": 42,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 2,
+                "width": 6,
+                "height": 6,
+                "length": 6,
+                "attributes": {
+                    "Size": "18oz"
+                },
+                "subscription": null
+            }
+        ],
+        "updatedOn": "2026-08-28T01:42:45.620Z"
     },
     {
-        "id":  "698655601adae41bc202106e",
-        "name":  "Red Currant",
-        "price":  34,
-        "priceMax":  39,
-        "soldOut":  false,
-        "description":  "Scent notes: red currant, green leaves, peppercorn, blackberry, blueberry, moss, cedar",
-        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1a5a56e3-5ade-4d47-af5f-0fdcb09b070e/TCGSPRINGLAUNCH-23.jpg",
-        "url":  "https://www.thecandlegarden.co/shop/p/red-currant-soy-candle-the-candle-garden-l3kyw-n49bb",
-        "sizes":  [
-                      "10oz",
-                      "18oz"
-                  ],
-        "categories":  [
-                           "spring"
-                       ]
+        "id": "6a6125089cde1476698a7cef",
+        "name": "Lemon",
+        "sku": "SQ7041220",
+        "price": 36,
+        "priceMax": 36,
+        "soldOut": false,
+        "description": "Candle Scent Notes: lemon, sugar, lemon peel, lemon verbena, lemongrass, light musk",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/6c118a66-f30e-4994-8c3e-a29eb461d5c4/IMG_1033.jpeg",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/6c118a66-f30e-4994-8c3e-a29eb461d5c4/IMG_1033.jpeg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/97d35d31-b3fb-4bac-a43e-2a4d7fad3018/IMG_1053.jpeg"
+        ],
+        "url": "https://www.thecandlegarden.co/shop/p/seabreeze-summer-soy-candle-the-candle-garden-candle-classes-jacksonville-7nhey-fhnd8-2cwh9",
+        "urlId": "seabreeze-summer-soy-candle-the-candle-garden-candle-classes-jacksonville-7nhey-fhnd8-2cwh9",
+        "sizes": [
+            "18oz"
+        ],
+        "categories": [
+            "summer"
+        ],
+        "tags": [],
+        "type": "physical",
+        "isSubscribable": false,
+        "subscription": null,
+        "variants": [
+            {
+                "id": "bd4698fe-93c1-449c-9a5f-cffec875a54d",
+                "sku": "SQ7041220",
+                "size": "18oz",
+                "price": 36,
+                "onSale": true,
+                "soldOut": false,
+                "unlimited": false,
+                "quantity": 10,
+                "weight": 3,
+                "width": 6,
+                "height": 6,
+                "length": 6,
+                "attributes": {
+                    "Size": "18oz"
+                },
+                "subscription": null
+            }
+        ],
+        "updatedOn": "2026-09-01T07:33:02.061Z"
     },
     {
-        "id":  "679afc5295c73d498dbd92b8",
-        "name":  "Six Month Candle Subscription",
-        "price":  29,
-        "priceMax":  29,
-        "soldOut":  false,
-        "description":  "Get your 10oz candle worry-free and delivered right to your door, every 30 days. You will receive a different scent every month. Your scent will be seasonally-appropriate, meaning, we won't send you Pumpkin Chai in March! Great to gift yourself, or a loved one. Enter the recipient's address upon checkout. Billed monthly for six months.",
-        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/707e93c2-2087-460b-8325-d15785434ed0/3-19_TheCandleGardenCo_7592.jpg",
-        "url":  "https://www.thecandlegarden.co/shop/p/candlesubscription-box",
-        "sizes":  [
-
-                  ],
-        "categories":  [
-                           "subscription"
-                       ]
+        "id": "6a61213ef5a64b32716cab42",
+        "name": "Mango Coconut Milk",
+        "sku": "SQ6201833",
+        "price": 36,
+        "priceMax": 36,
+        "soldOut": false,
+        "description": "Candle Scent Notes: pineapple, orange, mango, peach, coconut milk, sugar",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/3ad40564-10c1-4269-90e5-e466fac1797b/IMG_0588-1.jpeg",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/3ad40564-10c1-4269-90e5-e466fac1797b/IMG_0588-1.jpeg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/0b14ee23-ab70-4bdb-bf79-d62230d6e9bc/IMG_0726.jpeg"
+        ],
+        "url": "https://www.thecandlegarden.co/shop/p/mango-coconut-soy-candle-the-candle-garden-candle-classes-jacksonville-7nhey",
+        "urlId": "mango-coconut-soy-candle-the-candle-garden-candle-classes-jacksonville-7nhey",
+        "sizes": [
+            "18oz"
+        ],
+        "categories": [
+            "summer"
+        ],
+        "tags": [],
+        "type": "physical",
+        "isSubscribable": false,
+        "subscription": null,
+        "variants": [
+            {
+                "id": "2841a2bf-6ef9-4169-8e79-57d51b651486",
+                "sku": "SQ6201833",
+                "size": "18oz",
+                "price": 36,
+                "onSale": true,
+                "soldOut": false,
+                "unlimited": false,
+                "quantity": 10,
+                "weight": 3,
+                "width": 6,
+                "height": 6,
+                "length": 6,
+                "attributes": {
+                    "Size": "18oz"
+                },
+                "subscription": null
+            }
+        ],
+        "updatedOn": "2026-09-01T07:32:52.164Z"
     },
     {
-        "id":  "679aef77dd4a13259b697e22",
-        "name":  "Three Month Candle Subscription",
-        "price":  30,
-        "priceMax":  30,
-        "soldOut":  false,
-        "description":  "Get your 10oz candle worry-free and delivered right to your door, every 30 days. You will receive a different scent every month. Your scent will be seasonally-appropriate, meaning, we won't send you Pumpkin Chai in March! Great to gift yourself, or a loved one. Enter the recipient's address upon checkout. Billed monthly for three months.",
-        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/027d296d-949d-4c01-bda9-4038c3e84e72/3-19_TheCandleGardenCo_6563.jpg",
-        "url":  "https://www.thecandlegarden.co/shop/p/three-month-candle-subscription",
-        "sizes":  [
-
-                  ],
-        "categories":  [
-                           "subscription"
-                       ]
+        "id": "6a6126b33b72f6309a9e15e0",
+        "name": "Mango Gardenia",
+        "sku": "SQ6804435",
+        "price": 36,
+        "priceMax": 36,
+        "soldOut": false,
+        "description": "Candle Scent Notes: coconut, peach, gardenia, mango, light musk, tonka bean",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/b59a5f84-c92c-44f0-a7b5-482bdbbcc869/IMG_0562-1.jpeg",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/b59a5f84-c92c-44f0-a7b5-482bdbbcc869/IMG_0562-1.jpeg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/8a49ec84-a029-40ed-ba81-c26925923e60/IMG_0564-1.jpeg"
+        ],
+        "url": "https://www.thecandlegarden.co/shop/p/seabreeze-summer-soy-candle-the-candle-garden-candle-classes-jacksonville-7nhey-fhnd8-2cwh9-k2glg",
+        "urlId": "seabreeze-summer-soy-candle-the-candle-garden-candle-classes-jacksonville-7nhey-fhnd8-2cwh9-k2glg",
+        "sizes": [
+            "18oz"
+        ],
+        "categories": [
+            "summer"
+        ],
+        "tags": [],
+        "type": "physical",
+        "isSubscribable": false,
+        "subscription": null,
+        "variants": [
+            {
+                "id": "eba42812-cf7b-40b2-a7ef-3a62baa008fd",
+                "sku": "SQ6804435",
+                "size": "18oz",
+                "price": 36,
+                "onSale": true,
+                "soldOut": false,
+                "unlimited": false,
+                "quantity": 10,
+                "weight": 3,
+                "width": 6,
+                "height": 6,
+                "length": 6,
+                "attributes": {
+                    "Size": "18oz"
+                },
+                "subscription": null
+            }
+        ],
+        "updatedOn": "2026-09-01T07:33:05.495Z"
     },
     {
-        "id":  "67e2ee805aa0cc72ac4264f7",
-        "name":  "Tomato Vine",
-        "price":  34,
-        "priceMax":  39,
-        "soldOut":  false,
-        "description":  "Scent notes: Tomato Leaf, Lemon, Lemongrass, Thyme, Basil",
-        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/d5ed7f37-440d-4b3e-9437-28833e2acf43/tomato2.jpeg",
-        "url":  "https://www.thecandlegarden.co/shop/p/tomato-vine-garden-soy-candle-the-candle-garden",
-        "sizes":  [
-                      "10oz",
-                      "18oz"
-                  ],
-        "categories":  [
-                           "classic"
-                       ]
+        "id": "65faf809b85f1d19a61c835f",
+        "name": "Neptune Beach",
+        "sku": "SQ2855813",
+        "price": 35,
+        "priceMax": 42,
+        "soldOut": false,
+        "description": "Candle Scent Notes : Sandalwood, Musk, Amber, Coriander",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1712778258843-Z6A4CH64U9U3BRRIXLD3/TheCandleGardenCo_Spring2024_3655.jpg",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1712778258843-Z6A4CH64U9U3BRRIXLD3/TheCandleGardenCo_Spring2024_3655.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1710949338727-FBVGVRVY4MZA8VP3A00E/3-19_TheCandleGardenCo_6426.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1712778264344-ECBFYGE3KYJ05H6XNP5C/TheCandleGardenCo_Spring2024_3656.jpg"
+        ],
+        "url": "https://www.thecandlegarden.co/shop/p/neptune-beach-soy-candle",
+        "urlId": "neptune-beach-soy-candle",
+        "sizes": [
+            "10oz",
+            "18oz"
+        ],
+        "categories": [
+            "classic"
+        ],
+        "tags": [],
+        "type": "physical",
+        "isSubscribable": false,
+        "subscription": null,
+        "variants": [
+            {
+                "id": "37a0126d-fe8b-49ee-b95d-f50823351818",
+                "sku": "SQ2855813",
+                "size": "10oz",
+                "price": 35,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 2,
+                "width": 4,
+                "height": 5,
+                "length": 5,
+                "attributes": {
+                    "Size": "10oz"
+                },
+                "subscription": null
+            },
+            {
+                "id": "ff1400e9-e336-4f4e-b312-6e40c1f5bc09",
+                "sku": "SQ4588060",
+                "size": "18oz",
+                "price": 42,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 2,
+                "width": 5,
+                "height": 6,
+                "length": 5,
+                "attributes": {
+                    "Size": "18oz"
+                },
+                "subscription": null
+            }
+        ],
+        "updatedOn": "2026-08-28T01:37:35.010Z"
     },
     {
-        "id":  "69851563cd26bc38d7731832",
-        "name":  "White Tea \u0026 Blood Orange",
-        "price":  34,
-        "priceMax":  39,
-        "soldOut":  false,
-        "description":  "Scent notes: mandarin, lemon, bergamot, ginger, blood orange, jasmine, white tea",
-        "image":  "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/eea450a8-2af8-43c2-8fce-45853f8dde80/TCGSPRINGLAUNCH-24.jpg",
-        "url":  "https://www.thecandlegarden.co/shop/p/white-tea-soy-candle-spring-blood-orange-coffee-s2k8k-zde4x-fk3kr",
-        "sizes":  [
-                      "10oz",
-                      "18oz"
-                  ],
-        "categories":  [
-                           "spring"
-                       ]
+        "id": "6a61285bd70b8331af26a035",
+        "name": "Pineapple",
+        "sku": "SQ2566137",
+        "price": 36,
+        "priceMax": 36,
+        "soldOut": false,
+        "description": "Candle Scent Notes: peach, grapefruit, pineapple, passionfruit, mango, coconut, lemongrass, musk",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/2027b93d-1073-41f8-9f89-f6a4c494e2bc/IMG_0582.jpeg",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/2027b93d-1073-41f8-9f89-f6a4c494e2bc/IMG_0582.jpeg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/fb645983-e559-4e3a-ab09-24a749f2cdba/IMG_1033.jpeg"
+        ],
+        "url": "https://www.thecandlegarden.co/shop/p/seabreeze-summer-soy-candle-the-candle-garden-candle-classes-jacksonville-7nhey-fhnd8-2cwh9-k2glg-7j6jp",
+        "urlId": "seabreeze-summer-soy-candle-the-candle-garden-candle-classes-jacksonville-7nhey-fhnd8-2cwh9-k2glg-7j6jp",
+        "sizes": [
+            "18oz"
+        ],
+        "categories": [
+            "summer"
+        ],
+        "tags": [],
+        "type": "physical",
+        "isSubscribable": false,
+        "subscription": null,
+        "variants": [
+            {
+                "id": "65b0a4a1-b47d-459c-b5a0-f1cfdb4f4b01",
+                "sku": "SQ2566137",
+                "size": "18oz",
+                "price": 36,
+                "onSale": true,
+                "soldOut": false,
+                "unlimited": false,
+                "quantity": 8,
+                "weight": 3,
+                "width": 6,
+                "height": 6,
+                "length": 6,
+                "attributes": {
+                    "Size": "18oz"
+                },
+                "subscription": null
+            }
+        ],
+        "updatedOn": "2026-09-01T07:33:08.621Z"
+    },
+    {
+        "id": "65fd810c0f8af918b3adcd09",
+        "name": "Ponte Vedra",
+        "sku": "SQ2908128",
+        "price": 35,
+        "priceMax": 42,
+        "soldOut": false,
+        "description": "Candle Scent Notes: Cardamom, Orange peel, Sea salt, Palm, Light musk, Ozone",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1712794728487-LAEDKEWIUXZJLT3IA6MP/TheCandleGardenCo_Spring2024_3692.jpg",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1712794728487-LAEDKEWIUXZJLT3IA6MP/TheCandleGardenCo_Spring2024_3692.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1712794719935-HJ3IPFMC5B272OKXM4G7/TheCandleGardenCo_Spring2024_3679.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1712794740584-XBULRKHUGW2N033K79GC/TheCandleGardenCo_Spring2024_3690.jpg"
+        ],
+        "url": "https://www.thecandlegarden.co/shop/p/ponte-vedra",
+        "urlId": "ponte-vedra",
+        "sizes": [
+            "10oz",
+            "18oz"
+        ],
+        "categories": [
+            "classic"
+        ],
+        "tags": [],
+        "type": "physical",
+        "isSubscribable": false,
+        "subscription": null,
+        "variants": [
+            {
+                "id": "77ca5710-1a45-4f02-bc58-0daf9742e3c0",
+                "sku": "SQ2908128",
+                "size": "10oz",
+                "price": 35,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 2,
+                "width": 4,
+                "height": 5,
+                "length": 5,
+                "attributes": {
+                    "Size": "10oz"
+                },
+                "subscription": null
+            },
+            {
+                "id": "a3c3fb1c-ca75-4be0-ab65-e9b8f9e3afef",
+                "sku": "SQ3648730",
+                "size": "18oz",
+                "price": 42,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 2,
+                "width": 6,
+                "height": 6,
+                "length": 6,
+                "attributes": {
+                    "Size": "18oz"
+                },
+                "subscription": null
+            }
+        ],
+        "updatedOn": "2026-08-28T01:42:41.423Z"
+    },
+    {
+        "id": "66da65cb4ece901587b2266b",
+        "name": "Pumpkin Chai",
+        "sku": "SQ2801011",
+        "price": 35,
+        "priceMax": 42,
+        "soldOut": false,
+        "description": "Candle Scent Notes: cardamom, apple, pumpkin (mmhmm), brown sugar, black pepper, vanilla, clove, cinnamon & praline",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/c8690edf-5dbe-4b4a-8d31-3ca08eb447bf/CandleGardenFall2025-31.jpg",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/c8690edf-5dbe-4b4a-8d31-3ca08eb447bf/CandleGardenFall2025-31.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/283b84f7-c464-4980-9254-57fae0ac4aa2/CandleGardenFall2025-21.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/522b3954-01e0-456b-8e4c-219b8e6d60ed/CandleGardenFall2025-25.jpg"
+        ],
+        "url": "https://www.thecandlegarden.co/shop/p/mediterranean-fig-soy-candle-cg68j",
+        "urlId": "mediterranean-fig-soy-candle-cg68j",
+        "sizes": [
+            "10oz",
+            "18oz"
+        ],
+        "categories": [
+            "fall"
+        ],
+        "tags": [],
+        "type": "physical",
+        "isSubscribable": false,
+        "subscription": null,
+        "variants": [
+            {
+                "id": "c26877d6-3136-4cfa-9a9e-8e15b6e491ba",
+                "sku": "SQ2801011",
+                "size": "10oz",
+                "price": 35,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 2,
+                "width": 4,
+                "height": 5,
+                "length": 5,
+                "attributes": {
+                    "Size": "10oz"
+                },
+                "subscription": null
+            },
+            {
+                "id": "e9ad14a4-f91d-412d-bec7-bf16374b3b88",
+                "sku": "SQ5073425",
+                "size": "18oz",
+                "price": 42,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 3,
+                "width": 6,
+                "height": 6,
+                "length": 6,
+                "attributes": {
+                    "Size": "18oz"
+                },
+                "subscription": null
+            }
+        ],
+        "updatedOn": "2026-08-28T10:05:44.212Z"
+    },
+    {
+        "id": "6a61243444fa9c2a266034f0",
+        "name": "Seabreeze",
+        "sku": "SQ1383184",
+        "price": 36,
+        "priceMax": 36,
+        "soldOut": false,
+        "description": "Candle Scent Notes: lemon, lime, sea salt, ozone, marine, green floral, cotton blossom, musk, violet wood",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/8ad72d09-383b-4b06-9b67-58abbe00ecef/IMG_0650.jpeg",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/8ad72d09-383b-4b06-9b67-58abbe00ecef/IMG_0650.jpeg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/c370a430-93d6-4421-a3d9-f2c5826d9d62/IMG_0568.jpeg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/4f049ff4-50a3-4172-8434-e33200a1c475/IMG_0715-1.jpeg"
+        ],
+        "url": "https://www.thecandlegarden.co/shop/p/seabreeze-summer-soy-candle-the-candle-garden-candle-classes-jacksonville-7nhey-fhnd8",
+        "urlId": "seabreeze-summer-soy-candle-the-candle-garden-candle-classes-jacksonville-7nhey-fhnd8",
+        "sizes": [
+            "18oz"
+        ],
+        "categories": [
+            "summer"
+        ],
+        "tags": [],
+        "type": "physical",
+        "isSubscribable": false,
+        "subscription": null,
+        "variants": [
+            {
+                "id": "cca1ee38-87d4-4714-a463-1d213ae1e763",
+                "sku": "SQ1383184",
+                "size": "18oz",
+                "price": 36,
+                "onSale": true,
+                "soldOut": false,
+                "unlimited": false,
+                "quantity": 10,
+                "weight": 3,
+                "width": 6,
+                "height": 6,
+                "length": 6,
+                "attributes": {
+                    "Size": "18oz"
+                },
+                "subscription": null
+            }
+        ],
+        "updatedOn": "2026-09-01T07:33:00.574Z"
+    },
+    {
+        "id": "679afc5295c73d498dbd92b8",
+        "name": "Six Month Candle Subscription",
+        "sku": "SQ5226321",
+        "price": 29,
+        "priceMax": 29,
+        "soldOut": false,
+        "description": "Get your 10oz candle worry-free and delivered right to your door, every 30 days. You will receive a different scent every month. Your scent will be seasonally-appropriate, meaning, we won’t send you Pumpkin Chai in March! Great to gift yourself, or a loved one. Enter the recipient’s address upon checkout. Billed monthly for six months.",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/707e93c2-2087-460b-8325-d15785434ed0/3-19_TheCandleGardenCo_7592.jpg",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/707e93c2-2087-460b-8325-d15785434ed0/3-19_TheCandleGardenCo_7592.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/027d296d-949d-4c01-bda9-4038c3e84e72/3-19_TheCandleGardenCo_6563.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/84804ef9-cbc3-40e6-afd3-5bce99ba131c/TheCandleGardenCo_Summer24_9115.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/974e7835-5c8f-4efe-85d9-57489c96d399/TheCandleGardenCo_Summer24_9146.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/4ce44001-dafa-4880-9a32-473b2dee6a74/3-19_TheCandleGardenCo_6552.jpg"
+        ],
+        "url": "https://www.thecandlegarden.co/shop/p/candlesubscription-box",
+        "urlId": "candlesubscription-box",
+        "sizes": [],
+        "categories": [
+            "subscription"
+        ],
+        "tags": [],
+        "type": "subscription",
+        "isSubscribable": true,
+        "subscription": {
+            "subscribable": true,
+            "optionId": "cb865bf8-734d-4d23-935f-9e27ab8c3de1",
+            "planVersionId": "d6486832-7ea5-4e7c-92be-bbb4f0a8d715",
+            "intervalValue": 1,
+            "intervalUnit": "month",
+            "billingCycles": 6
+        },
+        "variants": [
+            {
+                "id": "2d5d54f8-17b4-4123-b9ff-7f891f3fb92a",
+                "sku": "SQ5226321",
+                "size": null,
+                "price": 29,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 1,
+                "width": 4,
+                "height": 5,
+                "length": 4,
+                "attributes": {},
+                "subscription": {
+                    "subscribable": true,
+                    "optionId": "cb865bf8-734d-4d23-935f-9e27ab8c3de1",
+                    "planVersionId": "d6486832-7ea5-4e7c-92be-bbb4f0a8d715",
+                    "intervalValue": 1,
+                    "intervalUnit": "month",
+                    "billingCycles": 6
+                }
+            }
+        ],
+        "updatedOn": "2026-08-28T20:07:59.147Z"
+    },
+    {
+        "id": "679aef77dd4a13259b697e22",
+        "name": "Three Month Candle Subscription",
+        "sku": "SQ7451090",
+        "price": 30,
+        "priceMax": 30,
+        "soldOut": false,
+        "description": "Get your 10oz candle worry-free and delivered right to your door, every 30 days. You will receive a different scent every month. Your scent will be seasonally-appropriate, meaning, we won’t send you Pumpkin Chai in March! Great to gift yourself, or a loved one. Enter the recipient’s address upon checkout. Billed monthly for three months.",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/027d296d-949d-4c01-bda9-4038c3e84e72/3-19_TheCandleGardenCo_6563.jpg",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/027d296d-949d-4c01-bda9-4038c3e84e72/3-19_TheCandleGardenCo_6563.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/1711115923886-WRABU9GGIHRCLHKRDAY1/3-19_TheCandleGardenCo_6517.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/974e7835-5c8f-4efe-85d9-57489c96d399/TheCandleGardenCo_Summer24_9146.jpg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/84804ef9-cbc3-40e6-afd3-5bce99ba131c/TheCandleGardenCo_Summer24_9115.jpg"
+        ],
+        "url": "https://www.thecandlegarden.co/shop/p/three-month-candle-subscription",
+        "urlId": "three-month-candle-subscription",
+        "sizes": [],
+        "categories": [
+            "subscription"
+        ],
+        "tags": [],
+        "type": "subscription",
+        "isSubscribable": true,
+        "subscription": {
+            "subscribable": true,
+            "optionId": "7db78125-e41e-47de-861e-9fe2e8b44182",
+            "planVersionId": "f90dcd3f-14fa-47d8-8020-aa168904ef64",
+            "intervalValue": 1,
+            "intervalUnit": "month",
+            "billingCycles": 3
+        },
+        "variants": [
+            {
+                "id": "5a4eb0f2-596d-4298-b4f2-604e86a4cb0c",
+                "sku": "SQ7451090",
+                "size": null,
+                "price": 30,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 1,
+                "width": 4,
+                "height": 5,
+                "length": 4,
+                "attributes": {},
+                "subscription": {
+                    "subscribable": true,
+                    "optionId": "7db78125-e41e-47de-861e-9fe2e8b44182",
+                    "planVersionId": "f90dcd3f-14fa-47d8-8020-aa168904ef64",
+                    "intervalValue": 1,
+                    "intervalUnit": "month",
+                    "billingCycles": 3
+                }
+            }
+        ],
+        "updatedOn": "2026-08-28T20:07:50.235Z"
+    },
+    {
+        "id": "67e2ee805aa0cc72ac4264f7",
+        "name": "Tomato Vine",
+        "sku": "SQ3401054",
+        "price": 34,
+        "priceMax": 39,
+        "soldOut": false,
+        "description": "Candle Scent Notes : Tomato Leaf, Lemon, Lemongrass, Thyme, Basil",
+        "image": "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/d5ed7f37-440d-4b3e-9437-28833e2acf43/tomato2.jpeg",
+        "images": [
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/d5ed7f37-440d-4b3e-9437-28833e2acf43/tomato2.jpeg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/25c61fed-524b-4a17-aa04-64b8420a24d4/tomato3.jpeg",
+            "https://images.squarespace-cdn.com/content/v1/65fae805de7d9316f58ac65f/d06b596e-5560-43be-a38e-98dc1ddf48b2/tomato1.jpg"
+        ],
+        "url": "https://www.thecandlegarden.co/shop/p/tomato-vine-garden-soy-candle-the-candle-garden",
+        "urlId": "tomato-vine-garden-soy-candle-the-candle-garden",
+        "sizes": [
+            "10oz",
+            "18oz"
+        ],
+        "categories": [
+            "classic"
+        ],
+        "tags": [],
+        "type": "physical",
+        "isSubscribable": false,
+        "subscription": null,
+        "variants": [
+            {
+                "id": "d469cb27-4252-4a6b-9a54-dbf23d34aca9",
+                "sku": "SQ3401054",
+                "size": "10oz",
+                "price": 34,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 2,
+                "width": 4,
+                "height": 5,
+                "length": 5,
+                "attributes": {
+                    "Size": "10oz"
+                },
+                "subscription": null
+            },
+            {
+                "id": "2e24e141-1214-4715-9323-646183c5224f",
+                "sku": "SQ7812411",
+                "size": "18oz",
+                "price": 39,
+                "onSale": false,
+                "soldOut": false,
+                "unlimited": true,
+                "quantity": null,
+                "weight": 2,
+                "width": 5,
+                "height": 6,
+                "length": 5,
+                "attributes": {
+                    "Size": "18oz"
+                },
+                "subscription": null
+            }
+        ],
+        "updatedOn": "2026-08-29T01:11:28.915Z"
     }
 ]

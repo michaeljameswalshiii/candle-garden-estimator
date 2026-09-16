@@ -7,7 +7,9 @@
     "prebuild": "node scripts/validate-deployment-env.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "export:catalog": "node scripts/export-squarespace-catalog.mjs",
+    "test:webhooks": "node scripts/test-squarespace-webhook.mjs"
   },
   "dependencies": {
     "@aws-crypto/sha256-js": "^5.2.0",

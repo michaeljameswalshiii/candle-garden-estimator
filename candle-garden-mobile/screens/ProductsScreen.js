@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -10,6 +10,7 @@ import {
   ScrollView,
   Dimensions,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 import { lifestyle } from '../lib/images';
@@ -18,6 +19,9 @@ import {
   SHOP_BASE,
   filterProducts,
   formatPrice,
+  fetchLatestProducts,
+  variantForSize,
+  products as bundledProducts,
 } from '../lib/shopCatalog';
 import { useCart } from '../lib/cart';
 
@@ -28,9 +32,27 @@ const CARD_W = (SCREEN_W - H_PAD * 2 - CARD_GAP) / 2;
 
 export default function ProductsScreen() {
   const [category, setCategory] = useState('all');
+  const [catalogProducts, setCatalogProducts] = useState(bundledProducts);
+  const [refreshing, setRefreshing] = useState(false);
+  const [catalogStatus, setCatalogStatus] = useState('Built-in catalog');
   const { addItem, itemCount } = useCart();
 
-  const items = useMemo(() => filterProducts(category), [category]);
+  const refreshCatalog = useCallback(async (showSpinner = true) => {
+    if (showSpinner) setRefreshing(true);
+    try {
+      const latest = await fetchLatestProducts();
+      setCatalogProducts(latest.products);
+      setCatalogStatus('Live catalog');
+    } catch {
+      setCatalogStatus('Offline catalog');
+    } finally {
+      if (showSpinner) setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { void refreshCatalog(false); }, [refreshCatalog]);
+
+  const items = useMemo(() => filterProducts(category, catalogProducts), [category, catalogProducts]);
   const activeMeta = SHOP_CATEGORIES.find((c) => c.id === category) || SHOP_CATEGORIES[0];
 
   const openProduct = (product) => {
@@ -51,7 +73,14 @@ export default function ProductsScreen() {
     const sizes = Array.isArray(product.sizes) ? product.sizes.filter(Boolean) : [];
 
     const doAdd = (size) => {
-      addItem(product, { size, quantity: 1 });
+      const variant = variantForSize(product, size);
+      addItem(product, {
+        size,
+        quantity: 1,
+        variantId: variant?.id,
+        sku: variant?.sku || product.sku,
+        unitPrice: variant?.price != null ? variant.price : product.price,
+      });
       const sizeNote = size ? ` (${size})` : '';
       Alert.alert(
         'Added to cart',
@@ -140,6 +169,7 @@ export default function ProductsScreen() {
         columnWrapperStyle={styles.row}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refreshCatalog()} tintColor={colors.primary} />}
         ListHeaderComponent={
           <View>
             <View style={styles.header}>
@@ -191,6 +221,7 @@ export default function ProductsScreen() {
                 {items.length} product{items.length === 1 ? '' : 's'}
                 {category !== 'all' ? ` · ${activeMeta.label}` : ''}
               </Text>
+              <Text style={styles.syncText}>{catalogStatus}</Text>
               <TouchableOpacity onPress={openCollection}>
                 <Text style={styles.browseSite}>Open on website</Text>
               </TouchableOpacity>
@@ -316,6 +347,13 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 13,
     color: colors.textMuted,
+  },
+  syncText: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: colors.textMuted,
+    marginLeft: 6,
+    flex: 1,
   },
   browseSite: {
     fontFamily: fonts.body,
