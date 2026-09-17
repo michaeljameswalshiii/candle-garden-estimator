@@ -83,11 +83,6 @@ function OrdersScreenBody({ stripe }) {
   const needsShipping = lines.some((line) => line.type !== 'class');
 
   const loadHistory = useCallback(async () => {
-    if (!isAuthenticated) {
-      setHistory([]);
-      setHistoryError(null);
-      return;
-    }
     setHistoryLoading(true);
     setHistoryError(null);
     try {
@@ -99,7 +94,7 @@ function OrdersScreenBody({ stripe }) {
     } finally {
       setHistoryLoading(false);
     }
-  }, [isAuthenticated]);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -236,10 +231,7 @@ function OrdersScreenBody({ stripe }) {
       if (refillLines.length) {
         labelNote = ' Shipping labels are queued for Candle Garden owner review.';
       }
-      const shouldSaveOrder = saveOrder ?? isAuthenticated;
-      if (shouldSaveOrder) {
-        await loadHistory();
-      }
+      await loadHistory();
       const completedOrder = {
         paymentIntentId: sheet.paymentIntentId,
         total: paidTotal || subtotal,
@@ -566,11 +558,8 @@ function OrdersScreenBody({ stripe }) {
 
             <View style={styles.historySection}>
               <Text style={styles.historyTitle}>Order history</Text>
-              {!isAuthenticated ? (
-                <Text style={styles.historyHint}>
-                  Sign in on Profile to see orders placed from this app.
-                </Text>
-              ) : historyLoading && !history.length ? (
+              {!isAuthenticated ? <Text style={styles.historyHint}>Guest orders placed on this device appear here. Sign in before checkout to keep order history across devices.</Text> : null}
+              {historyLoading && !history.length ? (
                 <ActivityIndicator color={colors.primary} style={{ marginTop: 12 }} />
               ) : historyError ? (
                 <Text style={styles.historyError}>{historyError}</Text>

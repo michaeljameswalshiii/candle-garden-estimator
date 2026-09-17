@@ -113,7 +113,9 @@ export async function postDetect(payload) {
 }
 
 export async function listOrders() {
-  return apiFetch('/orders', { method: 'GET', requireAuth: true });
+  // Signed-in orders use the Cognito subject; guest orders use the stable,
+  // private device ID already attached by authHeaders.
+  return apiFetch('/orders', { method: 'GET', requireAuth: false });
 }
 
 export async function createOrder(orderBody) {

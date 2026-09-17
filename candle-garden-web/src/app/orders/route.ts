@@ -7,8 +7,10 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   const identity = await mobileIdentity(request);
-  if (!identity) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  return NextResponse.json(await listCustomerOrders(identity.sub));
+  if (identity) return NextResponse.json(await listCustomerOrders(identity.sub));
+  const deviceId = request.headers.get("x-device-id") || "";
+  if (!/^(dev|tmp)_[a-z0-9_]{10,80}$/i.test(deviceId)) return NextResponse.json({ error: "A valid device ID is required" }, { status: 401 });
+  return NextResponse.json(await listCustomerOrders(`guest:${deviceId}`));
 }
 
 export async function POST(request: NextRequest) {
