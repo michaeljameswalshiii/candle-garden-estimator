@@ -22,7 +22,7 @@ export async function GET() {
       {
         id: "class-refresh",
         name: "Refresh mobile classes",
-        schedule: "Every 15 minutes (staggered)",
+        schedule: "Hourly (at :15), plus manual runs",
         source: "https://www.thecandlegarden.co/candle-garden-events",
         agent: "Class schedule agent",
         description: "Publishes public class dates, prices, availability, and direct Squarespace booking links to the mobile app.",

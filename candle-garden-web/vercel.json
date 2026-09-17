@@ -5,11 +5,11 @@
   "crons": [
     {
       "path": "/api/cron/product-refresh",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 * * * *"
     },
     {
       "path": "/api/cron/class-refresh",
-      "schedule": "7,22,37,52 * * * *"
+      "schedule": "15 * * * *"
     }
   ]
 }
