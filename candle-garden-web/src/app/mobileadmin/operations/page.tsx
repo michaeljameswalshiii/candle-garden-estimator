@@ -18,6 +18,21 @@ export default function MobileOperationsPage() {
       <IntegrationsCenter />
       <div className="mobileadmin-callout" style={{ margin: "28px 0 18px" }}>
         <div>
+          <p>Store submission</p>
+          <h2>App Store / Play readiness</h2>
+          <span>
+            Runtime 1.1.0 is on the production OTA channel. Before the next store binary: set
+            APPLE_TEAM_ID and ANDROID_SHA256_CERT_FINGERPRINTS on Vercel so Universal Links /
+            App Links files are not empty, then verify /.well-known responses and a TestFlight
+            checkout return.
+          </span>
+        </div>
+        <a href="/.well-known/apple-app-site-association" target="_blank" rel="noreferrer">
+          Check iOS AASA
+        </a>
+      </div>
+      <div className="mobileadmin-callout" style={{ margin: "28px 0 18px" }}>
+        <div>
           <p>Team access</p>
           <h2>Add or remove administrators</h2>
           <span>

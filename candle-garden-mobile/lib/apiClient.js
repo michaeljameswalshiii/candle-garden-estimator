@@ -134,12 +134,33 @@ export async function createStripePaymentSheet(items, contact = {}) {
   });
 }
 
+const WEB_ORIGIN = 'https://candle-garden-web.vercel.app';
+
 export async function postShippingQuote(payload) {
-  return apiFetch('/payments/shipping-quote', {
-    method: 'POST',
-    body: payload,
-    requireAuth: false,
-  });
+  // Prefer the Vercel quote route: it resolves ZIP → city/state for live UPS rates.
+  try {
+    const response = await fetch(`${WEB_ORIGIN}/payments/shipping-quote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (response.ok) return data;
+    const err = new Error(data.error || `Shipping quote failed (${response.status})`);
+    err.status = response.status;
+    err.data = data;
+    throw err;
+  } catch (webError) {
+    try {
+      return await apiFetch('/payments/shipping-quote', {
+        method: 'POST',
+        body: payload,
+        requireAuth: false,
+      });
+    } catch {
+      throw webError;
+    }
+  }
 }
 
 export async function createRefillLabels(payload) {

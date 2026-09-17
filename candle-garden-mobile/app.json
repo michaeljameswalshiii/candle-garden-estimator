@@ -33,7 +33,7 @@
         "NSPhotoLibraryUsageDescription": "Choose photos of candle vessels to estimate refill volume.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "buildNumber": "10"
+      "buildNumber": "11"
     },
     "android": {
       "package": "com.michaeljameswalshiii.candlegarden",

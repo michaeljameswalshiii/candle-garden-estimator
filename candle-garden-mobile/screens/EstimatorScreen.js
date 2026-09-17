@@ -17,6 +17,8 @@ import { colors, fonts, radii, spacing } from '../lib/theme';
 import { postDetect, postShippingQuote } from '../lib/apiClient';
 import { useAuth } from '../lib/AuthContext';
 import { useCart } from '../lib/cart';
+import { track } from '../lib/analytics';
+import Constants from 'expo-constants';
 
 // Custom Button component to avoid Fabric boolean prop issues
 function CustomButton({ title, onPress, disabled, color }) {
@@ -57,6 +59,7 @@ export default function EstimatorScreen() {
   const [liveQuotes, setLiveQuotes] = useState([]);
   const manipulatorOk = isImageManipulatorAvailable();
   const expectedCount = vesselChoice === '3+' ? 3 : Number(vesselChoice);
+  const isExpoGo = Constants.appOwnership === 'expo';
 
   const vesselCount = Array.isArray(result?.vessels) && result.vessels.length
     ? result.vessels.length
@@ -147,6 +150,11 @@ export default function EstimatorScreen() {
         returnShippingUnitPrice: cost.shipping_cost_num,
       }
     );
+    track('estimate_add_to_cart', {
+      ounces: result.estimated_ounces,
+      shippingMethod,
+      total: Number(cost.total_cost),
+    });
     Alert.alert(
       'Added to cart',
       'Your refill is in the cart. Add shop items or a class if you want, then check out. We’ll confirm your address at the end.',
@@ -201,12 +209,13 @@ export default function EstimatorScreen() {
       ? tips.map((t) => `• ${t}`).join('\n')
       : '• Make sure the vessel is well-lit\n• Take photo from above or side\n• Empty the vessel if possible';
 
+    track('estimate_fallback', { tips: Array.isArray(tips) ? tips.slice(0, 3) : [] });
     Alert.alert(
       'Could Not Auto-Estimate',
       `${tipList}\n\nEnter the volume manually for an accurate quote.`,
       [
-        { text: 'Try Again', style: 'cancel' },
-        { text: 'Enter Manually', onPress: () => setShowManualEntry(true) },
+        { text: 'Retake photo', style: 'cancel', onPress: () => { setImage(null); setReviewVessels(null); } },
+        { text: 'Enter manually', onPress: () => setShowManualEntry(true) },
       ]
     );
   };
@@ -240,6 +249,7 @@ export default function EstimatorScreen() {
         return;
       }
 
+      track('estimate_start', { expectedCount, vesselChoice });
       let detectData;
       try {
         detectData = await postDetect({
@@ -311,6 +321,7 @@ export default function EstimatorScreen() {
         confidence: check.confidence,
         explanation: detectData.explanation,
       });
+      track('estimate_review', { vesselCount: vessels.length, confidence: check.confidence });
       setResult((prev) => (prev?.locked ? prev : null));
     } catch (error) {
       Alert.alert(
@@ -351,6 +362,7 @@ export default function EstimatorScreen() {
     });
     setReviewVessels(null);
     setImage(null);
+    track('estimate_confirmed', { ounces, vesselCount: vessels.length });
   };
 
   const addAnotherJar = () => {
@@ -385,7 +397,8 @@ export default function EstimatorScreen() {
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Refill Estimator</Text>
       <Text style={styles.buildTag}>
-        build: estimator-confirm-v1 · {isAuthenticated ? 'signed in' : 'guest'}
+        v1.1.0 · {isAuthenticated ? 'signed in' : 'guest'}
+        {isExpoGo ? ' · Expo Go' : ''}
       </Text>
       <Text style={styles.sectionLabel}>How many vessels in this photo?</Text>
       <View style={styles.chipRow}>
@@ -420,12 +433,12 @@ export default function EstimatorScreen() {
           Photo estimates need a 12 oz drink can for scale. Without it, enter ounces manually.
         </Text>
       ) : null}
-      {!manipulatorOk ? (
+      {!manipulatorOk && isExpoGo ? (
         <View style={styles.warnBanner}>
-          <Text style={styles.warnTitle}>Limited photo conversion in this client</Text>
+          <Text style={styles.warnTitle}>Limited photo conversion in Expo Go</Text>
           <Text style={styles.warnBody}>
-            Update Expo Go to the latest version, or use the TestFlight app for full HEIC
-            support. JPEG photos may still work — or enter ounces manually below.
+            Use the TestFlight / Play build for full HEIC support. JPEG photos may still work —
+            or enter ounces manually below.
           </Text>
           <CustomButton
             title="Enter ounces manually"
@@ -453,7 +466,8 @@ export default function EstimatorScreen() {
               title="Clear Photo"
               onPress={() => {
                 setImage(null);
-                setResult(null);
+                setReviewVessels(null);
+                if (!result?.locked) setResult(null);
               }}
               color={colors.danger}
             />

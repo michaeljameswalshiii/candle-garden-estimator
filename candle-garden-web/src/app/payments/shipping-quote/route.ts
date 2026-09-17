@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { availableRates, candleGardenOrigin, type Party } from "@/lib/ups";
+import { resolveUsZip } from "@/lib/zip";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -9,12 +10,35 @@ const boxes: Record<string, [number, number, number, number]> = {
   ups_small: [10, 8, 6, 8], ups_medium: [12, 10, 8, 12], ups_large: [14, 12, 10, 16],
 };
 
-function customer(body: Record<string, unknown>): Party | null {
+async function customer(body: Record<string, unknown>): Promise<Party | null> {
   const raw = (body.dest || body.shipping || {}) as Record<string, unknown>;
   const zip = String(raw.zip || body.destZip || "").replace(/\D/g, "").slice(0, 5);
-  // The estimator only has a ZIP; UPS requires a complete address for a live, purchaseable rate.
-  if (!raw.address || !raw.city || !raw.state || zip.length !== 5) return null;
-  return { name: String(raw.name || "Customer"), address: String(raw.address), city: String(raw.city), state: String(raw.state).slice(0, 2).toUpperCase(), zip, phone: String(raw.phone || ""), residential: true };
+  if (zip.length !== 5) return null;
+
+  if (raw.address && raw.city && raw.state) {
+    return {
+      name: String(raw.name || "Customer"),
+      address: String(raw.address),
+      city: String(raw.city),
+      state: String(raw.state).slice(0, 2).toUpperCase(),
+      zip,
+      phone: String(raw.phone || ""),
+      residential: true,
+    };
+  }
+
+  // Estimator only collects ZIP — resolve city/state so shoppers still see live UPS prices.
+  const place = await resolveUsZip(zip);
+  if (!place) return null;
+  return {
+    name: String(raw.name || "Customer"),
+    address: String(raw.address || "Residential delivery"),
+    city: place.city,
+    state: place.state,
+    zip: place.zip,
+    phone: String(raw.phone || ""),
+    residential: true,
+  };
 }
 
 function packagePlan(body: Record<string, unknown>) {
@@ -34,9 +58,14 @@ function packagePlan(body: Record<string, unknown>) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json() as Record<string, unknown>;
-    const destination = customer(body);
+    const destination = await customer(body);
     if (!destination) {
-      return NextResponse.json({ ok: true, upsConfigured: Boolean(process.env.UPS_CLIENT_ID), quotes: [], note: "Enter a full delivery address at checkout for a live UPS lowest-cost quote." });
+      return NextResponse.json({
+        ok: true,
+        upsConfigured: Boolean(process.env.UPS_CLIENT_ID),
+        quotes: [],
+        note: "Enter a valid 5-digit ZIP (or full address at checkout) for a live UPS lowest-cost quote.",
+      });
     }
     const plan = packagePlan(body);
     const requested = Array.isArray(body.methods) ? body.methods as Method[] : ["ship_own", "kit_roundtrip", "prepaid_labels"];
