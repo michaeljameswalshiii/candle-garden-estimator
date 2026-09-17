@@ -15,7 +15,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 import { useCart } from '../lib/cart';
 import { useAuth } from '../lib/AuthContext';
-import { createStripePaymentSheet, finalizeStripePayment, listOrders } from '../lib/apiClient';
+import { createStripePaymentSheet, finalizeStripePayment, listOrders, trackEvent } from '../lib/apiClient';
 import { useStripe } from '../lib/stripeBridge';
 import { stripeConfigured } from '../lib/stripeConfig';
 
@@ -203,6 +203,7 @@ function OrdersScreenBody({ stripe }) {
       }
       const paidTotal = Number(sheet.amount || 0) / 100;
       await finalizeStripePayment(sheet.paymentIntentId);
+      trackEvent('payment_success');
       let labelNote = '';
       const refillLines = lines.filter(
         (line) => line.type === 'refill' && line.shippingMethod && line.shippingMethod !== 'ship_own'

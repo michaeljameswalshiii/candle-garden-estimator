@@ -142,6 +142,14 @@ export async function finalizeStripePayment(paymentIntentId) {
   });
 }
 
+export async function trackEvent(name, properties = {}) {
+  try {
+    return await apiFetch('/events', { method: 'POST', body: { name, ...properties } });
+  } catch {
+    return null;
+  }
+}
+
 export async function postShippingQuote(payload) {
   return apiFetch('/payments/shipping-quote', {
     method: 'POST',

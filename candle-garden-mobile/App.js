@@ -15,7 +15,7 @@ import ProfileScreen from './screens/ProfileScreen';
 import { colors, navigationTheme, fonts } from './lib/theme';
 import { CartProvider, useCart } from './lib/cart';
 import { AuthProvider, useAuth } from './lib/AuthContext';
-import { setAuthTokenGetter, setAccessTokenGetter } from './lib/apiClient';
+import { setAuthTokenGetter, setAccessTokenGetter, trackEvent } from './lib/apiClient';
 import { STRIPE_PUBLISHABLE_KEY } from './lib/stripeConfig';
 
 // Lazy-load Estimator so expo-image-picker / prepareImage are not required at app start
@@ -134,11 +134,23 @@ function MainTabs() {
 }
 
 function AppTree() {
+  const routeName = React.useRef();
   return (
     <AuthProvider>
       <AuthTokenBridge>
         <CartProvider>
-          <NavigationContainer theme={navigationTheme}>
+          <NavigationContainer
+            theme={navigationTheme}
+            onReady={() => { trackEvent('app_open'); }}
+            onStateChange={(state) => {
+              const index = state?.index ?? 0;
+              const name = state?.routes?.[index]?.name;
+              if (name && name !== routeName.current) {
+                routeName.current = name;
+                trackEvent('screen_view', { screen: name });
+              }
+            }}
+          >
             <StatusBar style="dark" />
             <MainTabs />
           </NavigationContainer>
