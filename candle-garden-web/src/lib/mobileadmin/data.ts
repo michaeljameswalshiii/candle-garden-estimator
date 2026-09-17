@@ -1,5 +1,5 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, GetCommand, ScanCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, GetCommand, PutCommand, ScanCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 
 export type MobileOrder = {
   id: string;
@@ -15,6 +15,8 @@ export type MobileOrder = {
   items?: Array<{ name?: string; size?: string; quantity?: number; price?: number }>;
   created_at?: string;
   updated_at?: string;
+  shipping?: Record<string, string>;
+  label_status?: string;
 };
 
 const client = DynamoDBDocumentClient.from(
@@ -59,6 +61,20 @@ export async function updateMobileOrder(id: string, patch: { status?: string; to
 export async function getMobileOrder(id: string) {
   const response = await client.send(new GetCommand({ TableName: ordersTable, Key: { id } }));
   return response.Item as MobileOrder | undefined;
+}
+
+export async function putMobileOrder(order: MobileOrder) {
+  await client.send(new PutCommand({ TableName: ordersTable, Item: order, ConditionExpression: "attribute_not_exists(id)" }));
+}
+
+export async function listCustomerOrders(customerId: string) {
+  const response = await client.send(new ScanCommand({
+    TableName: ordersTable,
+    FilterExpression: "customer_id = :customer",
+    ExpressionAttributeValues: { ":customer": customerId },
+    Limit: 100,
+  }));
+  return ((response.Items || []) as MobileOrder[]).sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
 }
 
 export function mobileSnapshot(orders: MobileOrder[]) {
