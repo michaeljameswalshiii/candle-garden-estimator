@@ -25,7 +25,7 @@ async function priceItems(raw: unknown, shipping: unknown) {
       const quote = await priceRefillShipping(item, destination!);
       const lineCents = Math.round(ounces * 150 * qty) + quote.shippingCents;
       total += lineCents;
-      return { type: "refill", productId: "refill", name: `Candle refill · ${ounces} oz`, size: quote.serviceSummary, quantity: qty, unitCents: Math.round(lineCents / qty), shippingCents: quote.shippingCents };
+      return { type: "refill", productId: "refill", name: `Candle refill · ${ounces} oz`, size: quote.serviceSummary, quantity: qty, unitCents: Math.round(lineCents / qty), shippingCents: quote.shippingCents, ounces, boxKey: item.boxKey, shippingMethod: item.shippingMethod || "ship_own", vesselCount: Number(item.vesselCount || qty) };
     }
     if (kind === "class") {
       const entry = classes.find((row) => row.id === String(item.productId));
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     const intent = await stripe.json() as any;
     if (!stripe.ok || !intent.client_secret) throw new Error(intent?.error?.message || "Stripe could not start checkout");
     const now = new Date().toISOString();
-    await putMobileOrder({ id: orderId, customer_id: identity?.sub || `guest:${request.headers.get("x-device-id") || orderId}`, customer_email: identity?.email || body.email, total_amount: priced.total / 100, status: "payment_pending", source: "mobile", payment_provider: "stripe", payment_intent_id: intent.id, items: priced.items.map((row) => ({ name: row.name, size: "size" in row ? String(row.size || "") : "", quantity: row.quantity, price: row.unitCents / 100 })), shipping: body.shipping, label_status: "owner_review", created_at: now, updated_at: now });
+    await putMobileOrder({ id: orderId, customer_id: identity?.sub || `guest:${request.headers.get("x-device-id") || orderId}`, customer_email: identity?.email || body.email, total_amount: priced.total / 100, status: "payment_pending", source: "mobile", payment_provider: "stripe", payment_intent_id: intent.id, items: priced.items.map((row: any) => ({ ...row, price: row.unitCents / 100, unitCents: undefined, shippingCents: undefined })), shipping: body.shipping, label_status: "owner_review", created_at: now, updated_at: now });
     return NextResponse.json({ paymentIntentClientSecret: intent.client_secret, paymentIntentId: intent.id, orderId, amount: priced.total, currency: "usd", items: priced.items });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not start checkout" }, { status: 400 });

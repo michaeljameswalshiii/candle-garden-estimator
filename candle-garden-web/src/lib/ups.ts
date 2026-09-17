@@ -75,3 +75,21 @@ export async function availableRates(from: Party, to: Party, weightLb: number, d
 }
 
 export function candleGardenOrigin() { return { ...ORIGIN }; }
+
+export async function createLabel(from: Party, to: Party, weightLb: number, dimensions: [number, number, number], serviceCode: string, description: string, returnLabel = false) {
+  const { accountNumber } = credentials();
+  const accessToken = await token();
+  const [length, width, height] = dimensions;
+  const shipment: any = {
+    Description: description.slice(0, 50), Shipper: { ...party(from), ShipperNumber: accountNumber }, ShipFrom: party(from), ShipTo: party(to),
+    PaymentInformation: { ShipmentCharge: { Type: "01", BillShipper: { AccountNumber: accountNumber } } },
+    Service: { Code: serviceCode }, Package: { Description: description.slice(0, 35), Packaging: { Code: "02" }, Dimensions: { UnitOfMeasurement: { Code: "IN" }, Length: String(length), Width: String(width), Height: String(height) }, PackageWeight: { UnitOfMeasurement: { Code: "LBS" }, Weight: String(Math.max(1, Math.ceil(weightLb))) } },
+  };
+  if (returnLabel) shipment.ReturnService = { Code: "9" };
+  const response = await fetch("https://onlinetools.ups.com/api/shipments/v2409/ship", { method: "POST", headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", transId: crypto.randomUUID(), transactionSrc: "candle-garden-admin" }, body: JSON.stringify({ ShipmentRequest: { Request: { RequestOption: "nonvalidate" }, Shipment: shipment, LabelSpecification: { LabelImageFormat: { Code: "GIF" }, LabelStockSize: { Height: "6", Width: "4" } } } }), cache: "no-store" });
+  const payload = await response.json().catch(() => ({})) as any;
+  if (!response.ok) throw new Error(payload?.response?.errors?.[0]?.message || "UPS could not create the label");
+  const results = payload?.ShipmentResponse?.ShipmentResults;
+  const packageResult = Array.isArray(results?.PackageResults) ? results.PackageResults[0] : results?.PackageResults;
+  return { trackingNumber: packageResult?.TrackingNumber || results?.ShipmentIdentificationNumber, imageBase64: packageResult?.ShippingLabel?.GraphicImage, format: "gif" };
+}

@@ -28,8 +28,15 @@ export async function priceRefillShipping(item: any, destination: Party) {
   const origin = candleGardenOrigin();
   const outbound = (await availableRates(origin, destination, shipment.refills, shipment.dims))[0];
   const method = String(item.shippingMethod || "ship_own");
-  const legs = [outbound];
-  if (method === "prepaid_labels" || method === "kit_roundtrip") legs.unshift((await availableRates(destination, origin, shipment.empties, shipment.dims))[0]);
-  if (method === "kit_roundtrip") legs.unshift((await availableRates(origin, destination, shipment.kit, [12, 10, 2]))[0]);
-  return { shippingCents: legs.reduce((sum, rate) => sum + rate.cents, 0), serviceSummary: legs.map((rate) => rate.service).join(" + ") };
+  const legs = [{ key: "refills_out", from: origin, to: destination, weight: shipment.refills, dims: shipment.dims, rate: outbound, description: "Candle Garden refill return" }];
+  if (method === "prepaid_labels" || method === "kit_roundtrip") {
+    const rate = (await availableRates(destination, origin, shipment.empties, shipment.dims))[0];
+    legs.unshift({ key: "empties_in", from: destination, to: origin, weight: shipment.empties, dims: shipment.dims, rate, description: "Empty vessels to Candle Garden" });
+  }
+  if (method === "kit_roundtrip") {
+    const dims: [number, number, number] = [12, 10, 2];
+    const rate = (await availableRates(origin, destination, shipment.kit, dims))[0];
+    legs.unshift({ key: "kit_out", from: origin, to: destination, weight: shipment.kit, dims, rate, description: "Candle Garden packing kit" });
+  }
+  return { shippingCents: legs.reduce((sum, leg) => sum + leg.rate.cents, 0), serviceSummary: legs.map((leg) => leg.rate.service).join(" + "), legs };
 }

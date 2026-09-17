@@ -12,11 +12,12 @@ export type MobileOrder = {
   payment_intent_id?: string;
   refund_id?: string;
   refunded_amount?: number;
-  items?: Array<{ name?: string; size?: string; quantity?: number; price?: number }>;
+  items?: Array<{ type?: string; productId?: string; name?: string; size?: string; quantity?: number; price?: number; ounces?: number; boxKey?: string; shippingMethod?: string; vesselCount?: number }>;
   created_at?: string;
   updated_at?: string;
   shipping?: Record<string, string>;
   label_status?: string;
+  tracking_numbers?: string[];
 };
 
 const client = DynamoDBDocumentClient.from(
@@ -45,7 +46,7 @@ export function orderChannel(order: MobileOrder) {
   return order.source === "mobile" ? "Signed-in app" : order.source || "Mobile app";
 }
 
-export async function updateMobileOrder(id: string, patch: { status?: string; total_amount?: number; refund_id?: string; refunded_amount?: number }) {
+export async function updateMobileOrder(id: string, patch: { status?: string; total_amount?: number; refund_id?: string; refunded_amount?: number; label_status?: string; tracking_numbers?: string[] }) {
   const names: Record<string, string> = { "#updated": "updated_at" };
   const values: Record<string, unknown> = { ":updated": new Date().toISOString() };
   const sets = ["#updated = :updated"];

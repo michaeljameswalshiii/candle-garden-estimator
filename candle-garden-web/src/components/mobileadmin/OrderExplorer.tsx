@@ -23,7 +23,7 @@ export function OrderExplorer({ orders }: { orders: MobileOrder[] }) {
     return (!query || haystack.includes(query.toLowerCase())) && (status === "all" || (order.status || "unknown") === status) && (channel === "all" || orderChannel(order) === channel);
   }), [orders, query, status, channel]);
 
-  async function update(order: MobileOrder, action: "status" | "price" | "refund") {
+  async function update(order: MobileOrder, action: "status" | "price" | "refund" | "labels") {
     let body: Record<string, unknown> = {};
     if (action === "status") {
       const value = window.prompt("New order status", order.status || "pending");
@@ -33,17 +33,29 @@ export function OrderExplorer({ orders }: { orders: MobileOrder[] }) {
       const value = window.prompt("Corrected order total", Number(order.total_amount || 0).toFixed(2));
       if (value == null) return;
       body = { total_amount: value };
-    } else {
+    } else if (action === "refund") {
       if (!window.confirm("Issue a Stripe refund for this order? This action cannot be undone.")) return;
       const value = window.prompt("Refund amount. Leave blank for the full order total.", "");
       if (value == null) return;
       body = { action: "refund", amount: value };
+    } else {
+      if (!window.confirm("Purchase the lowest-cost available UPS label(s) for this paid refill order?")) return;
+      body = { action: "create_labels" };
     }
     setBusy(order.id);
     try {
       const response = await fetch(`/api/mobileadmin/orders/${encodeURIComponent(order.id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Could not update order");
+      if (Array.isArray(data.labels)) {
+        data.labels.forEach((label: { imageBase64?: string; format?: string; key?: string }, index: number) => {
+          if (!label.imageBase64) return;
+          const link = document.createElement("a");
+          link.href = `data:image/${label.format || "gif"};base64,${label.imageBase64}`;
+          link.download = `${order.id.slice(0, 8)}-${label.key || index + 1}.gif`;
+          link.click();
+        });
+      }
       window.alert(data.message || "Order updated");
       router.refresh();
     } catch (error) { window.alert(error instanceof Error ? error.message : "Could not update order"); }
@@ -60,7 +72,7 @@ export function OrderExplorer({ orders }: { orders: MobileOrder[] }) {
     <div className="mobileadmin-order-list">{filtered.length ? filtered.map((order) => <article key={order.id}>
       <div><small>{order.created_at ? new Date(order.created_at).toLocaleString() : "Date unavailable"}</small><strong>{order.customer_email || "App customer"}</strong><span>#{order.id.slice(0, 8)} · {(order.items || []).reduce((sum, item) => sum + Number(item.quantity || 1), 0)} items</span><b className="mobileadmin-channel">{orderChannel(order)}</b></div>
       <div className="mobileadmin-order-items">{(order.items || []).slice(0, 3).map((item, index) => <span key={`${item.name}-${index}`}>{item.quantity || 1}× {item.name || "Item"}{item.size ? ` · ${item.size}` : ""}</span>)}</div>
-      <div className="mobileadmin-order-total"><em className={`is-${String(order.status || "unknown").toLowerCase()}`}>{order.status || "unknown"}</em><strong>${Number(order.total_amount || 0).toFixed(2)}</strong><div className="mobileadmin-order-actions"><button disabled={busy === order.id} onClick={() => void update(order, "status")}>Status</button><button disabled={busy === order.id} onClick={() => void update(order, "price")}>Price</button><button disabled={busy === order.id || !order.payment_intent_id} title={!order.payment_intent_id ? "No Stripe payment reference on this order" : "Issue refund"} onClick={() => void update(order, "refund")}>Refund</button></div></div>
+      <div className="mobileadmin-order-total"><em className={`is-${String(order.status || "unknown").toLowerCase()}`}>{order.status || "unknown"}</em><strong>${Number(order.total_amount || 0).toFixed(2)}</strong>{order.tracking_numbers?.length ? <span>{order.tracking_numbers.join(", ")}</span> : null}<div className="mobileadmin-order-actions"><button disabled={busy === order.id} onClick={() => void update(order, "status")}>Status</button><button disabled={busy === order.id} onClick={() => void update(order, "price")}>Price</button><button disabled={busy === order.id || !String(order.status || "").startsWith("paid") || order.label_status === "created" || !(order.items || []).some((item) => item.type === "refill")} onClick={() => void update(order, "labels")}>{order.label_status === "created" ? "Labels created" : "Create UPS labels"}</button><button disabled={busy === order.id || !order.payment_intent_id} title={!order.payment_intent_id ? "No Stripe payment reference on this order" : "Issue refund"} onClick={() => void update(order, "refund")}>Refund</button></div></div>
     </article>) : <div className="mobileadmin-empty">No orders match this search.</div>}</div>
   </>;
 }
