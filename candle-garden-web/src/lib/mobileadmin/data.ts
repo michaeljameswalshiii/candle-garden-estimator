@@ -77,6 +77,16 @@ export async function listCustomerOrders(customerId: string) {
   return ((response.Items || []) as MobileOrder[]).sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
 }
 
+export async function findOrderByPaymentIntent(paymentIntentId: string) {
+  const response = await client.send(new ScanCommand({
+    TableName: ordersTable,
+    FilterExpression: "payment_intent_id = :intent",
+    ExpressionAttributeValues: { ":intent": paymentIntentId },
+    Limit: 1,
+  }));
+  return response.Items?.[0] as MobileOrder | undefined;
+}
+
 export function mobileSnapshot(orders: MobileOrder[]) {
   const now = Date.now();
   const last30 = orders.filter((order) => {
