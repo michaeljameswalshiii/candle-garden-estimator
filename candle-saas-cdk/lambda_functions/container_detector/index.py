@@ -57,7 +57,7 @@ Any aluminum beverage can used for size reference (standard **12 fl oz / 355 ml*
 - Always include the smallest short jar if it has a wick
 - vessel_count MUST equal vessels.length
 
-{expected_line}
+<<EXPECTED_LINE>>
 
 Return ONLY JSON:
 {
@@ -84,7 +84,7 @@ current_wax_percent: remaining usable wax 0–100; empty + wick only → 0.
 wax_needed_oz ≈ full_capacity_oz * (1 - current_wax_percent/100).
 
 Vessels to estimate (keep this exact count and order):
-{vessel_list}
+<<VESSEL_LIST>>
 
 Return ONLY JSON:
 {
@@ -439,7 +439,7 @@ def _converse_text(response):
 
 def _invoke_grok(image_data, image_format, prompt_text=None):
     """Count pass via Grok 4.6 on Bedrock (same IAM as Claude). No xAI API key."""
-    prompt_text = prompt_text or COUNT_PROMPT.format(expected_line="")
+    prompt_text = prompt_text or COUNT_PROMPT.replace("<<EXPECTED_LINE>>", "")
     fmt = "jpeg" if image_format in ("jpg", "jpeg") else image_format
     image_bytes = base64.b64decode(image_data, validate=False)
     kwargs = {
@@ -643,7 +643,7 @@ def _count_prompt(expected):
         )
     else:
         line = "Count every refillable vessel in the foreground group."
-    return COUNT_PROMPT.format(expected_line=line)
+    return COUNT_PROMPT.replace("<<EXPECTED_LINE>>", line)
 
 
 def _vessel_count(result):
@@ -735,7 +735,9 @@ def _run_estimate_pass(image_data, image_format, count_result):
         vid = vessel.get("id") or f"v{index}"
         desc = vessel.get("description") or f"Vessel {index}"
         lines.append(f"{index}. id={vid} — {desc}")
-    prompt = ESTIMATE_PROMPT.format(vessel_list="\n".join(lines) or "1. id=v1 — candle vessel")
+    prompt = ESTIMATE_PROMPT.replace(
+        "<<VESSEL_LIST>>", "\n".join(lines) or "1. id=v1 — candle vessel"
+    )
     try:
         text = _invoke_claude(image_data, image_format, prompt)
         parsed = _parse_model_json(text)
