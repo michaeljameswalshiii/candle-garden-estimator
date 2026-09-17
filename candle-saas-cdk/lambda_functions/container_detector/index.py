@@ -16,6 +16,10 @@ CLAUDE_MODEL_ID = os.environ.get(
     "CLAUDE_MODEL_ID",
     "us.anthropic.claude-sonnet-5",
 )
+CLAUDE_FALLBACK_MODEL_ID = os.environ.get(
+    "CLAUDE_FALLBACK_MODEL_ID",
+    "us.anthropic.claude-sonnet-4-6",
+)
 NOVA_MODEL_ID = os.environ.get("NOVA_MODEL_ID", "us.amazon.nova-premier-v1:0")
 GROK_MODEL_ID = os.environ.get("GROK_MODEL_ID", "us.xai.grok-4.6")
 GROK_REASONING_EFFORT = os.environ.get("GROK_REASONING_EFFORT", "low").strip() or "low"
@@ -371,8 +375,36 @@ def _parse_model_json(text):
         return None
 
 
+def _claude_model_ids():
+    models = [CLAUDE_MODEL_ID]
+    if CLAUDE_FALLBACK_MODEL_ID and CLAUDE_FALLBACK_MODEL_ID not in models:
+        models.append(CLAUDE_FALLBACK_MODEL_ID)
+    return models
+
+
+def _invoke_claude_model(model_id, body):
+    payload = dict(body)
+    try:
+        response = bedrock_runtime.invoke_model(
+            modelId=model_id,
+            contentType="application/json",
+            accept="application/json",
+            body=json.dumps(payload),
+        )
+    except Exception as err:
+        logger.warning("Claude %s with thinking disabled failed (%s); retrying without", model_id, err)
+        payload.pop("thinking", None)
+        response = bedrock_runtime.invoke_model(
+            modelId=model_id,
+            contentType="application/json",
+            accept="application/json",
+            body=json.dumps(payload),
+        )
+    return json.loads(response["body"].read())
+
+
 def _invoke_claude(image_data, image_format, prompt_text=None):
-    """Call Claude Sonnet 5 on Bedrock (ounces + count fallback). Returns response text."""
+    """Call Claude on Bedrock (ounces + count fallback). Returns response text."""
     media_type = MEDIA_TYPES.get(image_format, "image/jpeg")
     prompt_text = prompt_text or VISION_PROMPT
 
@@ -400,23 +432,18 @@ def _invoke_claude(image_data, image_format, prompt_text=None):
         ],
     }
 
-    try:
-        response = bedrock_runtime.invoke_model(
-            modelId=CLAUDE_MODEL_ID,
-            contentType="application/json",
-            accept="application/json",
-            body=json.dumps(body),
-        )
-    except Exception as err:
-        logger.warning("Claude invoke with thinking disabled failed (%s); retrying without", err)
-        body.pop("thinking", None)
-        response = bedrock_runtime.invoke_model(
-            modelId=CLAUDE_MODEL_ID,
-            contentType="application/json",
-            accept="application/json",
-            body=json.dumps(body),
-        )
-    response_body = json.loads(response["body"].read())
+    last_err = None
+    response_body = None
+    for model_id in _claude_model_ids():
+        try:
+            response_body = _invoke_claude_model(model_id, body)
+            logger.info("Claude invoke succeeded model=%s", model_id)
+            break
+        except Exception as err:
+            last_err = err
+            logger.warning("Claude invoke failed model=%s: %s", model_id, err)
+    if response_body is None:
+        raise last_err
     content = response_body.get("content") or []
     for block in content:
         if isinstance(block, dict) and block.get("type") == "text":

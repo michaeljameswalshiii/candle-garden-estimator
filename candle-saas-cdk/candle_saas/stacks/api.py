@@ -387,6 +387,7 @@ class APIStack(Stack):
             environment={
                 # Grok 4.6 count; Claude Sonnet 5 ounces; Nova Premier ounce fallback. No xAI API key.
                 "CLAUDE_MODEL_ID": "us.anthropic.claude-sonnet-5",
+                "CLAUDE_FALLBACK_MODEL_ID": "us.anthropic.claude-sonnet-4-6",
                 "NOVA_MODEL_ID": "us.amazon.nova-premier-v1:0",
                 "GROK_MODEL_ID": "us.xai.grok-4.6",
                 "GROK_REASONING_EFFORT": "low",
