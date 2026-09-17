@@ -6,6 +6,8 @@ import { createLabel } from "@/lib/ups";
 
 export const dynamic = "force-dynamic";
 
+const allowedStatuses = new Set(["payment_pending", "paid", "ready_for_fulfillment", "processing", "shipped", "completed", "cancelled", "partially_refunded", "refunded"]);
+
 async function stripeRefund(paymentIntent: string, amount?: number) {
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) throw new Error("Stripe refunds are not configured on the website yet.");
@@ -52,7 +54,11 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       return NextResponse.json({ ok: true, message: "Stripe refund issued." });
     }
     const patch: { status?: string; total_amount?: number } = {};
-    if (body.status) patch.status = String(body.status).slice(0, 40);
+    if (body.status) {
+      const status = String(body.status);
+      if (!allowedStatuses.has(status)) throw new Error("Choose a valid order status.");
+      patch.status = status;
+    }
     if (body.total_amount != null) {
       const total = Number(body.total_amount);
       if (!Number.isFinite(total) || total < 0) throw new Error("Enter a valid non-negative order total.");
