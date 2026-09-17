@@ -10,6 +10,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   TextInput,
+  Linking,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors, fonts, radii, spacing } from '../lib/theme';
@@ -18,6 +19,30 @@ import { useAuth } from '../lib/AuthContext';
 import { createStripePaymentSheet, finalizeStripePayment, listOrders, trackEvent } from '../lib/apiClient';
 import { useStripe } from '../lib/stripeBridge';
 import { stripeConfigured } from '../lib/stripeConfig';
+
+const ORDER_PROGRESS = ['paid', 'processing', 'shipped', 'completed'];
+const STATUS_COPY = {
+  payment_pending: ['Payment pending', 'Your payment has not been confirmed yet.'],
+  payment_verification_pending: ['Verifying payment', 'We are confirming your payment.'],
+  paid: ['Order received', 'Payment is confirmed and your order is waiting for our team.'],
+  ready_for_fulfillment: ['Preparing order', 'Shipping details are ready and fulfillment can begin.'],
+  processing: ['In progress', 'The Candle Garden team is preparing your order.'],
+  shipped: ['Shipped', 'Your order is on its way.'],
+  completed: ['Completed', 'Your order has been completed.'],
+  cancelled: ['Cancelled', 'This order was cancelled. Contact us if you have questions.'],
+  partially_refunded: ['Partially refunded', 'Part of this order was refunded to the original payment method.'],
+  refunded: ['Refunded', 'This order was refunded to the original payment method.'],
+};
+
+function customerStatus(status) {
+  return STATUS_COPY[status] || [String(status || 'Order received').replaceAll('_', ' '), 'Pull down to refresh for the latest update.'];
+}
+
+function progressIndex(status) {
+  if (status === 'ready_for_fulfillment') return 1;
+  const index = ORDER_PROGRESS.indexOf(status);
+  return index;
+}
 
 export default function OrdersScreen() {
   if (stripeConfigured) {
@@ -298,22 +323,41 @@ function OrdersScreenBody({ stripe }) {
         : item.total != null
           ? Number(item.total)
           : null;
+    const [label, description] = customerStatus(item.status);
+    const step = progressIndex(item.status);
+    const stopped = ['cancelled', 'partially_refunded', 'refunded'].includes(item.status);
     return (
       <View style={styles.historyCard}>
         <View style={styles.historyRow}>
           <Text style={styles.historyId} numberOfLines={1}>
-            {item.id || 'Order'}
+            Order #{String(item.id || '').slice(0, 8) || '—'}
           </Text>
-          <Text style={styles.historyStatus}>{item.status || '—'}</Text>
+          <Text style={[styles.historyStatus, stopped && styles.historyStatusStopped]}>{label}</Text>
         </View>
         <Text style={styles.historyMeta}>
           {item.created_at
-            ? String(item.created_at).slice(0, 19).replace('T', ' ')
+            ? new Date(item.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
             : 'Date unknown'}
         </Text>
+        {!stopped ? (
+          <View style={styles.progressRow} accessibilityLabel={`Order progress: ${label}`}>
+            {ORDER_PROGRESS.map((progressStatus, index) => <View key={progressStatus} style={[styles.progressSegment, index <= step && styles.progressSegmentOn]} />)}
+          </View>
+        ) : null}
+        <Text style={styles.historyDescription}>{description}</Text>
+        {(item.items || []).slice(0, 3).map((orderItem, index) => (
+          <Text key={`${orderItem.name || 'item'}-${index}`} style={styles.historyItem}>
+            {orderItem.quantity || 1}× {orderItem.name || 'Candle Garden item'}{orderItem.size ? ` · ${orderItem.size}` : ''}
+          </Text>
+        ))}
         {total != null && !Number.isNaN(total) ? (
           <Text style={styles.historyTotal}>${total.toFixed(2)}</Text>
         ) : null}
+        {(item.tracking_numbers || []).map((tracking) => (
+          <TouchableOpacity key={tracking} style={styles.trackingButton} onPress={() => Linking.openURL(`https://www.ups.com/track?tracknum=${encodeURIComponent(tracking)}`)} accessibilityRole="link">
+            <Text style={styles.trackingButtonText}>Track UPS package {tracking}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
     );
   };
@@ -952,7 +996,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: colors.primary,
-    textTransform: 'capitalize',
+  },
+  historyStatusStopped: {
+    color: colors.danger,
   },
   historyMeta: {
     fontFamily: fonts.body,
@@ -960,11 +1006,53 @@ const styles = StyleSheet.create({
     color: colors.textFaint,
     marginTop: 4,
   },
+  progressRow: {
+    flexDirection: 'row',
+    gap: 5,
+    marginTop: 12,
+    marginBottom: 10,
+  },
+  progressSegment: {
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.borderStrong,
+  },
+  progressSegmentOn: {
+    backgroundColor: colors.primaryMid,
+  },
+  historyDescription: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textSecondary,
+    marginBottom: 8,
+  },
+  historyItem: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
   historyTotal: {
     fontFamily: fonts.body,
     fontSize: 16,
     fontWeight: '700',
     color: colors.primary,
     marginTop: 6,
+  },
+  trackingButton: {
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: radii.sm,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+  },
+  trackingButtonText: {
+    fontFamily: fonts.body,
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '700',
   },
 });
