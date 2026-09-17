@@ -13,13 +13,14 @@ import { colors, fonts, radii, spacing } from '../lib/theme';
 import { useAuth } from '../lib/AuthContext';
 import LegalLinks from '../components/LegalLinks';
 
+/** Normalize to Cognito E.164 (+1XXXXXXXXXX). Returns '' if invalid. */
 function cognitoPhone(value) {
   const raw = String(value || '').trim();
   const digits = raw.replace(/\D/g, '');
   if (digits.length === 10) return `+1${digits}`;
-  if (raw.startsWith('+') && digits.length >= 8) return `+${digits}`;
   if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
-  return raw;
+  if (raw.startsWith('+') && digits.length >= 10 && digits.length <= 15) return `+${digits}`;
+  return '';
 }
 
 export default function ProfileScreen() {
@@ -91,16 +92,35 @@ export default function ProfileScreen() {
 
   const onSignUp = async () => {
     try {
-      if (!phone.trim() || !address.trim()) {
-        Alert.alert('Add contact details', 'Phone and mailing address are required to create an account.');
+      const normalizedPhone = cognitoPhone(phone);
+      const normalizedAddress = address.trim();
+      const normalizedName = name.trim();
+      const normalizedEmail = email.trim();
+      if (!normalizedEmail) {
+        Alert.alert('Email required', 'Enter the email you want to use for this account.');
+        return;
+      }
+      if (!normalizedPhone) {
+        Alert.alert(
+          'Phone required',
+          'Enter a valid US phone number (10 digits), e.g. 904 555 0123.'
+        );
+        return;
+      }
+      if (!normalizedAddress) {
+        Alert.alert('Address required', 'Mailing address is required to create an account.');
+        return;
+      }
+      if (!password || password.length < 8) {
+        Alert.alert('Password required', 'Use at least 8 characters with upper, lower, and a number.');
         return;
       }
       const result = await signUp({
-        email: email.trim(),
+        email: normalizedEmail,
         password,
-        name: name.trim() || undefined,
-        phone: cognitoPhone(phone),
-        address: address.trim(),
+        name: normalizedName || undefined,
+        phone: normalizedPhone,
+        address: normalizedAddress,
         marketingOptIn,
       });
       if (result.needsConfirmation) {
@@ -110,10 +130,25 @@ export default function ProfileScreen() {
           'Enter the 6-digit confirmation code to activate your account.'
         );
       } else {
-        await signIn({ email: email.trim(), password });
+        await signIn({ email: normalizedEmail, password });
       }
     } catch (e) {
-      Alert.alert('Sign up failed', e.message || 'Please try again');
+      const msg = String(e.message || '');
+      if (/length greater than or equal to 1/i.test(msg)) {
+        Alert.alert(
+          'Sign up failed',
+          'One of the fields was empty after formatting. Fill name, phone, address, email, and password, then try again.'
+        );
+        return;
+      }
+      if (/phone|InvalidParameter/i.test(msg)) {
+        Alert.alert(
+          'Sign up failed',
+          'Phone must be a valid number like 904 555 0123 (US).'
+        );
+        return;
+      }
+      Alert.alert('Sign up failed', msg || 'Please try again');
     }
   };
 

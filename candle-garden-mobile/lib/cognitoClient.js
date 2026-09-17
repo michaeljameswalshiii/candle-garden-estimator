@@ -37,20 +37,29 @@ async function cognitoRequest(target, payload) {
   return data;
 }
 
+function attr(name, value) {
+  const trimmed = String(value ?? '').trim();
+  if (!trimmed) return null;
+  return { Name: name, Value: trimmed };
+}
+
 export async function signUp({ email, password, name, phone, address, marketingOptIn }) {
+  // Cognito rejects empty strings (length >= 1). Only send populated attributes.
   const attrs = [
-    { Name: 'email', Value: email },
-  ];
-  if (name) {
-    attrs.push({ Name: 'name', Value: name });
+    attr('email', email),
+    attr('name', name),
+    attr('phone_number', phone),
+    attr('address', address),
+    attr('custom:marketing_opt_in', marketingOptIn ? 'true' : 'false'),
+  ].filter(Boolean);
+
+  if (!attrs.some((item) => item.Name === 'email')) {
+    throw new Error('Email is required');
   }
-  if (phone) attrs.push({ Name: 'phone_number', Value: phone });
-  if (address) attrs.push({ Name: 'address', Value: address });
-  attrs.push({ Name: 'custom:marketing_opt_in', Value: marketingOptIn ? 'true' : 'false' });
 
   return cognitoRequest('SignUp', {
     ClientId: cognitoConfig.clientId,
-    Username: email,
+    Username: String(email || '').trim(),
     Password: password,
     UserAttributes: attrs,
   });
@@ -168,11 +177,14 @@ export async function changePassword({ accessToken, previousPassword, proposedPa
 
 export async function updateUserAttributes({ accessToken, name, phone, address, marketingOptIn }) {
   const attributes = [
-    { Name: 'name', Value: String(name || '') },
-    { Name: 'phone_number', Value: String(phone || '') },
-    { Name: 'address', Value: String(address || '') },
-    { Name: 'custom:marketing_opt_in', Value: marketingOptIn ? 'true' : 'false' },
-  ];
+    attr('name', name),
+    attr('phone_number', phone),
+    attr('address', address),
+    attr('custom:marketing_opt_in', marketingOptIn ? 'true' : 'false'),
+  ].filter(Boolean);
+  if (!attributes.length) {
+    throw new Error('Nothing to update');
+  }
   return cognitoRequest('UpdateUserAttributes', { AccessToken: accessToken, UserAttributes: attributes });
 }
 
