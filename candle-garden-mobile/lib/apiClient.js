@@ -134,6 +134,14 @@ export async function createStripePaymentSheet(items, contact = {}) {
   });
 }
 
+export async function finalizeStripePayment(paymentIntentId) {
+  return apiFetch('/payments/finalize', {
+    method: 'POST',
+    body: { paymentIntentId },
+    requireAuth: false,
+  });
+}
+
 export async function postShippingQuote(payload) {
   return apiFetch('/payments/shipping-quote', {
     method: 'POST',

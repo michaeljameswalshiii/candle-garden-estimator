@@ -15,7 +15,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 import { useCart } from '../lib/cart';
 import { useAuth } from '../lib/AuthContext';
-import { createOrder, createStripePaymentSheet, createRefillLabels, listOrders } from '../lib/apiClient';
+import { createStripePaymentSheet, finalizeStripePayment, listOrders } from '../lib/apiClient';
 import { useStripe } from '../lib/stripeBridge';
 import { stripeConfigured } from '../lib/stripeConfig';
 
@@ -202,51 +202,16 @@ function OrdersScreenBody({ stripe }) {
         return;
       }
       const paidTotal = Number(sheet.amount || 0) / 100;
+      await finalizeStripePayment(sheet.paymentIntentId);
       let labelNote = '';
       const refillLines = lines.filter(
         (line) => line.type === 'refill' && line.shippingMethod && line.shippingMethod !== 'ship_own'
       );
-      if (refillLines.length && shipping.zip && shipping.address) {
-        try {
-          const tracking = [];
-          for (const refill of refillLines) {
-            const made = await createRefillLabels({
-              ounces: refill.ounces,
-              quantity: refill.quantity,
-              boxKey: refill.boxKey,
-              shippingMethod: refill.shippingMethod,
-              vesselCount: refill.vesselCount,
-              dest: shipping,
-            });
-            (made.labels || []).forEach((lab) => {
-              if (lab.trackingNumber) tracking.push(lab.trackingNumber);
-            });
-          }
-          if (tracking.length) {
-            labelNote = ` UPS Ground Saver labels: ${tracking.join(', ')}.`;
-          }
-        } catch {
-          labelNote =
-            ' Prepaid UPS labels will be printed by the shop if they did not generate automatically.';
-        }
+      if (refillLines.length) {
+        labelNote = ' Shipping labels are queued for Candle Garden owner review.';
       }
       const shouldSaveOrder = saveOrder ?? isAuthenticated;
       if (shouldSaveOrder) {
-        await createOrder({
-          items: (sheet.items || lines).map((item) => ({
-            type: item.type || 'product',
-            productId: item.productId,
-            name: item.name,
-            quantity: item.quantity,
-            size: item.size,
-            unitPrice: item.unitCents != null ? item.unitCents / 100 : item.unitPrice,
-          })),
-          total: paidTotal || subtotal,
-          status: 'paid_test',
-          payment_provider: 'stripe',
-          payment_intent_id: sheet.paymentIntentId,
-          shipping: needsShipping || shipping.email ? shipping : undefined,
-        });
         await loadHistory();
       }
       const completedOrder = {
