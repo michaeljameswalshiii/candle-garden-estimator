@@ -6,7 +6,6 @@ import {
   FlatList,
   TouchableOpacity,
   Image,
-  Linking,
   ScrollView,
   Dimensions,
   Alert,
@@ -16,7 +15,6 @@ import { colors, fonts, radii, spacing } from '../lib/theme';
 import { lifestyle } from '../lib/images';
 import {
   SHOP_CATEGORIES,
-  SHOP_BASE,
   filterProducts,
   formatPrice,
   fetchLatestProducts,
@@ -54,15 +52,6 @@ export default function ProductsScreen() {
 
   const items = useMemo(() => filterProducts(category, catalogProducts), [category, catalogProducts]);
   const activeMeta = SHOP_CATEGORIES.find((c) => c.id === category) || SHOP_CATEGORIES[0];
-
-  const openProduct = (product) => {
-    const url = product.url || `${SHOP_BASE}/shop`;
-    Linking.openURL(url).catch(() => {});
-  };
-
-  const openCollection = () => {
-    Linking.openURL(`${SHOP_BASE}${activeMeta.sitePath}`).catch(() => {});
-  };
 
   const handleAddToCart = (product) => {
     if (product.soldOut) {
@@ -115,32 +104,30 @@ export default function ProductsScreen() {
 
     return (
       <View style={styles.productCard}>
-        <TouchableOpacity activeOpacity={0.9} onPress={() => openProduct(item)}>
-          <View style={styles.imageWrap}>
-            {item.image ? (
-              <Image source={{ uri: item.image }} style={styles.productImage} resizeMode="cover" />
-            ) : (
-              <View style={styles.imagePlaceholder}>
-                <Text style={styles.placeholderEmoji}>🕯️</Text>
-              </View>
-            )}
-            {item.soldOut ? (
-              <View style={styles.soldBadge}>
-                <Text style={styles.soldBadgeText}>Sold out</Text>
-              </View>
-            ) : null}
-          </View>
-          <Text style={styles.productName} numberOfLines={2}>
-            {item.name}
-          </Text>
-          {item.description ? (
-            <Text style={styles.productDescription} numberOfLines={2}>
-              {item.description}
-            </Text>
+        <View style={styles.imageWrap}>
+          {item.image ? (
+            <Image source={{ uri: item.image }} style={styles.productImage} resizeMode="cover" />
+          ) : (
+            <View style={styles.imagePlaceholder}>
+              <Text style={styles.placeholderEmoji}>🕯️</Text>
+            </View>
+          )}
+          {item.soldOut ? (
+            <View style={styles.soldBadge}>
+              <Text style={styles.soldBadgeText}>Sold out</Text>
+            </View>
           ) : null}
-          {sizeLabel ? <Text style={styles.sizeLabel}>{sizeLabel}</Text> : null}
-          {priceLabel ? <Text style={styles.productPrice}>{priceLabel}</Text> : null}
-        </TouchableOpacity>
+        </View>
+        <Text style={styles.productName} numberOfLines={2}>
+          {item.name}
+        </Text>
+        {item.description ? (
+          <Text style={styles.productDescription} numberOfLines={2}>
+            {item.description}
+          </Text>
+        ) : null}
+        {sizeLabel ? <Text style={styles.sizeLabel}>{sizeLabel}</Text> : null}
+        {priceLabel ? <Text style={styles.productPrice}>{priceLabel}</Text> : null}
 
         <TouchableOpacity
           style={[styles.addBtn, item.soldOut && styles.addBtnDisabled]}
@@ -151,9 +138,6 @@ export default function ProductsScreen() {
           <Text style={styles.addBtnText}>
             {item.soldOut ? 'Sold out' : 'Add to cart'}
           </Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => openProduct(item)}>
-          <Text style={styles.shopLink}>View on site →</Text>
         </TouchableOpacity>
       </View>
     );
@@ -222,9 +206,6 @@ export default function ProductsScreen() {
                 {category !== 'all' ? ` · ${activeMeta.label}` : ''}
               </Text>
               <Text style={styles.syncText}>{catalogStatus}</Text>
-              <TouchableOpacity onPress={openCollection}>
-                <Text style={styles.browseSite}>Open on website</Text>
-              </TouchableOpacity>
             </View>
           </View>
         }

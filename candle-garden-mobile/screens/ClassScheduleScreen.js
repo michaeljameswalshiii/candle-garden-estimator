@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import AcuityScheduler from '../components/AcuityScheduler';
 import { classes as bundledClasses, fetchLatestClasses, getUpcomingClasses } from '../lib/classesCatalog';
-import { ACUITY_SCHEDULER_URL } from '../lib/schedulingConfig';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 
 export default function ClassScheduleScreen() {
@@ -22,21 +21,16 @@ export default function ClassScheduleScreen() {
 
   useEffect(() => { void refreshClasses(); }, [refreshClasses]);
 
-  const openInBrowser = async () => {
-    try {
-      await Linking.openURL(ACUITY_SCHEDULER_URL);
-    } catch {
-      // The embedded scheduler remains available if an external browser cannot open.
-    }
-  };
-
-  const bookClass = async (course) => {
+  const bookClass = (course) => {
     if (course.soldOut) {
       Alert.alert('Sold out', 'That class is not available right now.');
       return;
     }
-    try { await Linking.openURL(course.url); }
-    catch { Alert.alert('Could not open booking', 'Please use Open in browser to book on The Candle Garden website.'); }
+    Alert.alert(
+      'Book below',
+      'Use the in-app scheduler under these class cards to pick your time.',
+      [{ text: 'OK' }]
+    );
   };
 
   return (
@@ -44,17 +38,9 @@ export default function ClassScheduleScreen() {
       <View style={styles.header}>
         <View style={styles.headingCopy}>
           <Text style={styles.title}>Schedule an appointment</Text>
-          <Text style={styles.subtitle}>Book live Squarespace class inventory or pick an appointment below.</Text>
+          <Text style={styles.subtitle}>See live class availability, then book with the scheduler below.</Text>
           <Text style={styles.liveStatus}>{scheduleStatus}</Text>
         </View>
-        <TouchableOpacity
-          accessibilityRole="link"
-          accessibilityLabel="Open scheduler in browser"
-          onPress={openInBrowser}
-          style={styles.browserButton}
-        >
-          <Text style={styles.browserButtonText}>Open in browser</Text>
-        </TouchableOpacity>
       </View>
       {upcoming.length ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.classList}>
@@ -67,7 +53,7 @@ export default function ClassScheduleScreen() {
               <Text style={styles.classMeta}>{course.scheduleLabel}</Text>
               <Text style={styles.classPrice}>${Number(course.price).toFixed(0)}</Text>
               <TouchableOpacity style={[styles.addBtn, course.soldOut && styles.addBtnDisabled]} onPress={() => bookClass(course)} disabled={course.soldOut}>
-                <Text style={styles.addBtnText}>{course.soldOut ? 'Sold out' : 'Book on Squarespace'}</Text>
+                <Text style={styles.addBtnText}>{course.soldOut ? 'Sold out' : 'Book below'}</Text>
               </TouchableOpacity>
             </View>
           ))}

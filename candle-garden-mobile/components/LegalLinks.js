@@ -35,9 +35,10 @@ export default function LegalLinks({ compact = false }) {
   };
 
   const openContactPage = () => {
-    Linking.openURL(CONTACT_URL).catch(() =>
-      Alert.alert('Contact us', `${SUPPORT_EMAIL}\n(904) 316-7608`)
-    );
+    Alert.alert('Contact us', `${SUPPORT_EMAIL}\n(904) 316-7608`, [
+      { text: 'Email', onPress: openSupportEmail },
+      { text: 'OK', style: 'cancel' },
+    ]);
   };
 
   return (

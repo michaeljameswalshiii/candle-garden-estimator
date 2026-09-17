@@ -5,7 +5,6 @@ import {
   View,
   Image,
   ScrollView,
-  Linking,
   TouchableOpacity,
   Dimensions,
   FlatList,
@@ -260,14 +259,6 @@ export default function HomeScreen() {
           <Text style={styles.featureBody}>Book a pour workshop</Text>
         </TouchableOpacity>
       </View>
-
-      <TouchableOpacity
-        style={styles.siteButton}
-        onPress={() => Linking.openURL(brand.siteUrl)}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.siteButtonText}>Visit thecandlegarden.co</Text>
-      </TouchableOpacity>
 
       <LegalLinks compact />
       <Text style={styles.version}>Version 1.1.0</Text>

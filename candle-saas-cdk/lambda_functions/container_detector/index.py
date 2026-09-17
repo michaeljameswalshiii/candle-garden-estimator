@@ -12,17 +12,20 @@ logger.setLevel(logging.INFO)
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 bedrock_runtime = boto3.client("bedrock-runtime", region_name=AWS_REGION)
 
+# Prefer models enabled on this account. Sonnet 5 / Grok 4.6 are listed in Bedrock
+# but not entitled here (AccessDenied) — defaults use working Sonnet 4.6 / 4.5.
 CLAUDE_MODEL_ID = os.environ.get(
     "CLAUDE_MODEL_ID",
-    "us.anthropic.claude-sonnet-5",
+    "us.anthropic.claude-sonnet-4-6",
 )
 CLAUDE_FALLBACK_MODEL_ID = os.environ.get(
     "CLAUDE_FALLBACK_MODEL_ID",
-    "us.anthropic.claude-sonnet-4-6",
+    "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
 )
 NOVA_MODEL_ID = os.environ.get("NOVA_MODEL_ID", "us.amazon.nova-premier-v1:0")
-GROK_MODEL_ID = os.environ.get("GROK_MODEL_ID", "us.xai.grok-4.6")
+GROK_MODEL_ID = os.environ.get("GROK_MODEL_ID", "").strip()
 GROK_REASONING_EFFORT = os.environ.get("GROK_REASONING_EFFORT", "low").strip() or "low"
+SKIP_GROK = os.environ.get("SKIP_GROK", "1").strip().lower() in ("1", "true", "yes")
 MIN_CONFIDENCE = float(os.environ.get("MIN_CONFIDENCE", "0.5"))
 RATE_LIMIT_TABLE = os.environ.get("RATE_LIMIT_TABLE", "candle-garden-detect-rate-limits")
 GUEST_DETECT_LIMIT = int(os.environ.get("GUEST_DETECT_LIMIT", "20"))
@@ -382,8 +385,22 @@ def _claude_model_ids():
     return models
 
 
+def _is_model_unavailable(err):
+    text = str(err or "")
+    if "is not available for this account" in text:
+        return True
+    if "The provided model identifier is invalid" in text:
+        return True
+    if "AccessDeniedException" in text and ("model" in text.lower() or "bedrock" in text.lower()):
+        return True
+    return False
+
+
 def _invoke_claude_model(model_id, body):
     payload = dict(body)
+    # Only Sonnet 5-family needs explicit thinking:disabled; older Sonnets reject unknown fields.
+    if "sonnet-5" not in str(model_id):
+        payload.pop("thinking", None)
     try:
         response = bedrock_runtime.invoke_model(
             modelId=model_id,
@@ -392,7 +409,11 @@ def _invoke_claude_model(model_id, body):
             body=json.dumps(payload),
         )
     except Exception as err:
-        logger.warning("Claude %s with thinking disabled failed (%s); retrying without", model_id, err)
+        if _is_model_unavailable(err) and "Could not process image" not in str(err):
+            raise
+        if "thinking" not in payload:
+            raise
+        logger.warning("Claude %s failed (%s); retrying without thinking field", model_id, err)
         payload.pop("thinking", None)
         response = bedrock_runtime.invoke_model(
             modelId=model_id,
@@ -407,13 +428,17 @@ def _invoke_claude(image_data, image_format, prompt_text=None):
     """Call Claude on Bedrock (ounces + count fallback). Returns response text."""
     media_type = MEDIA_TYPES.get(image_format, "image/jpeg")
     prompt_text = prompt_text or VISION_PROMPT
+    # Strip whitespace / data-URI prefixes that break Bedrock image validation.
+    if isinstance(image_data, str):
+        image_data = image_data.strip()
+        if "," in image_data and image_data.lower().startswith("data:"):
+            image_data = image_data.split(",", 1)[1]
+        image_data = re.sub(r"\s+", "", image_data)
 
     body = {
         "anthropic_version": "bedrock-2023-05-31",
         "max_tokens": 2000,
         "temperature": 0.0,
-        # Sonnet 5 turns adaptive thinking on unless disabled — keep JSON + latency tight.
-        "thinking": {"type": "disabled"},
         "messages": [
             {
                 "role": "user",
@@ -436,7 +461,10 @@ def _invoke_claude(image_data, image_format, prompt_text=None):
     response_body = None
     for model_id in _claude_model_ids():
         try:
-            response_body = _invoke_claude_model(model_id, body)
+            payload = dict(body)
+            if "sonnet-5" in str(model_id):
+                payload["thinking"] = {"type": "disabled"}
+            response_body = _invoke_claude_model(model_id, payload)
             logger.info("Claude invoke succeeded model=%s", model_id)
             break
         except Exception as err:
@@ -709,22 +737,24 @@ def _run_one_count(invoke_fn, image_data, image_format, prompt, expected, count_
 
 
 def _run_count_pass(image_data, image_format, expected, count_is_min=False):
-    """Grok 4.6 on Bedrock lists vessels; Claude recounts only if Grok misses the stepper."""
+    """Count vessels. Prefer Claude (entitled on this account); optional Grok when enabled."""
     prompt = _count_prompt(expected)
     models_tried = []
     grok_result = None
     claude_result = None
 
-    try:
-        grok_result = _run_one_count(
-            _invoke_grok, image_data, image_format, prompt, expected, count_is_min
-        )
-        models_tried.append("grok-count")
-    except Exception as err:
-        logger.error("Grok count failed: %s", err)
+    use_grok = bool(GROK_MODEL_ID) and not SKIP_GROK
+    if use_grok:
+        try:
+            grok_result = _run_one_count(
+                _invoke_grok, image_data, image_format, prompt, expected, count_is_min
+            )
+            models_tried.append("grok-count")
+        except Exception as err:
+            logger.error("Grok count failed: %s", err)
 
     grok_n = _vessel_count(grok_result)
-    need_claude = not _count_matches(grok_n, expected, count_is_min)
+    need_claude = (not use_grok) or (not _count_matches(grok_n, expected, count_is_min))
     if need_claude:
         try:
             claude_result = _run_one_count(
@@ -732,7 +762,9 @@ def _run_count_pass(image_data, image_format, expected, count_is_min=False):
             )
             models_tried.append("claude-count")
         except Exception as err:
-            logger.error("Claude count fallback failed: %s", err)
+            logger.error("Claude count failed: %s", err)
+            if not grok_result:
+                raise
 
     claude_n = _vessel_count(claude_result)
     logger.info(
@@ -1110,4 +1142,22 @@ def handler(event, context):
         return result
     except Exception as e:
         logger.error(f"Handler error: {str(e)}")
-        return _fail_closed(error=str(e), status_code=500)
+        friendly = str(e)
+        if _is_model_unavailable(e) or "Could not process image" in friendly:
+            return _fail_closed(
+                error="detect_unavailable",
+                tips=[
+                    "Photo estimate is temporarily unavailable",
+                    "Try a brighter JPEG with a 12 oz can for scale",
+                    "Or enter ounces manually",
+                ],
+                status_code=503,
+            )
+        return _fail_closed(
+            error="detect_failed",
+            tips=[
+                "Could not auto-estimate from this photo",
+                "Try again with a clearer photo, or enter ounces manually",
+            ],
+            status_code=500,
+        )

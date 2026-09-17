@@ -40,7 +40,7 @@ export default function ProfileScreen() {
     changePassword,
   } = useAuth();
 
-  const [mode, setMode] = useState('signin'); // signin | signup | confirm | forgot | reset
+  const [mode, setMode] = useState('signup'); // signup | signin | confirm | forgot | reset
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
@@ -239,15 +239,15 @@ export default function ProfileScreen() {
       <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>Account</Text>
         <Text style={styles.lead}>
-          Sign in to save orders and attach refill quotes to your profile. You can still
-          browse Shop and Classes as a guest.
+          Create an account with your name, phone, and mailing address to save orders.
+          Already registered? Tap Sign in. Guests can still browse Shop and Classes.
         </Text>
 
         <View style={styles.section}>
           <View style={styles.modeRow}>
             {[
-              { id: 'signin', label: 'Sign in' },
               { id: 'signup', label: 'Create' },
+              { id: 'signin', label: 'Sign in' },
               { id: 'confirm', label: 'Confirm' },
               { id: 'forgot', label: 'Forgot' },
             ].map((m) => (
