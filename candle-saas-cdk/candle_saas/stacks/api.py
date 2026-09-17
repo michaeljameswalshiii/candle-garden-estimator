@@ -2,6 +2,7 @@ import os
 import shutil
 from aws_cdk import (
     Stack,
+    RemovalPolicy,
     aws_apigateway as apigw,
     aws_lambda as lambda_,
     aws_iam as iam,
@@ -9,12 +10,23 @@ from aws_cdk import (
     aws_ec2 as ec2,
     aws_s3 as s3,
     aws_rds as rds,
+    aws_dynamodb as dynamodb,
     aws_cognito as cognito,
     Duration,
     Size,
     CfnOutput,
 )
 from constructs import Construct
+
+
+def _lambda_net(vpc, sg):
+    """Omit VPC so detector/payments can run without the idle NAT gateway."""
+    if vpc is None:
+        return {}
+    kwargs = {"vpc": vpc}
+    if sg is not None:
+        kwargs["security_groups"] = [sg]
+    return kwargs
 
 
 def _get_db_endpoint(db):
@@ -34,8 +46,8 @@ class APIStack(Stack):
         self,
         scope: Construct,
         id: str,
-        vpc: ec2.Vpc,
-        lambda_sg: ec2.SecurityGroup,
+        vpc: ec2.Vpc = None,
+        lambda_sg: ec2.SecurityGroup = None,
         database = None,
         s3_bucket: s3.Bucket = None,
         **kwargs
@@ -53,9 +65,30 @@ class APIStack(Stack):
             description="Execution role for Candle SaaS Lambda functions"
         )
         
-        # Add basic Lambda execution policy
+        # Logs only when not in a VPC; VPC role includes ENI permissions (and the NAT bill).
         lambda_execution_role.add_managed_policy(
-            iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaVPCAccessExecutionRole")
+            iam.ManagedPolicy.from_aws_managed_policy_name(
+                "service-role/AWSLambdaVPCAccessExecutionRole"
+                if vpc is not None
+                else "service-role/AWSLambdaBasicExecutionRole"
+            )
+        )
+
+        rate_table = dynamodb.Table(
+            self,
+            "DetectRateLimits",
+            table_name="candle-garden-detect-rate-limits",
+            partition_key=dynamodb.Attribute(name="pk", type=dynamodb.AttributeType.STRING),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            time_to_live_attribute="ttl",
+            removal_policy=RemovalPolicy.RETAIN,
+        )
+        rate_table.grant_read_write_data(lambda_execution_role)
+        lambda_execution_role.add_to_policy(
+            iam.PolicyStatement(
+                actions=["cognito-idp:GetUser"],
+                resources=["*"],
+            )
         )
         
         # Add permissions for database access (only if database exists)
@@ -66,8 +99,9 @@ class APIStack(Stack):
         if s3_bucket is not None:
             s3_bucket.grant_read_write(lambda_execution_role)
         
-        # Bedrock: Claude (primary detector + recommendations) and Nova (fallback).
-        # Include foundation models + inference profiles (required for newer Claude on-demand).
+        # Bedrock: Grok 4.6 (count), Claude Sonnet 5 (ounces), Nova Premier (ounce fallback).
+        # Grok on bedrock-runtime uses geo/global inference profiles (us.xai.grok-4.6)
+        # plus InvokeModel on the account default project.
         lambda_execution_role.add_to_policy(
             iam.PolicyStatement(
                 actions=[
@@ -78,15 +112,20 @@ class APIStack(Stack):
                     # Foundation models (any region account-less ARN)
                     f"arn:aws:bedrock:{self.region}::foundation-model/anthropic.*",
                     f"arn:aws:bedrock:{self.region}::foundation-model/amazon.nova*",
+                    f"arn:aws:bedrock:{self.region}::foundation-model/xai.*",
                     "arn:aws:bedrock:*::foundation-model/anthropic.*",
                     "arn:aws:bedrock:*::foundation-model/amazon.nova*",
+                    "arn:aws:bedrock:*::foundation-model/xai.*",
                     # Inference profiles (cross-region / on-demand routing)
                     f"arn:aws:bedrock:{self.region}:{self.account}:inference-profile/*",
                     f"arn:aws:bedrock:*:{self.account}:inference-profile/*",
+                    # Default Bedrock project required for Grok 4.6 on bedrock-runtime
+                    f"arn:aws:bedrock:{self.region}:{self.account}:project/default",
+                    f"arn:aws:bedrock:*:{self.account}:project/default",
                 ],
             )
         )
-        # Newer Claude models require marketplace subscribe/view for first-time enablement
+        # Claude / Grok marketplace subscribe/view for first-time enablement
         lambda_execution_role.add_to_policy(
             iam.PolicyStatement(
                 actions=[
@@ -144,7 +183,21 @@ class APIStack(Stack):
         )
         
         container_detector_fn = self._create_container_detector_function(
-            lambda_execution_role, vpc, lambda_sg
+            lambda_execution_role, vpc, lambda_sg, rate_table.table_name
+        )
+        detect_url = container_detector_fn.add_function_url(
+            auth_type=lambda_.FunctionUrlAuthType.NONE,
+            cors=lambda_.FunctionUrlCorsOptions(
+                allowed_origins=["*"],
+                allowed_headers=["*"],
+                allowed_methods=[lambda_.HttpMethod.ALL],
+            ),
+        )
+        # Function URLs with AuthType NONE also need InvokeFunction (not just InvokeFunctionUrl).
+        container_detector_fn.add_permission(
+            "PublicFunctionUrlInvoke",
+            principal=iam.AnyPrincipal(),
+            action="lambda:InvokeFunction",
         )
         
         # Cognito user pool for The Candle Garden App (import existing Phase 1 pool when set)
@@ -187,6 +240,7 @@ class APIStack(Stack):
 
         CfnOutput(self, "CognitoUserPoolId", value=pool_id)
         CfnOutput(self, "ApiUrl", value=api.url)
+        CfnOutput(self, "DetectFunctionUrl", value=detect_url.url)
     
     def _create_product_manager_function(
         self, role: iam.Role, vpc: ec2.Vpc, sg: ec2.SecurityGroup, db
@@ -202,8 +256,7 @@ class APIStack(Stack):
             handler="index.handler",
             runtime=lambda_.Runtime.PYTHON_3_10,
             role=role,
-            vpc=vpc,
-            security_groups=[sg],
+            **_lambda_net(vpc, sg),
             environment={
                 "DB_HOST": db_host,
                 "DB_PORT": str(db_port),
@@ -229,8 +282,7 @@ class APIStack(Stack):
             handler="index.handler",
             runtime=lambda_.Runtime.PYTHON_3_10,
             role=role,
-            vpc=vpc,
-            security_groups=[sg],
+            **_lambda_net(vpc, sg),
             environment={
                 "DB_HOST": db_host,
                 "DB_PORT": str(db_port),
@@ -260,8 +312,7 @@ class APIStack(Stack):
             handler="index.handler",
             runtime=lambda_.Runtime.PYTHON_3_10,
             role=role,
-            vpc=vpc,
-            security_groups=[sg],
+            **_lambda_net(vpc, sg),
             environment={
                 "STRIPE_SECRET_ARN": self.node.try_get_context("stripeSecretArn")
                 or "arn:aws:secretsmanager:us-east-1:635449373837:secret:candlesaas/stripe/test-QNXlxT",
@@ -288,8 +339,7 @@ class APIStack(Stack):
             handler="index.handler",
             runtime=lambda_.Runtime.PYTHON_3_10,
             role=role,
-            vpc=vpc,
-            security_groups=[sg],
+            **_lambda_net(vpc, sg),
             environment={
                 "DB_HOST": db_host,
                 "DB_PORT": str(db_port),
@@ -313,8 +363,7 @@ class APIStack(Stack):
             handler="index.handler",
             runtime=lambda_.Runtime.PYTHON_3_10,
             role=role,
-            vpc=vpc,
-            security_groups=[sg],
+            **_lambda_net(vpc, sg),
             timeout=Duration.seconds(120),
             memory_size=1024,
             ephemeral_storage_size=Size.mebibytes(512),
@@ -323,7 +372,7 @@ class APIStack(Stack):
         return fn
     
     def _create_container_detector_function(
-        self, role: iam.Role, vpc: ec2.Vpc, sg: ec2.SecurityGroup
+        self, role: iam.Role, vpc: ec2.Vpc, sg: ec2.SecurityGroup, rate_table_name: str
     ) -> lambda_.Function:
         """Create Lambda function for container detection using Bedrock Vision."""
         fn = lambda_.Function(
@@ -334,15 +383,17 @@ class APIStack(Stack):
             handler="index.handler",
             runtime=lambda_.Runtime.PYTHON_3_10,
             role=role,
-            vpc=vpc,
-            security_groups=[sg],
+            **_lambda_net(vpc, sg),
             environment={
-                # Claude Sonnet 4.5 primary (US inference profile); Nova Pro fallback
-                "CLAUDE_MODEL_ID": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
-                "NOVA_MODEL_ID": "amazon.nova-pro-v1:0",
+                # Grok 4.6 count; Claude Sonnet 5 ounces; Nova Premier ounce fallback. No xAI API key.
+                "CLAUDE_MODEL_ID": "us.anthropic.claude-sonnet-5",
+                "NOVA_MODEL_ID": "us.amazon.nova-premier-v1:0",
+                "GROK_MODEL_ID": "us.xai.grok-4.6",
+                "GROK_REASONING_EFFORT": "low",
                 "MIN_CONFIDENCE": "0.5",
+                "RATE_LIMIT_TABLE": rate_table_name,
             },
-            timeout=Duration.seconds(120),
+            timeout=Duration.seconds(180),
             memory_size=1024,
             ephemeral_storage_size=Size.mebibytes(512),
             log_retention=logs.RetentionDays.TWO_WEEKS,

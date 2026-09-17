@@ -6,9 +6,6 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import aws_cdk as cdk
-from candle_saas.stacks.network import NetworkStack
-from candle_saas.stacks.database import DatabaseStack
-from candle_saas.stacks.storage import StorageStack
 from candle_saas.stacks.api import APIStack
 
 app = cdk.App()
@@ -19,29 +16,14 @@ env = cdk.Environment(
     region=app.node.try_get_context("region") or "us-east-1"
 )
 
-# Create network stack
-network_stack = NetworkStack(app, "CandleSaasNetworkStack", env=env)
-
-# Create storage stack
-storage_stack = StorageStack(app, "CandleSaasStorageStack", env=env)
-
-# Create database stack - commented out for now since RDS creation is failing
-# Uncomment after fixing database provisioning
-# database_stack = DatabaseStack(
-#     app, "CandleSaasDatabaseStack",
-#     vpc=network_stack.vpc,
-#     database_sg=network_stack.database_sg,
-#     env=env
-# )
-
-# Create API stack with Lambda functions (without database for now)
-# The container_detector works without DB - only product_manager/order_processor need it
+# Network + storage stacks stay down. The idle NAT gateway was ~$40/mo and the
+# detector only needs public Bedrock/DynamoDB, not a VPC.
 api_stack = APIStack(
     app, "CandleSaasAPIStack",
-    vpc=network_stack.vpc,
-    lambda_sg=network_stack.lambda_sg,
-    database=None,  # Temporarily None - no RDS available
-    s3_bucket=storage_stack.image_bucket,
+    vpc=None,
+    lambda_sg=None,
+    database=None,
+    s3_bucket=None,
     env=env
 )
 

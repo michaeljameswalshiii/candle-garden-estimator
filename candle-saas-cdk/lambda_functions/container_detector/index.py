@@ -14,9 +14,11 @@ bedrock_runtime = boto3.client("bedrock-runtime", region_name=AWS_REGION)
 
 CLAUDE_MODEL_ID = os.environ.get(
     "CLAUDE_MODEL_ID",
-    "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    "us.anthropic.claude-sonnet-5",
 )
-NOVA_MODEL_ID = os.environ.get("NOVA_MODEL_ID", "amazon.nova-pro-v1:0")
+NOVA_MODEL_ID = os.environ.get("NOVA_MODEL_ID", "us.amazon.nova-premier-v1:0")
+GROK_MODEL_ID = os.environ.get("GROK_MODEL_ID", "us.xai.grok-4.6")
+GROK_REASONING_EFFORT = os.environ.get("GROK_REASONING_EFFORT", "low").strip() or "low"
 MIN_CONFIDENCE = float(os.environ.get("MIN_CONFIDENCE", "0.5"))
 RATE_LIMIT_TABLE = os.environ.get("RATE_LIMIT_TABLE", "candle-garden-detect-rate-limits")
 GUEST_DETECT_LIMIT = int(os.environ.get("GUEST_DETECT_LIMIT", "20"))
@@ -27,6 +29,80 @@ dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
 
 # Bedrock vision accepts jpeg/png/gif/webp — not HEIC/HEIF (iPhone default).
 SUPPORTED_FORMATS = {"jpeg", "jpg", "png", "gif", "webp"}
+
+COUNT_PROMPT = """You are counting candle vessels for The Candle Garden refill studio.
+
+Customers photograph one or more containers they want REFILLED. List EVERY refillable vessel. Do NOT estimate ounces yet.
+
+## SCALE ONLY — never list as a vessel
+Any aluminum beverage can used for size reference (standard **12 fl oz / 355 ml**): Athletic Brewing, Alani, seltzer, soda. Brand does not matter. Do NOT put the can in vessels[].
+
+## INCLUDE as a candle vessel
+- Wick, wick tab, or metal wick clip (even empty glass)
+- Glass jar, tumbler, amber/apothecary jar, metal tin
+- Ceramic mug staged for candles
+- Votives, bowls used as candles
+- Small short jars next to taller ones — count separately
+
+## Do NOT include
+- Beverage cans (scale)
+- Boxes, bags, paper towels, furniture, food packaging
+- Closed liquor/water bottles
+- Background shelf candles unless in the refill group
+- Wax melts / cubes
+
+## Count rules
+- If the photo shows N jars/mugs/glasses + 1 scale can → vessel_count = N
+- Do NOT merge two similar tumblers
+- Always include the smallest short jar if it has a wick
+- vessel_count MUST equal vessels.length
+
+{expected_line}
+
+Return ONLY JSON:
+{
+  "success": true,
+  "container_detected": true,
+  "vessel_count": 2,
+  "vessels": [
+    {"id": "v1", "description": "Short clear jar with wick, left of can"},
+    {"id": "v2", "description": "Tall tumbler with wick, right"}
+  ],
+  "scale_can_seen": true,
+  "confidence": 0.85,
+  "explanation": "2 glasses plus one 12 oz can used as scale"
+}
+If ZERO vessels: container_detected false, vessel_count 0, vessels [].
+"""
+
+ESTIMATE_PROMPT = """You are estimating soy wax refill ounces for The Candle Garden.
+
+A 12 oz (355 ml) aluminum drink can may be in the photo for scale only — do not refill the can.
+
+Estimate wax_needed_oz for EACH listed vessel separately. Use the can for relative diameter/height when present.
+current_wax_percent: remaining usable wax 0–100; empty + wick only → 0.
+wax_needed_oz ≈ full_capacity_oz * (1 - current_wax_percent/100).
+
+Vessels to estimate (keep this exact count and order):
+{vessel_list}
+
+Return ONLY JSON:
+{
+  "success": true,
+  "vessels": [
+    {
+      "id": "v1",
+      "description": "copied from list",
+      "full_capacity_oz": 8,
+      "current_wax_percent": 0,
+      "wax_needed_oz": 8,
+      "wax_needed_grams": 227
+    }
+  ],
+  "confidence": 0.8
+}
+Do not add or drop vessels. Do not include a total — we will sum wax_needed_oz in code.
+"""
 
 VISION_PROMPT = """You are an expert candle refill estimator for The Candle Garden studio.
 
@@ -296,7 +372,7 @@ def _parse_model_json(text):
 
 
 def _invoke_claude(image_data, image_format, prompt_text=None):
-    """Call Claude (Anthropic Messages API on Bedrock). Returns response text."""
+    """Call Claude Sonnet 5 on Bedrock (ounces + count fallback). Returns response text."""
     media_type = MEDIA_TYPES.get(image_format, "image/jpeg")
     prompt_text = prompt_text or VISION_PROMPT
 
@@ -304,6 +380,8 @@ def _invoke_claude(image_data, image_format, prompt_text=None):
         "anthropic_version": "bedrock-2023-05-31",
         "max_tokens": 2000,
         "temperature": 0.0,
+        # Sonnet 5 turns adaptive thinking on unless disabled — keep JSON + latency tight.
+        "thinking": {"type": "disabled"},
         "messages": [
             {
                 "role": "user",
@@ -322,12 +400,22 @@ def _invoke_claude(image_data, image_format, prompt_text=None):
         ],
     }
 
-    response = bedrock_runtime.invoke_model(
-        modelId=CLAUDE_MODEL_ID,
-        contentType="application/json",
-        accept="application/json",
-        body=json.dumps(body),
-    )
+    try:
+        response = bedrock_runtime.invoke_model(
+            modelId=CLAUDE_MODEL_ID,
+            contentType="application/json",
+            accept="application/json",
+            body=json.dumps(body),
+        )
+    except Exception as err:
+        logger.warning("Claude invoke with thinking disabled failed (%s); retrying without", err)
+        body.pop("thinking", None)
+        response = bedrock_runtime.invoke_model(
+            modelId=CLAUDE_MODEL_ID,
+            contentType="application/json",
+            accept="application/json",
+            body=json.dumps(body),
+        )
     response_body = json.loads(response["body"].read())
     content = response_body.get("content") or []
     for block in content:
@@ -338,8 +426,50 @@ def _invoke_claude(image_data, image_format, prompt_text=None):
     return ""
 
 
+def _converse_text(response):
+    content = (
+        (response or {}).get("output", {}).get("message", {}).get("content") or []
+    )
+    parts = []
+    for block in content:
+        if isinstance(block, dict) and block.get("text"):
+            parts.append(block["text"])
+    return "\n".join(parts)
+
+
+def _invoke_grok(image_data, image_format, prompt_text=None):
+    """Count pass via Grok 4.6 on Bedrock (same IAM as Claude). No xAI API key."""
+    prompt_text = prompt_text or COUNT_PROMPT.format(expected_line="")
+    fmt = "jpeg" if image_format in ("jpg", "jpeg") else image_format
+    image_bytes = base64.b64decode(image_data, validate=False)
+    kwargs = {
+        "modelId": GROK_MODEL_ID,
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"image": {"format": fmt, "source": {"bytes": image_bytes}}},
+                {"text": prompt_text},
+            ],
+        }],
+        "inferenceConfig": {
+            "maxTokens": 2000,
+            "temperature": 0.0,
+        },
+        "additionalModelRequestFields": {
+            "reasoning": {"effort": GROK_REASONING_EFFORT},
+        },
+    }
+    try:
+        response = bedrock_runtime.converse(**kwargs)
+    except Exception as err:
+        logger.warning("Grok converse with reasoning fields failed (%s); retrying without", err)
+        kwargs.pop("additionalModelRequestFields", None)
+        response = bedrock_runtime.converse(**kwargs)
+    return _converse_text(response)
+
+
 def _invoke_nova(image_data, image_format, prompt_text=None):
-    """Call Amazon Nova Pro. Returns response text."""
+    """Call Amazon Nova Premier (ounce fallback). Returns response text."""
     fmt = "jpeg" if image_format in ("jpg", "jpeg") else image_format
     prompt_text = prompt_text or VISION_PROMPT
     response = bedrock_runtime.invoke_model(
@@ -494,111 +624,239 @@ def _build_success_response(result, model_used):
     })
 
 
+def _expected_count(body):
+    try:
+        value = body.get("expected_vessel_count")
+        if value is None:
+            return None
+        count = int(value)
+        return count if count > 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _count_prompt(expected):
+    if expected:
+        line = (
+            f"The customer says there are exactly {expected} refillable vessel(s) "
+            f"(not counting the scale can). vessels.length MUST be {expected}."
+        )
+    else:
+        line = "Count every refillable vessel in the foreground group."
+    return COUNT_PROMPT.format(expected_line=line)
+
+
+def _vessel_count(result):
+    if not result or not isinstance(result, dict):
+        return 0
+    vessels = result.get("vessels") or []
+    return len(vessels) if isinstance(vessels, list) else 0
+
+
+def _count_matches(found, expected, count_is_min):
+    if not expected:
+        return found > 0
+    if count_is_min:
+        return found >= expected
+    return found == expected
+
+
+def _recount_prompt(prompt, expected):
+    return prompt + RECOUNT_PROMPT_SUFFIX + f"\nThe customer counted {expected}. List that many."
+
+
+def _run_one_count(invoke_fn, image_data, image_format, prompt, expected, count_is_min):
+    text = invoke_fn(image_data, image_format, prompt)
+    result = _parse_model_json(text)
+    if expected and not _count_matches(_vessel_count(result), expected, count_is_min):
+        try:
+            retry_text = invoke_fn(
+                image_data, image_format, _recount_prompt(prompt, expected)
+            )
+            retry = _parse_model_json(retry_text)
+            if _vessel_count(retry) >= _vessel_count(result):
+                result = retry
+        except Exception as err:
+            logger.warning("Recount failed: %s", err)
+    return result
+
+
+def _run_count_pass(image_data, image_format, expected, count_is_min=False):
+    """Grok 4.6 on Bedrock lists vessels; Claude recounts only if Grok misses the stepper."""
+    prompt = _count_prompt(expected)
+    models_tried = []
+    grok_result = None
+    claude_result = None
+
+    try:
+        grok_result = _run_one_count(
+            _invoke_grok, image_data, image_format, prompt, expected, count_is_min
+        )
+        models_tried.append("grok-count")
+    except Exception as err:
+        logger.error("Grok count failed: %s", err)
+
+    grok_n = _vessel_count(grok_result)
+    need_claude = not _count_matches(grok_n, expected, count_is_min)
+    if need_claude:
+        try:
+            claude_result = _run_one_count(
+                _invoke_claude, image_data, image_format, prompt, expected, count_is_min
+            )
+            models_tried.append("claude-count")
+        except Exception as err:
+            logger.error("Claude count fallback failed: %s", err)
+
+    claude_n = _vessel_count(claude_result)
+    logger.info(
+        "Count pass grok=%s claude=%s expected=%s min=%s",
+        grok_n,
+        claude_n,
+        expected,
+        count_is_min,
+    )
+
+    if _count_matches(grok_n, expected, count_is_min):
+        chosen = grok_result
+    elif _count_matches(claude_n, expected, count_is_min):
+        chosen = claude_result
+    elif grok_n >= claude_n and grok_result:
+        chosen = grok_result
+    else:
+        chosen = claude_result or grok_result
+
+    return chosen, models_tried
+
+
+def _run_estimate_pass(image_data, image_format, count_result):
+    listed = count_result.get("vessels") or []
+    lines = []
+    for index, vessel in enumerate(listed, start=1):
+        vid = vessel.get("id") or f"v{index}"
+        desc = vessel.get("description") or f"Vessel {index}"
+        lines.append(f"{index}. id={vid} — {desc}")
+    prompt = ESTIMATE_PROMPT.format(vessel_list="\n".join(lines) or "1. id=v1 — candle vessel")
+    try:
+        text = _invoke_claude(image_data, image_format, prompt)
+        parsed = _parse_model_json(text)
+        if parsed:
+            return parsed, "claude-estimate"
+    except Exception as err:
+        logger.error("Claude estimate failed: %s", err)
+    try:
+        text = _invoke_nova(image_data, image_format, prompt)
+        parsed = _parse_model_json(text)
+        if parsed:
+            return parsed, "nova-premier-estimate"
+    except Exception as err:
+        logger.error("Nova estimate failed: %s", err)
+    return None, None
+
+
+def _merge_estimate(count_result, estimate_result):
+    counted = list(count_result.get("vessels") or [])
+    estimated = list((estimate_result or {}).get("vessels") or [])
+    by_id = {}
+    by_index = {}
+    for index, vessel in enumerate(estimated):
+        if vessel.get("id"):
+            by_id[str(vessel["id"])] = vessel
+        by_index[index] = vessel
+    merged = []
+    for index, listed in enumerate(counted):
+        match = by_id.get(str(listed.get("id") or "")) or by_index.get(index) or {}
+        row = {
+            "id": listed.get("id") or match.get("id") or f"v{index + 1}",
+            "description": listed.get("description") or match.get("description") or f"Vessel {index + 1}",
+            "full_capacity_oz": match.get("full_capacity_oz"),
+            "current_wax_percent": match.get("current_wax_percent"),
+            "wax_needed_oz": match.get("wax_needed_oz"),
+            "wax_needed_grams": match.get("wax_needed_grams"),
+        }
+        merged.append(row)
+    total = 0.0
+    for row in merged:
+        try:
+            total += float(row.get("wax_needed_oz") or 0)
+        except (TypeError, ValueError):
+            pass
+    confidence = float(
+        (estimate_result or {}).get("confidence")
+        or count_result.get("confidence")
+        or 0.7
+    )
+    return {
+        "success": True,
+        "container_detected": bool(merged),
+        "vessel_count": len(merged),
+        "vessels": merged,
+        "total_wax_needed_oz": round(total, 1),
+        "total_wax_needed_grams": round(total * 28.35, 1),
+        "confidence": confidence,
+        "explanation": count_result.get("explanation") or "Two-pass count then ounce estimate",
+        "scale_can_seen": count_result.get("scale_can_seen"),
+    }
+
+
 def analyze_image(body):
-    """Primary Claude; Nova fallback. Fail closed — no invented ounce defaults."""
+    """Two-pass Bedrock: Grok count, Claude ounces. Fail closed on mismatch."""
     image_data, image_format, err = _normalize_image(body)
     if err:
         return err
 
-    last_error = None
-    models_tried = []
-
-    def _handle_built(built, model_label, raw_text):
-        if built is None:
-            logger.warning(
-                f"{model_label} unusable output (first 400 chars): {(raw_text or '')[:400]}"
-            )
-            return None
-        if isinstance(built, tuple):
-            reason, tips = built
-            return _fail_closed(tips=tips, error=reason)
-        if isinstance(built, dict):
-            return built
-        return None
-
-    def _maybe_recount(result, model_label, invoker):
-        """
-        Soft undercount guard: multi-vessel studio shots often miss 1 of 5.
-        If we only found 2–4 vessels, run one recount pass and keep the higher count.
-        """
-        if not result or not isinstance(result, dict):
-            return result
-        vessels = result.get("vessels") or []
-        n = len(vessels) if isinstance(vessels, list) else 0
-        if n < 2 or n > 4:
-            return result
-        try:
-            logger.info(
-                "%s soft recount (first pass vessel_count=%s)", model_label, n
-            )
-            text2 = invoker(
-                image_data,
-                image_format,
-                VISION_PROMPT + RECOUNT_PROMPT_SUFFIX,
-            )
-            result2 = _parse_model_json(text2)
-            if not result2 or not isinstance(result2, dict):
-                return result
-            n2 = len(result2.get("vessels") or [])
-            if n2 > n:
-                logger.info(
-                    "%s recount improved count %s → %s", model_label, n, n2
-                )
-                return result2
-            return result
-        except Exception as re_err:
-            logger.warning("%s recount failed: %s", model_label, re_err)
-            return result
-
-    try:
-        logger.info(f"Invoking Claude model: {CLAUDE_MODEL_ID}")
-        text = _invoke_claude(image_data, image_format)
-        models_tried.append("claude")
-        result = _parse_model_json(text)
-        result = _maybe_recount(result, "Claude", _invoke_claude)
-        handled = _handle_built(
-            _build_success_response(result, CLAUDE_MODEL_ID),
-            "Claude",
-            text,
-        )
-        if handled is not None:
-            return handled
-        logger.warning("Claude did not yield a quote; trying Nova fallback")
-    except Exception as e:
-        last_error = str(e)
-        logger.error(f"Claude invoke failed: {e}")
-
-    try:
-        logger.info(f"Invoking Nova fallback: {NOVA_MODEL_ID}")
-        text = _invoke_nova(image_data, image_format)
-        models_tried.append("nova")
-        result = _parse_model_json(text)
-        result = _maybe_recount(result, "Nova", _invoke_nova)
-        handled = _handle_built(
-            _build_success_response(result, NOVA_MODEL_ID),
-            "Nova",
-            text,
-        )
-        if handled is not None:
-            return handled
-        logger.warning("Nova did not yield a quote")
-    except Exception as e:
-        last_error = str(e)
-        logger.error(f"Nova invoke failed: {e}")
-
-    tips = [
-        "Vision analysis could not produce a reliable estimate",
-        "Try a clearer JPEG photo or enter volume manually",
-    ]
-    if models_tried:
-        tips.append(f"Models tried: {', '.join(models_tried)}")
-    if last_error and "heic" in last_error.lower():
-        tips.insert(0, "Photo may still be HEIC — reload the app so it converts to JPEG")
-
-    return _fail_closed(
-        error=last_error or "No usable vision result",
-        tips=tips,
+    expected = _expected_count(body)
+    count_is_min = bool(body.get("expected_count_is_minimum"))
+    count_result, models_tried = _run_count_pass(
+        image_data, image_format, expected, count_is_min
     )
+    found = _vessel_count(count_result)
+
+    mismatch = False
+    if expected:
+        mismatch = found < expected if count_is_min else found != expected
+    if mismatch:
+        return _fail_closed(
+            error="vessel_count_mismatch",
+            tips=[
+                f"You said {expected}{'+' if count_is_min else ''} vessel{'s' if expected != 1 else ''}; we counted {found}.",
+                "Photograph one jar at a time (plus a 12 oz can), then add the next.",
+                "Or enter ounces manually",
+            ],
+        )
+    if found < 1:
+        return _fail_closed(
+            error="not_detected",
+            tips=[
+                "No candle vessel clearly detected",
+                "Include a 12 oz drink can for scale",
+                "Or enter volume manually",
+            ],
+        )
+
+    estimate_result, estimate_model = _run_estimate_pass(image_data, image_format, count_result)
+    if estimate_model:
+        models_tried.append(estimate_model)
+    merged = _merge_estimate(count_result, estimate_result)
+    if float(merged.get("total_wax_needed_oz") or 0) <= 0:
+        return _fail_closed(
+            error="no_ounce_estimate",
+            tips=["Could not estimate ounces from the photo", "Enter volume manually"],
+        )
+
+    built = _build_success_response(merged, ",".join(models_tried) or CLAUDE_MODEL_ID)
+    if isinstance(built, dict):
+        try:
+            payload = json.loads(built["body"])
+            payload["pass"] = "count_then_estimate"
+            payload["expected_vessel_count"] = expected
+            built["body"] = json.dumps(payload)
+        except Exception:
+            pass
+        return built
+    if isinstance(built, tuple):
+        reason, tips = built
+        return _fail_closed(tips=tips, error=reason)
+    return _fail_closed(error="No usable vision result", tips=["Try a clearer JPEG or enter ounces manually"])
 
 
 def _headers_lower(event):
