@@ -87,7 +87,7 @@ export default function RefillStep4() {
 
   const handleAddToCart = () => {
     if (!cost.quote_ok) {
-      Alert.alert('ZIP needed', cost.quote_reason || 'Enter your ZIP for UPS Ground Saver.');
+      Alert.alert('ZIP needed', cost.quote_reason || 'Enter your ZIP to estimate UPS shipping.');
       return;
     }
     const method = SHIPPING_METHODS[shippingMethod];
@@ -116,8 +116,8 @@ export default function RefillStep4() {
                 vesselCount: Math.max(vesselCount, quantity),
                 detail:
                   shippingMethod === 'ship_own'
-                    ? `Ship empties on your own · Return shipping to you: UPS Ground Saver · $${cost.shipping_cost}`
-                    : `${method?.title || 'UPS Ground Saver'} · ${cost.shipping_label}`,
+                    ? `Ship empties on your own · UPS return shipping to you · $${cost.shipping_cost}`
+                    : `${method?.title || 'UPS shipping'} · ${cost.shipping_label}`,
                 unitPrice: cost.total_cost_num / quantity,
                 waxUnitPrice: cost.wax_cost_num / quantity,
                 returnShippingUnitPrice: cost.shipping_cost_num / quantity,
@@ -177,7 +177,7 @@ export default function RefillStep4() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Your ZIP</Text>
         <Text style={styles.hintText}>
-          UPS Ground Saver from Atlantic Beach, FL (32233). Price is zone × packed weight.
+          Estimated UPS shipping from Atlantic Beach, FL (32233). Checkout confirms the lowest live UPS rate available.
         </Text>
         <TextInput
           style={styles.zipInput}

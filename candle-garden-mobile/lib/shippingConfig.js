@@ -29,7 +29,7 @@ export const SHIPPING_METHODS = {
     legs: ['refills_out'],
     summary:
       'You pack and ship empties to The Candle Garden (postage on you). ' +
-      'We ship refills back via UPS Ground Saver — that one trip is included.',
+      'We ship refills back using the lowest-cost available UPS service — that one trip is included.',
   },
   kit_roundtrip: {
     key: 'kit_roundtrip',
@@ -38,8 +38,8 @@ export const SHIPPING_METHODS = {
     chargeCount: 3,
     legs: ['kit_out', 'empties_in', 'refills_out'],
     summary:
-      'We mail you a packing kit (box + wrap) and prepaid UPS Ground Saver labels. ' +
-      'You send empties in; we refill and ship them back. Three Ground Saver trips.',
+      'We mail you a packing kit (box + wrap) and prepaid UPS labels. ' +
+      'You send empties in; we refill and ship them back. Three UPS trips.',
   },
   prepaid_labels: {
     key: 'prepaid_labels',
@@ -48,8 +48,8 @@ export const SHIPPING_METHODS = {
     chargeCount: 2,
     legs: ['empties_in', 'refills_out'],
     summary:
-      'We’ll email packing instructions and a prepaid UPS Ground Saver label for empties. ' +
-      'After we refill, we ship them back. Two Ground Saver trips. You provide a sturdy box that matches the size below.',
+      'We’ll provide packing instructions and a prepaid UPS label for empties. ' +
+      'After we refill, we ship them back. Two UPS trips. You provide a sturdy box that matches the size below.',
   },
 };
 
@@ -64,7 +64,7 @@ export const SHIPPING_POLICY = {
   cgReturnToCustomer: 'included_in_quote',
   sameBoxBothDirections: true,
   summary:
-    'Shipping is UPS Ground Saver from Atlantic Beach, FL. ' +
+    'Shipping uses the lowest-cost available UPS service from Atlantic Beach, FL. ' +
     'Price depends on your ZIP, packed weight (vessels + box + packing), and how you send empties. ' +
     'Pick one of three methods below.',
 };
@@ -178,7 +178,7 @@ export const PACKING_INSTRUCTIONS = [
   'Wrap each glass vessel on its own (bubble wrap or several layers of kraft).',
   'Fill every gap so nothing can rattle. Glass should not touch glass or the carton wall.',
   'Do not stack jars without a cardboard divider.',
-  'Tape all seams. Put the prepaid UPS Ground Saver label on the largest face.',
+  'Tape all seams. Put the prepaid UPS label on the largest face.',
   'Drop off at a UPS location or schedule a pickup. Keep the tracking number.',
 ];
 
@@ -384,7 +384,7 @@ function method3Allowed(box, packedWeight) {
     return { ok: false, reason: 'This box is longer than our prepaid-label size cap. Choose a smaller carton or another method.' };
   }
   if (girthPlus > METHOD3_LIMITS.maxGirthPlusLengthIn) {
-    return { ok: false, reason: 'This box is over the UPS Ground Saver size cap for prepaid labels.' };
+    return { ok: false, reason: 'This box is over our UPS size cap for prepaid labels.' };
   }
   if (packedWeight.refillsOutboundBilledLb > METHOD3_LIMITS.maxBilledLb) {
     return { ok: false, reason: `Packed weight is over ${METHOD3_LIMITS.maxBilledLb} lb billed. Contact us or pick another method.` };
@@ -431,7 +431,7 @@ export function quoteShippingMethod({
       box,
       packedWeight,
       recommendation,
-      reason: 'Enter your 5-digit ZIP to see UPS Ground Saver prices.',
+      reason: 'Enter your 5-digit ZIP to estimate UPS shipping.',
       shippingCostUsd: 0,
       legs: [],
     };

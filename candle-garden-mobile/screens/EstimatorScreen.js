@@ -114,7 +114,7 @@ export default function EstimatorScreen() {
     if (!cost.quote_ok) {
       Alert.alert(
         'ZIP needed',
-        cost.quote_reason || 'Enter your 5-digit ZIP so we can quote UPS Ground Saver.'
+        cost.quote_reason || 'Enter your 5-digit ZIP so we can estimate UPS shipping.'
       );
       return;
     }
@@ -136,8 +136,8 @@ export default function EstimatorScreen() {
         vesselCount,
         detail:
           shippingMethod === 'ship_own'
-            ? `Ship empties on your own · Return shipping to you: UPS Ground Saver · $${cost.shipping_cost}`
-            : `${method?.title || 'UPS Ground Saver'} · ${cost.shipping_label}`,
+            ? `Ship empties on your own · UPS return shipping to you · $${cost.shipping_cost}`
+            : `${method?.title || 'UPS shipping'} · ${cost.shipping_label}`,
         unitPrice: Number(cost.total_cost),
         waxUnitPrice: cost.wax_cost_num,
         returnShippingUnitPrice: cost.shipping_cost_num,
@@ -437,7 +437,7 @@ export default function EstimatorScreen() {
 
           <Text style={styles.sectionLabel}>Your ZIP</Text>
           <Text style={styles.shipNote}>
-            UPS Ground Saver is priced by zone and packed weight from Atlantic Beach, FL (32233).
+            Estimated UPS shipping is based on ZIP and packed weight. Checkout confirms the lowest live UPS rate available.
           </Text>
           <TextInput
             style={styles.zipInput}
@@ -476,8 +476,8 @@ export default function EstimatorScreen() {
                 </View>
                 <Text style={styles.methodMeta}>
                   {methodKey === 'ship_own'
-                    ? '1 UPS Ground Saver return trip to you'
-                    : `${method.chargeCount} UPS Ground Saver trips`}
+                    ? '1 UPS return trip to you'
+                    : `${method.chargeCount} UPS trips`}
                 </Text>
                 <Text style={styles.methodBody}>{method.summary}</Text>
                 {methodCost.quote_ok && methodCost.legs?.length

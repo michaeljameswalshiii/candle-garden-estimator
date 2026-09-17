@@ -7,7 +7,9 @@
 export const RATES_AS_OF = '2026-04-01';
 export const ORIGIN_ZIP = '32233';
 export const ORIGIN_CITY = 'Atlantic Beach, FL';
-export const SERVICE_NAME = 'UPS Ground Saver';
+// The local table is an estimate. Checkout requests live UPS rates and selects
+// the lowest service available to the Candle Garden account.
+export const SERVICE_NAME = 'Estimated UPS shipping';
 
 /** Residential delivery add-on per package (home addresses only). */
 export const RESIDENTIAL_SURCHARGE_USD = 4.65;
@@ -94,9 +96,9 @@ export function zoneFromDestZip(zip) {
     const z = normalizeZip(zip);
     const prefix = z ? Number(z.slice(0, 3)) : 0;
     if (prefix < 10 || (prefix >= 90 && prefix <= 99) || prefix >= 967) {
-      return { ok: false, reason: 'UPS Ground Saver quotes cover the 48 contiguous states only.' };
+      return { ok: false, reason: 'UPS shipping estimates currently cover the 48 contiguous states only.' };
     }
-    return { ok: false, reason: 'Enter a 5-digit U.S. ZIP for UPS Ground Saver.' };
+    return { ok: false, reason: 'Enter a 5-digit U.S. ZIP to estimate UPS shipping.' };
   }
   const z = normalizeZip(zip);
   const prefix = Number(z.slice(0, 3));
@@ -130,7 +132,7 @@ export function quoteGroundSaverLeg({ destZip, billedLb, residential = true } = 
   }
   const zoned = zoneFromDestZip(destZip);
   if (!zoned || !zoned.ok) {
-    return { ok: false, reason: zoned?.reason || 'Enter a 5-digit U.S. ZIP for UPS Ground Saver.' };
+    return { ok: false, reason: zoned?.reason || 'Enter a 5-digit U.S. ZIP to estimate UPS shipping.' };
   }
   const rated = groundSaverBaseUsd(zoned.zone, billedLb);
   if (!rated) {

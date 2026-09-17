@@ -463,9 +463,9 @@ function OrdersScreenBody({ stripe }) {
                     <Text style={styles.shippingHint}>
                       {checkoutStep === 'guest'
                         ? needsShipping
-                          ? 'Pay without creating an account. We need a way to reach you and where to send this order. Refill shipping is UPS Ground Saver, repriced from this ZIP.'
+                          ? 'Pay without creating an account. We need a way to reach you and where to send this order. Refill shipping uses the lowest-cost available UPS service, priced for this address.'
                           : 'Pay without creating an account. Add a way to reach you.'
-                        : 'One address for this whole order. Refill shipping is UPS Ground Saver, repriced from this ZIP.'}
+                        : 'One address for this whole order. Refill shipping uses the lowest-cost available UPS service, priced for this address.'}
                     </Text>
                     {(needsShipping
                       ? asGuest
