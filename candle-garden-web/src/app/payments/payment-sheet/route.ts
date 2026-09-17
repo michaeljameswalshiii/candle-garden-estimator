@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { products, classes } from "@/lib/catalog";
 import { mobileIdentity } from "@/lib/mobile-auth";
 import { putMobileOrder } from "@/lib/mobileadmin/data";
+import { checkoutParty, priceRefillShipping } from "@/lib/refill-pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -12,13 +13,20 @@ function quantity(value: unknown) {
   return result;
 }
 
-function priceItems(raw: unknown) {
+async function priceItems(raw: unknown, shipping: unknown) {
   if (!Array.isArray(raw) || !raw.length) throw new Error("Your cart is empty");
   let total = 0;
-  const items = raw.map((item: any) => {
+  const destination = (raw as any[]).some((item) => String(item.type).toLowerCase() === "refill") ? checkoutParty(shipping) : null;
+  const items = await Promise.all(raw.map(async (item: any) => {
     const qty = quantity(item.quantity);
     const kind = String(item.type || "product").toLowerCase();
-    if (kind === "refill") throw new Error("Refill checkout needs a final UPS address quote and is temporarily held for owner review");
+    if (kind === "refill") {
+      const ounces = Number(item.ounces || 0);
+      const quote = await priceRefillShipping(item, destination!);
+      const lineCents = Math.round(ounces * 150 * qty) + quote.shippingCents;
+      total += lineCents;
+      return { type: "refill", productId: "refill", name: `Candle refill · ${ounces} oz`, size: quote.serviceSummary, quantity: qty, unitCents: Math.round(lineCents / qty), shippingCents: quote.shippingCents };
+    }
     if (kind === "class") {
       const entry = classes.find((row) => row.id === String(item.productId));
       if (!entry || entry.soldOut) throw new Error("That class is unavailable");
@@ -32,7 +40,7 @@ function priceItems(raw: unknown) {
     const unitCents = Math.round((large && entry.priceMax ? entry.priceMax : entry.price) * 100);
     total += unitCents * qty;
     return { type: "product", productId: entry.id, name: entry.name, size: item.size || null, quantity: qty, unitCents };
-  });
+  }));
   if (total < 50 || total > 250000) throw new Error("Cart total is outside the allowed range");
   return { total, items };
 }
@@ -45,7 +53,7 @@ export async function POST(request: NextRequest) {
       throw new Error("Live mobile payments are safety-locked while beta checkout is being verified");
     }
     const body = await request.json();
-    const priced = priceItems(body.items);
+    const priced = await priceItems(body.items, body.shipping);
     const identity = await mobileIdentity(request);
     const orderId = randomUUID();
     const form = new URLSearchParams({ amount: String(priced.total), currency: "usd", "automatic_payment_methods[enabled]": "true", "metadata[candle_garden_order_id]": orderId, "metadata[mode]": key.startsWith("sk_live_") ? "live" : "test" });
