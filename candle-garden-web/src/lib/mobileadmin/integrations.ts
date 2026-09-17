@@ -170,9 +170,11 @@ export async function listIntegrations(): Promise<{ integrations: Integration[];
       id: "ups",
       group: "App backend",
       label: "UPS Ground Saver",
-      detail: "Refill shipping quotes and labels on the app backend",
+      detail: "Lowest-cost available UPS refill shipping quotes on the app backend",
       status: env("UPS_CLIENT_ID") || env("UPS_ACCESS_LICENSE") || env("UPS_ACCOUNT_NUMBER") ? "Connected" : "Needs reporting",
-      note: "Native refill shipping is separate from Squarespace product shipping",
+      note: env("UPS_CLIENT_ID")
+        ? "Live UPS rates select the least-expensive eligible service. Ground Saver will appear automatically once UPS enables it on the account."
+        : "Native refill shipping is separate from Squarespace product shipping",
     },
     {
       id: "blob",
