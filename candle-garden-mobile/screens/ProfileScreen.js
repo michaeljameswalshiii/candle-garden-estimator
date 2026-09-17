@@ -11,25 +11,15 @@ import {
 } from 'react-native';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 import { useAuth } from '../lib/AuthContext';
-import {
-  clearPushToken,
-  getStoredPushToken,
-  registerForPushNotificationsAsync,
-} from '../lib/notifications';
+import LegalLinks from '../components/LegalLinks';
 
-function CustomSwitch({ value, onValueChange }) {
-  const isOn = Boolean(value);
-  return (
-    <TouchableOpacity
-      style={[styles.switch, isOn ? styles.switchOn : styles.switchOff]}
-      onPress={() => onValueChange(!isOn)}
-      activeOpacity={0.7}
-    >
-      <View style={[styles.switchThumb, isOn ? styles.switchThumbOn : styles.switchThumbOff]}>
-        <Text style={styles.switchText}>{isOn ? 'ON' : 'OFF'}</Text>
-      </View>
-    </TouchableOpacity>
-  );
+function cognitoPhone(value) {
+  const raw = String(value || '').trim();
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length === 10) return `+1${digits}`;
+  if (raw.startsWith('+') && digits.length >= 8) return `+${digits}`;
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+  return raw;
 }
 
 export default function ProfileScreen() {
@@ -40,6 +30,7 @@ export default function ProfileScreen() {
     busy,
     signIn,
     signUp,
+    updateProfile,
     confirmSignUp,
     resendCode,
     signOut,
@@ -51,50 +42,23 @@ export default function ProfileScreen() {
 
   const [mode, setMode] = useState('signin'); // signin | signup | confirm | forgot | reset
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
-  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
-  const [pushToken, setPushToken] = useState(null);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
 
   React.useEffect(() => {
-    getStoredPushToken().then((t) => {
-      if (t) {
-        setPushToken(t);
-        setNotificationsEnabled(true);
-      }
-    });
-  }, []);
+    if (!user) return;
+    setName(user.name || '');
+    setPhone(user.phone || '');
+    setAddress(user.address || '');
+    setMarketingOptIn(Boolean(user.marketingOptIn));
+  }, [user]);
 
-  const onToggleNotifications = async (on) => {
-    if (!on) {
-      setNotificationsEnabled(false);
-      setPushToken(null);
-      await clearPushToken({ syncToServer: isAuthenticated });
-      return;
-    }
-    const result = await registerForPushNotificationsAsync({
-      syncToServer: isAuthenticated,
-    });
-    if (result.token) {
-      setNotificationsEnabled(true);
-      setPushToken(result.token);
-      Alert.alert(
-        'Notifications on',
-        isAuthenticated
-          ? 'Device registered. You will get a push when an order is placed from this account.'
-          : 'Device registered locally. Sign in to link push to your account for order alerts.'
-      );
-    } else {
-      setNotificationsEnabled(false);
-      Alert.alert(
-        'Could not enable',
-        result.error || 'Use a physical device and allow notifications.'
-      );
-    }
-  };
 
   const onChangePassword = async () => {
     try {
@@ -127,10 +91,17 @@ export default function ProfileScreen() {
 
   const onSignUp = async () => {
     try {
+      if (!phone.trim() || !address.trim()) {
+        Alert.alert('Add contact details', 'Phone and mailing address are required to create an account.');
+        return;
+      }
       const result = await signUp({
         email: email.trim(),
         password,
         name: name.trim() || undefined,
+        phone: cognitoPhone(phone),
+        address: address.trim(),
+        marketingOptIn,
       });
       if (result.needsConfirmation) {
         setMode('confirm');
@@ -143,6 +114,15 @@ export default function ProfileScreen() {
       }
     } catch (e) {
       Alert.alert('Sign up failed', e.message || 'Please try again');
+    }
+  };
+
+  const onSaveProfile = async () => {
+    try {
+      await updateProfile({ name: name.trim(), phone: cognitoPhone(phone), address: address.trim(), marketingOptIn });
+      Alert.alert('Profile updated', 'Your contact details and communication preference were saved.');
+    } catch (e) {
+      Alert.alert('Could not update profile', e.message || 'Try again');
     }
   };
 
@@ -294,6 +274,7 @@ export default function ProfileScreen() {
           </View>
 
           {mode === 'signup' ? (
+            <>
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Name</Text>
               <TextInput
@@ -305,6 +286,19 @@ export default function ProfileScreen() {
                 autoCapitalize="words"
               />
             </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Phone</Text>
+              <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="+1 904 555 0123" placeholderTextColor={colors.textFaint} keyboardType="phone-pad" autoComplete="tel" />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Mailing address</Text>
+              <TextInput style={[styles.input, styles.multiline]} value={address} onChangeText={setAddress} placeholder="Street, city, state, ZIP" placeholderTextColor={colors.textFaint} autoComplete="street-address" multiline />
+            </View>
+            <TouchableOpacity style={styles.consentRow} onPress={() => setMarketingOptIn((value) => !value)} activeOpacity={0.75} accessibilityRole="checkbox" accessibilityState={{ checked: marketingOptIn }}>
+              <View style={[styles.checkbox, marketingOptIn && styles.checkboxOn]}>{marketingOptIn ? <Text style={styles.checkmark}>✓</Text> : null}</View>
+              <Text style={styles.consentText}>Yes, send me Candle Garden news, product updates, classes, and occasional offers. I can unsubscribe at any time.</Text>
+            </TouchableOpacity>
+            </>
           ) : null}
 
           <View style={styles.inputGroup}>
@@ -417,7 +411,8 @@ export default function ProfileScreen() {
           ) : null}
         </View>
 
-        <Text style={styles.version}>Secured with Amazon Cognito · Phase 1</Text>
+        <LegalLinks />
+        <Text style={styles.version}>Version 1.1.0 · Secured with Amazon Cognito</Text>
       </ScrollView>
     );
   }
@@ -451,24 +446,15 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Preferences</Text>
-        <View style={styles.settingRow}>
-          <View style={{ flex: 1, paddingRight: 8 }}>
-            <Text style={styles.settingLabel}>Push Notifications</Text>
-            <Text style={styles.settingDescription}>
-              Order received / status updates
-            </Text>
-          </View>
-          <CustomSwitch
-            value={notificationsEnabled}
-            onValueChange={onToggleNotifications}
-          />
-        </View>
-        {pushToken ? (
-          <Text style={styles.hint} numberOfLines={2}>
-            Push linked{isAuthenticated ? ' to your account' : ' on this device only'}
-          </Text>
-        ) : null}
+        <Text style={styles.sectionTitle}>Contact & communications</Text>
+        <View style={styles.inputGroup}><Text style={styles.label}>Name</Text><TextInput style={styles.input} value={name} onChangeText={setName} autoCapitalize="words" /></View>
+        <View style={styles.inputGroup}><Text style={styles.label}>Phone</Text><TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" autoComplete="tel" /></View>
+        <View style={styles.inputGroup}><Text style={styles.label}>Mailing address</Text><TextInput style={[styles.input, styles.multiline]} value={address} onChangeText={setAddress} multiline autoComplete="street-address" /></View>
+        <TouchableOpacity style={styles.consentRow} onPress={() => setMarketingOptIn((value) => !value)} accessibilityRole="checkbox" accessibilityState={{ checked: marketingOptIn }}>
+          <View style={[styles.checkbox, marketingOptIn && styles.checkboxOn]}>{marketingOptIn ? <Text style={styles.checkmark}>✓</Text> : null}</View>
+          <Text style={styles.consentText}>Receive Candle Garden news, product updates, classes, and occasional offers.</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.button, busy && styles.buttonDisabled]} onPress={onSaveProfile} disabled={busy || !phone.trim() || !address.trim()}><Text style={styles.buttonText}>Save profile</Text></TouchableOpacity>
       </View>
 
       <View style={styles.section}>
@@ -522,7 +508,8 @@ export default function ProfileScreen() {
         <Text style={styles.deleteText}>Delete account</Text>
       </TouchableOpacity>
 
-      <Text style={styles.version}>Version 1.0.0 · The Candle Garden App</Text>
+      <LegalLinks />
+      <Text style={styles.version}>Version 1.1.0 · The Candle Garden App</Text>
     </ScrollView>
   );
 }
@@ -646,6 +633,12 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: fonts.body,
   },
+  multiline: { minHeight: 72, textAlignVertical: 'top' },
+  consentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 14 },
+  checkbox: { width: 22, height: 22, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.borderStrong, borderRadius: 4, backgroundColor: colors.white },
+  checkboxOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  checkmark: { color: colors.white, fontSize: 15, fontWeight: '700' },
+  consentText: { flex: 1, color: colors.textMuted, fontFamily: fonts.body, fontSize: 13, lineHeight: 19 },
   button: {
     backgroundColor: colors.primary,
     padding: 14,
@@ -684,24 +677,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     lineHeight: 17,
   },
-  settingRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  settingLabel: {
-    fontFamily: fonts.body,
-    fontSize: 16,
-    fontWeight: '500',
-    color: colors.text,
-  },
-  settingDescription: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
   logoutButton: {
     backgroundColor: colors.danger,
     marginTop: 8,
@@ -726,37 +701,5 @@ const styles = StyleSheet.create({
     color: colors.textFaint,
     marginTop: 20,
     marginBottom: 40,
-  },
-  switch: {
-    width: 60,
-    height: 30,
-    borderRadius: 15,
-    justifyContent: 'center',
-    padding: 2,
-  },
-  switchOn: {
-    backgroundColor: colors.primary,
-  },
-  switchOff: {
-    backgroundColor: colors.disabled,
-  },
-  switchThumb: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: colors.white,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  switchThumbOn: {
-    alignSelf: 'flex-end',
-  },
-  switchThumbOff: {
-    alignSelf: 'flex-start',
-  },
-  switchText: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: colors.text,
   },
 });

@@ -1,14 +1,26 @@
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import AcuityScheduler from '../components/AcuityScheduler';
-import { useCart } from '../lib/cart';
-import { getUpcomingClasses } from '../lib/classesCatalog';
+import { classes as bundledClasses, fetchLatestClasses, getUpcomingClasses } from '../lib/classesCatalog';
 import { ACUITY_SCHEDULER_URL } from '../lib/schedulingConfig';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 
 export default function ClassScheduleScreen() {
-  const { addItem } = useCart();
-  const upcoming = getUpcomingClasses().slice(0, 8);
+  const [classCatalog, setClassCatalog] = useState(bundledClasses);
+  const [scheduleStatus, setScheduleStatus] = useState('Built-in schedule');
+  const upcoming = useMemo(() => getUpcomingClasses(new Date(), classCatalog).slice(0, 8), [classCatalog]);
+
+  const refreshClasses = useCallback(async () => {
+    try {
+      const latest = await fetchLatestClasses();
+      setClassCatalog(latest.classes);
+      setScheduleStatus('Live Squarespace schedule');
+    } catch {
+      setScheduleStatus('Offline schedule');
+    }
+  }, []);
+
+  useEffect(() => { void refreshClasses(); }, [refreshClasses]);
 
   const openInBrowser = async () => {
     try {
@@ -18,28 +30,13 @@ export default function ClassScheduleScreen() {
     }
   };
 
-  const addClass = (course) => {
+  const bookClass = async (course) => {
     if (course.soldOut) {
       Alert.alert('Sold out', 'That class is not available right now.');
       return;
     }
-    addItem(
-      {
-        id: course.id,
-        type: 'class',
-        name: course.title,
-        price: course.price,
-        image: course.image,
-        url: course.url,
-        date: course.date,
-        scheduleLabel: course.scheduleLabel,
-      },
-      { type: 'class', quantity: 1, size: course.scheduleLabel }
-    );
-    Alert.alert(
-      'Added to cart',
-      `${course.title} (${course.scheduleLabel}) is in your cart. Pay with shop items and refills in the Cart tab.`
-    );
+    try { await Linking.openURL(course.url); }
+    catch { Alert.alert('Could not open booking', 'Please use Open in browser to book on The Candle Garden website.'); }
   };
 
   return (
@@ -47,7 +44,8 @@ export default function ClassScheduleScreen() {
       <View style={styles.header}>
         <View style={styles.headingCopy}>
           <Text style={styles.title}>Schedule an appointment</Text>
-          <Text style={styles.subtitle}>Add a class to your cart, or pick a time below.</Text>
+          <Text style={styles.subtitle}>Book live Squarespace class inventory or pick an appointment below.</Text>
+          <Text style={styles.liveStatus}>{scheduleStatus}</Text>
         </View>
         <TouchableOpacity
           accessibilityRole="link"
@@ -68,8 +66,8 @@ export default function ClassScheduleScreen() {
               <Text style={styles.classTitle} numberOfLines={2}>{course.title}</Text>
               <Text style={styles.classMeta}>{course.scheduleLabel}</Text>
               <Text style={styles.classPrice}>${Number(course.price).toFixed(0)}</Text>
-              <TouchableOpacity style={styles.addBtn} onPress={() => addClass(course)}>
-                <Text style={styles.addBtnText}>{course.soldOut ? 'Sold out' : 'Add to cart'}</Text>
+              <TouchableOpacity style={[styles.addBtn, course.soldOut && styles.addBtnDisabled]} onPress={() => bookClass(course)} disabled={course.soldOut}>
+                <Text style={styles.addBtnText}>{course.soldOut ? 'Sold out' : 'Book on Squarespace'}</Text>
               </TouchableOpacity>
             </View>
           ))}
@@ -110,6 +108,13 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 12,
     marginTop: 2,
+  },
+  liveStatus: {
+    color: colors.primaryMid,
+    fontFamily: fonts.body,
+    fontSize: 10,
+    fontWeight: '600',
+    marginTop: 3,
   },
   browserButton: {
     borderColor: colors.primary,
@@ -167,6 +172,9 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     paddingVertical: 8,
     alignItems: 'center',
+  },
+  addBtnDisabled: {
+    backgroundColor: colors.disabled,
   },
   addBtnText: {
     color: colors.white,

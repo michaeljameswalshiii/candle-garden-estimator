@@ -109,12 +109,11 @@ Files: `lib/cognitoClient.js` → `deleteUser`, `AuthContext.deleteAccount`, Pro
 - Mobile sends `X-Device-Id` (SecureStore)  
 - Detect rate-limit bucket: `device:{id}` for guests  
 
-### Push notifications scaffold
-- Push registration is temporarily disabled until Push Notifications is enabled
-  for the App ID in Apple Developer. The Profile screen fails safely and keeps
-  its stable notification API in the meantime.
-- Profile toggle registers Expo push token on device  
-- Server send pipeline still Phase 3  
+### Push notifications
+- Push registration, the Profile toggle, and the unused mobile notification
+  module were removed from the App Store release.
+- Any future push implementation must add the Apple capability, provisioning
+  entitlement, permission flow, and tested server delivery together.
 
 ### Ops
 - `docs/SES_AND_SOCIAL_LOGIN.md` for SES + Apple/Google  

@@ -37,13 +37,16 @@ async function cognitoRequest(target, payload) {
   return data;
 }
 
-export async function signUp({ email, password, name }) {
+export async function signUp({ email, password, name, phone, address, marketingOptIn }) {
   const attrs = [
     { Name: 'email', Value: email },
   ];
   if (name) {
     attrs.push({ Name: 'name', Value: name });
   }
+  if (phone) attrs.push({ Name: 'phone_number', Value: phone });
+  if (address) attrs.push({ Name: 'address', Value: address });
+  attrs.push({ Name: 'custom:marketing_opt_in', Value: marketingOptIn ? 'true' : 'false' });
 
   return cognitoRequest('SignUp', {
     ClientId: cognitoConfig.clientId,
@@ -163,6 +166,16 @@ export async function changePassword({ accessToken, previousPassword, proposedPa
   });
 }
 
+export async function updateUserAttributes({ accessToken, name, phone, address, marketingOptIn }) {
+  const attributes = [
+    { Name: 'name', Value: String(name || '') },
+    { Name: 'phone_number', Value: String(phone || '') },
+    { Name: 'address', Value: String(address || '') },
+    { Name: 'custom:marketing_opt_in', Value: marketingOptIn ? 'true' : 'false' },
+  ];
+  return cognitoRequest('UpdateUserAttributes', { AccessToken: accessToken, UserAttributes: attributes });
+}
+
 export function attributesToObject(userResult) {
   const attrs = {};
   (userResult.UserAttributes || []).forEach((a) => {
@@ -173,6 +186,8 @@ export function attributesToObject(userResult) {
     email: attrs.email || userResult.Username,
     name: attrs.name || attrs.email || 'Customer',
     phone: attrs.phone_number || '',
+    address: attrs.address || '',
+    marketingOptIn: attrs['custom:marketing_opt_in'] === 'true',
     sub: attrs.sub,
   };
 }

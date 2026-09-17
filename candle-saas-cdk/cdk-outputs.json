@@ -1,0 +1,7 @@
+{
+  "CandleSaasAPIStack": {
+    "ApiUrl": "https://ry95dso7lc.execute-api.us-east-1.amazonaws.com/prod/",
+    "DetectFunctionUrl": "https://g7wlluob5c7q6di3x7kgqfcsv40jklaq.lambda-url.us-east-1.on.aws/",
+    "CognitoUserPoolId": "us-east-1_WTA7ZWxcr"
+  }
+}

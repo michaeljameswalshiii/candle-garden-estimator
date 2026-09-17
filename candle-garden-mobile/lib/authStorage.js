@@ -1,4 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
+import { deleteStoredItem, getStoredItem, setStoredItem } from './storage';
 
 const KEYS = {
   accessToken: 'cg_access_token',
@@ -10,10 +10,10 @@ const KEYS = {
 
 async function setItem(key, value) {
   if (value == null || value === '') {
-    await SecureStore.deleteItemAsync(key);
+    await deleteStoredItem(key);
     return;
   }
-  await SecureStore.setItemAsync(key, String(value));
+  await setStoredItem(key, String(value));
 }
 
 export async function saveTokens({ accessToken, idToken, refreshToken, expiresIn }) {
@@ -26,10 +26,10 @@ export async function saveTokens({ accessToken, idToken, refreshToken, expiresIn
 
 export async function loadTokens() {
   const [accessToken, idToken, refreshToken, expiresAt] = await Promise.all([
-    SecureStore.getItemAsync(KEYS.accessToken),
-    SecureStore.getItemAsync(KEYS.idToken),
-    SecureStore.getItemAsync(KEYS.refreshToken),
-    SecureStore.getItemAsync(KEYS.expiresAt),
+    getStoredItem(KEYS.accessToken),
+    getStoredItem(KEYS.idToken),
+    getStoredItem(KEYS.refreshToken),
+    getStoredItem(KEYS.expiresAt),
   ]);
   if (!accessToken && !refreshToken) return null;
   return {
@@ -41,7 +41,7 @@ export async function loadTokens() {
 }
 
 export async function clearTokens() {
-  await Promise.all(Object.values(KEYS).map((k) => SecureStore.deleteItemAsync(k)));
+  await Promise.all(Object.values(KEYS).map((key) => deleteStoredItem(key)));
 }
 
 export async function saveProfile(profile) {
@@ -49,7 +49,7 @@ export async function saveProfile(profile) {
 }
 
 export async function loadProfile() {
-  const raw = await SecureStore.getItemAsync(KEYS.profile);
+  const raw = await getStoredItem(KEYS.profile);
   if (!raw) return null;
   try {
     return JSON.parse(raw);

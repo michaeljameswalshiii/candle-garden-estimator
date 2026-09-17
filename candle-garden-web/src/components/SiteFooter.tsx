@@ -19,6 +19,8 @@ export async function SiteFooter() {
           <Link href="/classes">Candle classes</Link>
           <Link href="/our-story">Our story</Link>
           <Link href="/contact">Visit the shop</Link>
+          <Link href="/privacy">Privacy policy</Link>
+          <Link href="/terms">Terms of use</Link>
         </div>
         <div>
           <h3>Visit</h3>

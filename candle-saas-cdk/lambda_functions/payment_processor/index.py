@@ -19,7 +19,9 @@ import ups_client
 
 _secret_cache = {"value": None, "expires": 0}
 _catalog_cache = None
+_catalog_cache_expires = 0
 _classes_cache = None
+_classes_cache_expires = 0
 
 
 def _headers():
@@ -55,9 +57,28 @@ def _claims(event):
 
 
 def _load_catalog():
-    global _catalog_cache
-    if _catalog_cache is not None:
+    global _catalog_cache, _catalog_cache_expires
+    now = time.time()
+    if _catalog_cache is not None and now < _catalog_cache_expires:
         return _catalog_cache
+    catalog_url = os.environ.get("PRODUCT_CATALOG_URL", "").strip()
+    if catalog_url:
+        try:
+            request = urllib.request.Request(
+                catalog_url,
+                headers={"Accept": "application/json", "User-Agent": "CandleGardenCheckout/1.0"},
+            )
+            with urllib.request.urlopen(request, timeout=5) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            data = payload.get("products") if isinstance(payload, dict) else payload
+            if not isinstance(data, list) or len(data) < 5:
+                raise RuntimeError("Remote product catalog is invalid")
+            _catalog_cache = {str(item.get("id")): item for item in data if item.get("id")}
+            _catalog_cache_expires = now + 300
+            return _catalog_cache
+        except (OSError, ValueError, RuntimeError, json.JSONDecodeError):
+            # Never block checkout because the live catalog endpoint is temporarily unavailable.
+            pass
     here = os.path.dirname(os.path.abspath(__file__))
     candidates = [
         os.path.join(here, "catalog.json"),
@@ -70,14 +91,30 @@ def _load_catalog():
             if not isinstance(data, list):
                 raise RuntimeError("Product catalog is invalid")
             _catalog_cache = {str(item.get("id")): item for item in data if item.get("id")}
+            _catalog_cache_expires = now + 300
             return _catalog_cache
     raise RuntimeError("Product catalog is missing")
 
 
 def _load_classes():
-    global _classes_cache
-    if _classes_cache is not None:
+    global _classes_cache, _classes_cache_expires
+    now = time.time()
+    if _classes_cache is not None and now < _classes_cache_expires:
         return _classes_cache
+    catalog_url = os.environ.get("CLASS_CATALOG_URL", "").strip()
+    if catalog_url:
+        try:
+            request = urllib.request.Request(catalog_url, headers={"Accept": "application/json", "User-Agent": "CandleGardenCheckout/1.0"})
+            with urllib.request.urlopen(request, timeout=5) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            data = payload.get("classes") if isinstance(payload, dict) else payload
+            if not isinstance(data, list):
+                raise RuntimeError("Remote class catalog is invalid")
+            _classes_cache = {str(item.get("id")): item for item in data if item.get("id")}
+            _classes_cache_expires = now + 300
+            return _classes_cache
+        except (OSError, ValueError, RuntimeError, json.JSONDecodeError):
+            pass
     here = os.path.dirname(os.path.abspath(__file__))
     candidates = [
         os.path.join(here, "classes.json"),
@@ -90,6 +127,7 @@ def _load_classes():
             if not isinstance(data, list):
                 raise RuntimeError("Class catalog is invalid")
             _classes_cache = {str(item.get("id")): item for item in data if item.get("id")}
+            _classes_cache_expires = now + 300
             return _classes_cache
     raise RuntimeError("Class catalog is missing")
 

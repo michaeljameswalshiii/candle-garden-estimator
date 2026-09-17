@@ -12,10 +12,9 @@ export const cognitoConfig = {
   domainPrefix: raw.domainPrefix,
 };
 
-// AWS Candle SaaS API Gateway stacks were torn down (idle NAT ~$40/mo).
-// Catalog/classes now come from candle-garden-web; do not point payments here.
+// Redeployed CandleSaas API (no NAT). Catalog/classes still use candle-garden-web.
 export const API_BASE =
   process.env.EXPO_PUBLIC_API_BASE ||
-  'https://candle-garden-web.vercel.app';
+  'https://ry95dso7lc.execute-api.us-east-1.amazonaws.com/prod';
 
 export default cognitoConfig;

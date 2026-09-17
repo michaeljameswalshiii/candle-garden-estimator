@@ -45,6 +45,9 @@ export default function EstimatorScreen() {
   const { addItem } = useCart();
   const [image, setImage] = useState(null);
   const [result, setResult] = useState(null);
+  const [reviewVessels, setReviewVessels] = useState(null);
+  const [vesselChoice, setVesselChoice] = useState(1);
+  const [hasScaleCan, setHasScaleCan] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [manualOunces, setManualOunces] = useState('');
@@ -53,6 +56,7 @@ export default function EstimatorScreen() {
   const [selectedBox, setSelectedBox] = useState(null);
   const [liveQuotes, setLiveQuotes] = useState([]);
   const manipulatorOk = isImageManipulatorAvailable();
+  const expectedCount = vesselChoice === '3+' ? 3 : Number(vesselChoice);
 
   const vesselCount = Array.isArray(result?.vessels) && result.vessels.length
     ? result.vessels.length
@@ -155,23 +159,24 @@ export default function EstimatorScreen() {
 
   const pickerOptions = {
     mediaTypes: ['images'],
-    allowsEditing: false,
+    allowsEditing: true,
     quality: 0.85,
     exif: false,
-    // iOS: ask Photos to hand us a compatible (JPEG) representation instead of HEIC
     preferredAssetRepresentationMode:
       ImagePicker.UIImagePickerPreferredAssetRepresentationMode?.Compatible
       ?? 'compatible',
   };
 
+  const onNewPhoto = (uri) => {
+    setImage(uri);
+    setReviewVessels(null);
+    if (!result?.locked) setResult(null);
+  };
+
   const pickImage = async () => {
     try {
       const pickerResult = await ImagePicker.launchImageLibraryAsync(pickerOptions);
-
-      if (!pickerResult.canceled) {
-        setImage(pickerResult.assets[0].uri);
-        setResult(null);
-      }
+      if (!pickerResult.canceled) onNewPhoto(pickerResult.assets[0].uri);
     } catch (error) {
       Alert.alert('Error', 'Failed to pick image: ' + error.message);
     }
@@ -180,18 +185,12 @@ export default function EstimatorScreen() {
   const takePhoto = async () => {
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
-
       if (permission.status !== 'granted') {
         Alert.alert('Permission Required', 'Please grant camera permission to take photos');
         return;
       }
-
       const cameraResult = await ImagePicker.launchCameraAsync(pickerOptions);
-
-      if (!cameraResult.canceled) {
-        setImage(cameraResult.assets[0].uri);
-        setResult(null);
-      }
+      if (!cameraResult.canceled) onNewPhoto(cameraResult.assets[0].uri);
     } catch (error) {
       Alert.alert('Error', 'Failed to take photo: ' + error.message);
     }
@@ -233,9 +232,22 @@ export default function EstimatorScreen() {
         return;
       }
 
+      if (!hasScaleCan) {
+        promptManualFallback([
+          'Put a 12 oz drink can in the photo for scale, then try again',
+          'Or enter ounces manually',
+        ]);
+        return;
+      }
+
       let detectData;
       try {
-        detectData = await postDetect({ image: prepared.base64 });
+        detectData = await postDetect({
+          image: prepared.base64,
+          expected_vessel_count: expectedCount,
+          expected_count_is_minimum: vesselChoice === '3+',
+          has_scale_can: true,
+        });
       } catch (apiErr) {
         if (apiErr.status === 429 || apiErr.data?.error === 'rate_limited') {
           promptManualFallback([
@@ -271,32 +283,35 @@ export default function EstimatorScreen() {
         return;
       }
 
+      if (detectData.error === 'vessel_count_mismatch') {
+        promptManualFallback(
+          detectData.tips || [
+            `You said ${expectedCount} vessel${expectedCount === 1 ? '' : 's'}; the photo did not match.`,
+            'Photograph one jar at a time, then add another.',
+          ]
+        );
+        return;
+      }
+
       const check = isAcceptableDetection(detectData);
       if (!check.ok) {
         promptManualFallback(check.tips || detectData.tips);
         return;
       }
 
-      const detectedCount = Array.isArray(detectData.vessels) && detectData.vessels.length
-        ? detectData.vessels.length
-        : 1;
-      const detectedPerVessel = Array.isArray(detectData.vessels)
-        ? detectData.vessels
-            .map((v) => Number(v.wax_needed_oz ?? v.estimated_ounces ?? v.volume_oz))
-            .filter((n) => Number.isFinite(n) && n > 0)
-        : undefined;
-      const firstQuote = calculateCost(check.ounces, {
-        vesselCount: detectedCount,
-        perVesselOz: detectedPerVessel,
-      });
-      setSelectedBox(firstQuote.box_key);
-      setResult({
-        estimated_ounces: check.ounces,
-        container_type: check.container_type,
+      const vessels = Array.isArray(detectData.vessels) && detectData.vessels.length
+        ? detectData.vessels.map((v, i) => ({
+            id: v.id || `v${i + 1}`,
+            description: v.description || `Jar ${i + 1}`,
+            wax_needed_oz: String(v.wax_needed_oz ?? v.estimated_ounces ?? ''),
+          }))
+        : [{ id: 'v1', description: 'Jar 1', wax_needed_oz: String(check.ounces) }];
+      setReviewVessels({
+        vessels,
         confidence: check.confidence,
         explanation: detectData.explanation,
-        vessels: detectData.vessels,
       });
+      setResult((prev) => (prev?.locked ? prev : null));
     } catch (error) {
       Alert.alert(
         'Error',
@@ -305,6 +320,44 @@ export default function EstimatorScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const confirmReview = () => {
+    if (!reviewVessels?.vessels?.length) return;
+    const parsed = reviewVessels.vessels.map((v, i) => ({
+      ...v,
+      description: v.description || `Jar ${i + 1}`,
+      wax_needed_oz: parseFloat(v.wax_needed_oz),
+    }));
+    if (parsed.some((v) => !isValidOunces(v.wax_needed_oz))) {
+      Alert.alert('Check ounces', 'Each jar needs a positive ounce amount (e.g. 8 or 12.5).');
+      return;
+    }
+    const prior = result?.locked && Array.isArray(result.vessels) ? result.vessels : [];
+    const vessels = [...prior, ...parsed];
+    const ounces = vessels.reduce((sum, v) => sum + Number(v.wax_needed_oz), 0);
+    const firstQuote = calculateCost(ounces, {
+      vesselCount: vessels.length,
+      perVesselOz: vessels.map((v) => v.wax_needed_oz),
+    });
+    setSelectedBox(firstQuote.box_key);
+    setResult({
+      estimated_ounces: Math.round(ounces * 10) / 10,
+      container_type: `${vessels.length} candle vessel${vessels.length === 1 ? '' : 's'}`,
+      confidence: reviewVessels.confidence,
+      explanation: reviewVessels.explanation,
+      vessels,
+      locked: true,
+    });
+    setReviewVessels(null);
+    setImage(null);
+  };
+
+  const addAnotherJar = () => {
+    setVesselChoice(1);
+    setHasScaleCan(false);
+    setImage(null);
+    setReviewVessels(null);
   };
 
   const submitManualEntry = () => {
@@ -332,11 +385,41 @@ export default function EstimatorScreen() {
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Refill Estimator</Text>
       <Text style={styles.buildTag}>
-        build: ups-ground-saver-v1 · {isAuthenticated ? 'signed in' : 'guest'}
+        build: estimator-confirm-v1 · {isAuthenticated ? 'signed in' : 'guest'}
       </Text>
+      <Text style={styles.sectionLabel}>How many vessels in this photo?</Text>
+      <View style={styles.chipRow}>
+        {[1, 2, '3+'].map((choice) => {
+          const active = vesselChoice === choice;
+          return (
+            <TouchableOpacity
+              key={String(choice)}
+              style={[styles.chip, active && styles.chipActive]}
+              onPress={() => setVesselChoice(choice)}
+            >
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>{choice}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
       <Text style={styles.instruction}>
-        Put every vessel you want refilled in the foreground (include small jars). Place a 12 oz drink can beside them for scale only — we will not count the can. Empty glass with wick visible works best.
+        {vesselChoice === 1
+          ? 'Photograph one jar. Crop so the jar and a 12 oz drink can fill the frame. Add another jar after this estimate if you have more.'
+          : 'Photograph the cluster. Crop tightly around the jars and a 12 oz can. One jar per photo is more accurate if the count looks messy.'}
       </Text>
+      <TouchableOpacity
+        style={[styles.scaleToggle, hasScaleCan && styles.scaleToggleOn]}
+        onPress={() => setHasScaleCan((v) => !v)}
+      >
+        <Text style={[styles.scaleToggleText, hasScaleCan && styles.scaleToggleTextOn]}>
+          {hasScaleCan ? '12 oz can is in the photo' : 'Tap when a 12 oz can is in the photo'}
+        </Text>
+      </TouchableOpacity>
+      {!hasScaleCan ? (
+        <Text style={styles.shipNote}>
+          Photo estimates need a 12 oz drink can for scale. Without it, enter ounces manually.
+        </Text>
+      ) : null}
       {!manipulatorOk ? (
         <View style={styles.warnBanner}>
           <Text style={styles.warnTitle}>Limited photo conversion in this client</Text>
@@ -375,8 +458,20 @@ export default function EstimatorScreen() {
               color={colors.danger}
             />
             <CustomButton
-              title={loading ? 'Estimating...' : 'Get Estimate'}
-              onPress={estimateCandle}
+              title={
+                loading
+                  ? 'Estimating...'
+                  : hasScaleCan
+                    ? 'Get Estimate'
+                    : 'Need a 12 oz can, or enter ounces'
+              }
+              onPress={() => {
+                if (!hasScaleCan) {
+                  setShowManualEntry(true);
+                  return;
+                }
+                void estimateCandle();
+              }}
               disabled={loading}
             />
           </>
@@ -409,7 +504,46 @@ export default function EstimatorScreen() {
         </View>
       )}
 
-      {result && cost && (
+      {reviewVessels ? (
+        <View style={styles.result}>
+          <Text style={styles.resultTitle}>Is this count right?</Text>
+          <Text style={styles.shipNote}>
+            Edit ounces if a jar looks off. We would rather you fix it than guess at the studio.
+          </Text>
+          {reviewVessels.vessels.map((vessel, index) => (
+            <View key={vessel.id || index} style={styles.reviewRow}>
+              <Text style={styles.reviewLabel} numberOfLines={2}>
+                {vessel.description || `Jar ${index + 1}`}
+              </Text>
+              <TextInput
+                style={styles.reviewInput}
+                value={String(vessel.wax_needed_oz)}
+                onChangeText={(text) => {
+                  setReviewVessels((prev) => {
+                    if (!prev) return prev;
+                    const vessels = [...prev.vessels];
+                    vessels[index] = { ...vessels[index], wax_needed_oz: text };
+                    return { ...prev, vessels };
+                  });
+                }}
+                keyboardType="decimal-pad"
+              />
+              <Text style={styles.inputSuffix}>oz</Text>
+            </View>
+          ))}
+          <CustomButton title="Looks right — show price" onPress={confirmReview} />
+          <CustomButton
+            title="Count is wrong — enter ounces"
+            onPress={() => {
+              setReviewVessels(null);
+              setShowManualEntry(true);
+            }}
+            color={colors.textMuted}
+          />
+        </View>
+      ) : null}
+
+      {result && cost && !reviewVessels && (
         <View style={styles.result}>
           <Text style={styles.resultTitle}>Estimate</Text>
           <Text style={styles.resultText}>
@@ -475,9 +609,11 @@ export default function EstimatorScreen() {
                   <Text style={styles.methodPrice}>{priceLabel}</Text>
                 </View>
                 <Text style={styles.methodMeta}>
-                  {methodKey === 'ship_own'
-                    ? '1 UPS Ground Saver return trip to you'
-                    : `${method.chargeCount} UPS Ground Saver trips`}
+                  {live?.service_summary
+                    ? `Live UPS lowest-cost service: ${live.service_summary}`
+                    : methodKey === 'ship_own'
+                      ? '1 UPS service return trip to you'
+                      : `${method.chargeCount} UPS service trips`}
                 </Text>
                 <Text style={styles.methodBody}>{method.summary}</Text>
                 {methodCost.quote_ok && methodCost.legs?.length
@@ -563,6 +699,11 @@ export default function EstimatorScreen() {
             onPress={addEstimateToCart}
             disabled={!cost.quote_ok}
           />
+          <CustomButton
+            title="Add another jar from a new photo"
+            onPress={addAnotherJar}
+            color={colors.primaryMid}
+          />
         </View>
       )}
     </ScrollView>
@@ -589,6 +730,80 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.textFaint,
     marginBottom: 10,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
+  chip: {
+    paddingVertical: 10,
+    paddingHorizontal: 22,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.white,
+  },
+  chipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  chipText: {
+    fontFamily: fonts.body,
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  chipTextActive: {
+    color: colors.white,
+  },
+  scaleToggle: {
+    width: '100%',
+    padding: 12,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surface,
+    marginBottom: 8,
+  },
+  scaleToggleOn: {
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.primary,
+  },
+  scaleToggleText: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    textAlign: 'center',
+    color: colors.textMuted,
+  },
+  scaleToggleTextOn: {
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  reviewRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  reviewLabel: {
+    flex: 1,
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.text,
+  },
+  reviewInput: {
+    fontFamily: fonts.body,
+    fontSize: 18,
+    width: 72,
+    textAlign: 'center',
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderRadius: radii.sm,
+    paddingVertical: 8,
+    color: colors.text,
   },
   instruction: {
     fontFamily: fonts.body,

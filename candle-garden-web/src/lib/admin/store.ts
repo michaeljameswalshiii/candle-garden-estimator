@@ -14,15 +14,9 @@ export async function loadRecord<T>(name: string, fallback: T): Promise<T> {
   const key = `admin/${name}.json`;
   if (blobEnabled()) {
     try {
-      const { list } = await import("@vercel/blob");
-      const listed = await list({ prefix: key, limit: 20 });
-      const match = listed.blobs.find(
-        (blob) => blob.pathname === key || blob.pathname.endsWith(`/${key}`)
-      );
-      if (match?.url) {
-        const res = await fetch(match.url, { cache: "no-store" });
-        if (res.ok) return (await res.json()) as T;
-      }
+      const { get } = await import("@vercel/blob");
+      const result = await get(key, { access: "private", useCache: false });
+      if (result?.stream) return JSON.parse(await new Response(result.stream).text()) as T;
     } catch {
       /* fall through */
     }
@@ -41,11 +35,11 @@ export async function saveRecord<T>(name: string, data: T): Promise<void> {
   if (blobEnabled()) {
     const { put } = await import("@vercel/blob");
     await put(key, json, {
-      access: "public",
+      access: "private",
       addRandomSuffix: false,
       allowOverwrite: true,
       contentType: "application/json",
-      cacheControlMaxAge: 15,
+      cacheControlMaxAge: 60,
     });
     return;
   }

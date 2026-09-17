@@ -69,7 +69,7 @@ Manager. See `docs/STRIPE_TEST_SETUP.md`. Live charges stay off.
 - SES branded Cognito emails  
 - Full JWT verify / authorizer on detect  
 - Backend data purge on account delete  
-- Push notifications  
+- Push notifications (removed from the App Store release)
 - Live Stripe charges  
 
 ---

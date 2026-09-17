@@ -13,6 +13,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { brand, colors, fonts, radii, spacing } from '../lib/theme';
 import { lifestyle, homeGallery } from '../lib/images';
+import LegalLinks from '../components/LegalLinks';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const H_PAD = spacing.md + 4;
@@ -267,6 +268,9 @@ export default function HomeScreen() {
       >
         <Text style={styles.siteButtonText}>Visit thecandlegarden.co</Text>
       </TouchableOpacity>
+
+      <LegalLinks compact />
+      <Text style={styles.version}>Version 1.1.0</Text>
     </ScrollView>
   );
 }
@@ -642,5 +646,12 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     letterSpacing: 1.2,
     textTransform: 'capitalize',
+  },
+  version: {
+    fontFamily: fonts.body,
+    textAlign: 'center',
+    color: colors.textFaint,
+    fontSize: 12,
+    marginTop: 8,
   },
 });
