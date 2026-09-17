@@ -19,6 +19,7 @@ import {
   resendConfirmationCode,
   signIn as cognitoSignIn,
   signUp as cognitoSignUp,
+  updateUserAttributes as cognitoUpdateUserAttributes,
 } from './cognitoClient';
 import { purgeAccountData } from './apiClient';
 import {
@@ -102,11 +103,11 @@ export function AuthProvider({ children }) {
     restore();
   }, [restore]);
 
-  const signUp = useCallback(async ({ email, password, name }) => {
+  const signUp = useCallback(async ({ email, password, name, phone, address, marketingOptIn }) => {
     setBusy(true);
     setError(null);
     try {
-      const result = await cognitoSignUp({ email, password, name });
+      const result = await cognitoSignUp({ email, password, name, phone, address, marketingOptIn });
       return {
         needsConfirmation: !result.UserConfirmed,
         userSub: result.UserSub,
@@ -119,6 +120,26 @@ export function AuthProvider({ children }) {
       setBusy(false);
     }
   }, []);
+
+  const updateProfile = useCallback(async ({ name, phone, address, marketingOptIn }) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const access = tokens?.accessToken || (await loadTokens())?.accessToken;
+      if (!access) throw new Error('Not signed in');
+      await cognitoUpdateUserAttributes({ accessToken: access, name, phone, address, marketingOptIn });
+      const raw = await getUser(access);
+      const profile = attributesToObject(raw);
+      await saveProfile(profile);
+      setUser(profile);
+      return profile;
+    } catch (e) {
+      setError(e.message);
+      throw e;
+    } finally {
+      setBusy(false);
+    }
+  }, [tokens]);
 
   const confirmSignUp = useCallback(async ({ email, code }) => {
     setBusy(true);
@@ -306,6 +327,7 @@ export function AuthProvider({ children }) {
       error,
       setError,
       signUp,
+      updateProfile,
       confirmSignUp,
       resendCode,
       signIn,
@@ -325,6 +347,7 @@ export function AuthProvider({ children }) {
       busy,
       error,
       signUp,
+      updateProfile,
       confirmSignUp,
       resendCode,
       signIn,

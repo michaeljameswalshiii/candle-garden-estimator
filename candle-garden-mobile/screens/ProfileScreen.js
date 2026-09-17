@@ -32,6 +32,15 @@ function CustomSwitch({ value, onValueChange }) {
   );
 }
 
+function cognitoPhone(value) {
+  const raw = String(value || '').trim();
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length === 10) return `+1${digits}`;
+  if (raw.startsWith('+') && digits.length >= 8) return `+${digits}`;
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+  return raw;
+}
+
 export default function ProfileScreen() {
   const {
     user,
@@ -40,6 +49,7 @@ export default function ProfileScreen() {
     busy,
     signIn,
     signUp,
+    updateProfile,
     confirmSignUp,
     resendCode,
     signOut,
@@ -51,6 +61,9 @@ export default function ProfileScreen() {
 
   const [mode, setMode] = useState('signin'); // signin | signup | confirm | forgot | reset
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
@@ -67,6 +80,14 @@ export default function ProfileScreen() {
       }
     });
   }, []);
+
+  React.useEffect(() => {
+    if (!user) return;
+    setName(user.name || '');
+    setPhone(user.phone || '');
+    setAddress(user.address || '');
+    setMarketingOptIn(Boolean(user.marketingOptIn));
+  }, [user]);
 
   const onToggleNotifications = async (on) => {
     if (!on) {
@@ -127,10 +148,17 @@ export default function ProfileScreen() {
 
   const onSignUp = async () => {
     try {
+      if (!phone.trim() || !address.trim()) {
+        Alert.alert('Add contact details', 'Phone and mailing address are required to create an account.');
+        return;
+      }
       const result = await signUp({
         email: email.trim(),
         password,
         name: name.trim() || undefined,
+        phone: cognitoPhone(phone),
+        address: address.trim(),
+        marketingOptIn,
       });
       if (result.needsConfirmation) {
         setMode('confirm');
@@ -143,6 +171,15 @@ export default function ProfileScreen() {
       }
     } catch (e) {
       Alert.alert('Sign up failed', e.message || 'Please try again');
+    }
+  };
+
+  const onSaveProfile = async () => {
+    try {
+      await updateProfile({ name: name.trim(), phone: cognitoPhone(phone), address: address.trim(), marketingOptIn });
+      Alert.alert('Profile updated', 'Your contact details and communication preference were saved.');
+    } catch (e) {
+      Alert.alert('Could not update profile', e.message || 'Try again');
     }
   };
 
@@ -294,17 +331,24 @@ export default function ProfileScreen() {
           </View>
 
           {mode === 'signup' ? (
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Name</Text>
-              <TextInput
-                style={styles.input}
-                value={name}
-                onChangeText={setName}
-                placeholder="Your name"
-                placeholderTextColor={colors.textFaint}
-                autoCapitalize="words"
-              />
-            </View>
+            <>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Name</Text>
+                <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Your name" placeholderTextColor={colors.textFaint} autoCapitalize="words" />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Phone</Text>
+                <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="+1 904 555 0123" placeholderTextColor={colors.textFaint} keyboardType="phone-pad" autoComplete="tel" />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Mailing address</Text>
+                <TextInput style={[styles.input, styles.multiline]} value={address} onChangeText={setAddress} placeholder="Street, city, state, ZIP" placeholderTextColor={colors.textFaint} autoComplete="street-address" multiline />
+              </View>
+              <TouchableOpacity style={styles.consentRow} onPress={() => setMarketingOptIn((value) => !value)} accessibilityRole="checkbox" accessibilityState={{ checked: marketingOptIn }}>
+                <View style={[styles.checkbox, marketingOptIn && styles.checkboxOn]}>{marketingOptIn ? <Text style={styles.checkmark}>✓</Text> : null}</View>
+                <Text style={styles.consentText}>Yes, send me Candle Garden news, product updates, classes, and occasional offers. I can unsubscribe at any time.</Text>
+              </TouchableOpacity>
+            </>
           ) : null}
 
           <View style={styles.inputGroup}>
@@ -452,6 +496,14 @@ export default function ProfileScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Preferences</Text>
+        <View style={styles.inputGroup}><Text style={styles.label}>Name</Text><TextInput style={styles.input} value={name} onChangeText={setName} autoCapitalize="words" /></View>
+        <View style={styles.inputGroup}><Text style={styles.label}>Phone</Text><TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" autoComplete="tel" /></View>
+        <View style={styles.inputGroup}><Text style={styles.label}>Mailing address</Text><TextInput style={[styles.input, styles.multiline]} value={address} onChangeText={setAddress} multiline autoComplete="street-address" /></View>
+        <TouchableOpacity style={styles.consentRow} onPress={() => setMarketingOptIn((value) => !value)} accessibilityRole="checkbox" accessibilityState={{ checked: marketingOptIn }}>
+          <View style={[styles.checkbox, marketingOptIn && styles.checkboxOn]}>{marketingOptIn ? <Text style={styles.checkmark}>✓</Text> : null}</View>
+          <Text style={styles.consentText}>Receive Candle Garden news, product updates, classes, and occasional offers.</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.button, busy && styles.buttonDisabled]} onPress={onSaveProfile} disabled={busy || !phone.trim() || !address.trim()}><Text style={styles.buttonText}>Save profile</Text></TouchableOpacity>
         <View style={styles.settingRow}>
           <View style={{ flex: 1, paddingRight: 8 }}>
             <Text style={styles.settingLabel}>Push Notifications</Text>
@@ -646,6 +698,12 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: fonts.body,
   },
+  multiline: { minHeight: 72, textAlignVertical: 'top' },
+  consentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 14 },
+  checkbox: { width: 22, height: 22, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.borderStrong, borderRadius: 4, backgroundColor: colors.white },
+  checkboxOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  checkmark: { color: colors.white, fontSize: 15, fontWeight: '700' },
+  consentText: { flex: 1, color: colors.textMuted, fontFamily: fonts.body, fontSize: 13, lineHeight: 19 },
   button: {
     backgroundColor: colors.primary,
     padding: 14,
