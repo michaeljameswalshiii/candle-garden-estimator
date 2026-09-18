@@ -241,13 +241,23 @@ def ddb_list_orders(customer_id, query_params=None):
         limit = 50
     limit = max(1, min(limit, 100))
 
-    resp = orders_table.query(
-        IndexName="customer_id-created_at-index",
-        KeyConditionExpression=Key("customer_id").eq(customer_id),
-        ScanIndexForward=False,
-        Limit=limit,
-    )
-    items = resp.get("Items") or []
+    try:
+        resp = orders_table.query(
+            IndexName="customer_id-created_at-index",
+            KeyConditionExpression=Key("customer_id").eq(customer_id),
+            ScanIndexForward=False,
+            Limit=limit,
+        )
+        items = resp.get("Items") or []
+    except Exception as err:
+        logger.warning("orders GSI query failed (%s); scanning", err)
+        resp = orders_table.scan(Limit=500)
+        items = [
+            row for row in (resp.get("Items") or [])
+            if row.get("customer_id") == customer_id
+        ]
+        items.sort(key=lambda row: str(row.get("created_at") or ""), reverse=True)
+        items = items[:limit]
     items = [i for i in items if i.get("status") != "deleted"]
     out = []
     for i in items:

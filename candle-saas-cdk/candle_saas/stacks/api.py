@@ -90,6 +90,26 @@ class APIStack(Stack):
                 resources=["*"],
             )
         )
+        lambda_execution_role.add_to_policy(
+            iam.PolicyStatement(
+                actions=[
+                    "dynamodb:GetItem",
+                    "dynamodb:PutItem",
+                    "dynamodb:UpdateItem",
+                    "dynamodb:DeleteItem",
+                    "dynamodb:Query",
+                    "dynamodb:Scan",
+                    "dynamodb:DescribeTable",
+                    "dynamodb:BatchWriteItem",
+                ],
+                resources=[
+                    f"arn:aws:dynamodb:{self.region}:{self.account}:table/candle-garden-orders",
+                    f"arn:aws:dynamodb:{self.region}:{self.account}:table/candle-garden-orders/index/*",
+                    f"arn:aws:dynamodb:{self.region}:{self.account}:table/candle-garden-push-tokens",
+                    f"arn:aws:dynamodb:{self.region}:{self.account}:table/candle-garden-push-tokens/index/*",
+                ],
+            )
+        )
         
         # Add permissions for database access (only if database exists)
         if database is not None:
@@ -225,13 +245,14 @@ class APIStack(Stack):
             default_cors_preflight_options=apigw.CorsOptions(
                 allow_origins=apigw.Cors.ALL_ORIGINS,
                 allow_methods=apigw.Cors.ALL_METHODS,
-                allow_headers=["Content-Type", "Authorization", "X-Device-Id", "Stripe-Signature"],
+                allow_headers=["Content-Type", "Authorization", "X-Device-Id", "X-Id-Token", "X-Cognito-Token-Use", "Stripe-Signature"],
             ),
         )
         
         # Add API resources and integrations
         self._setup_products_endpoint(api, product_manager_fn)
         self._setup_orders_endpoint(api, order_processor_fn, auth_opts)
+        self._setup_account_endpoint(api, order_processor_fn, auth_opts)
         self._setup_payments_endpoint(api, payment_processor_fn, auth_opts)
         self._setup_recommendations_endpoint(api, ai_recommendations_fn)
         self._setup_images_endpoint(api, image_processor_fn)
@@ -287,6 +308,8 @@ class APIStack(Stack):
                 "DB_HOST": db_host,
                 "DB_PORT": str(db_port),
                 "DB_NAME": "candledb",
+                "ORDERS_TABLE": "candle-garden-orders",
+                "PUSH_TABLE": "candle-garden-push-tokens",
             },
             timeout=Duration.seconds(60),
             memory_size=512,
@@ -439,6 +462,22 @@ class APIStack(Stack):
         
         order_confirm = order.add_resource("confirm")
         order_confirm.add_method("POST", integration, **method_kwargs)
+
+    def _setup_account_endpoint(self, api: apigw.RestApi, function: lambda_.Function, auth_opts=None):
+        """Account purge / push-token (Cognito JWT required)."""
+        account = api.root.add_resource("account")
+        integration = apigw.LambdaIntegration(function)
+        method_kwargs = {}
+        if auth_opts is not None:
+            method_kwargs = {
+                "authorization_type": auth_opts.authorization_type,
+                "authorizer": auth_opts.authorizer,
+            }
+        purge = account.add_resource("purge")
+        purge.add_method("POST", integration, **method_kwargs)
+        push_token = account.add_resource("push-token")
+        push_token.add_method("POST", integration, **method_kwargs)
+        push_token.add_method("DELETE", integration, **method_kwargs)
 
     def _setup_payments_endpoint(self, api: apigw.RestApi, function: lambda_.Function, auth_opts):
         """PaymentSheet is public so guests can check out. Signed-in JWT is still accepted when sent."""
