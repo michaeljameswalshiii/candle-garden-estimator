@@ -43,7 +43,12 @@ export default function ClassScheduleScreen() {
         </View>
       </View>
       {upcoming.length ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.classList}>
+        <ScrollView
+          horizontal
+          style={styles.classScroller}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.classList}
+        >
           {upcoming.map((course) => (
             <View key={course.id} style={styles.classCard}>
               {course.image ? (
@@ -119,6 +124,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     gap: 10,
+  },
+  classScroller: {
+    flexGrow: 0,
+    flexShrink: 0,
+    height: 265,
   },
   classCard: {
     width: 180,

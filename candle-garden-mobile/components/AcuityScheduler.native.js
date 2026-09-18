@@ -43,6 +43,14 @@ export default function AcuityScheduler() {
       }}
       onShouldStartLoadWithRequest={(request) => {
         const url = String(request.url || '');
+        const isTopFrame = request.isTopFrame !== false;
+
+        // Keep the scheduler embedded. Acuity may load Squarespace and Stripe
+        // resources inside frames, but those pages must not replace this view.
+        if (isTopFrame && !url.startsWith('about:') && !url.startsWith('data:')) {
+          return url.includes('acuityscheduling.com');
+        }
+
         return (
           url.startsWith('about:') ||
           url.startsWith('data:') ||
