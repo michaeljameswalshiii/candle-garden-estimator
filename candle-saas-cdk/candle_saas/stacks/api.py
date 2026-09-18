@@ -99,7 +99,7 @@ class APIStack(Stack):
         if s3_bucket is not None:
             s3_bucket.grant_read_write(lambda_execution_role)
         
-        # Bedrock: Grok 4.6 (count), Claude Sonnet 5 (ounces), Nova Premier (ounce fallback).
+        # Bedrock: Grok 4.6 (count), Claude Sonnet 5 (ounces), Nova 2 Lite (ounce fallback).
         # Grok on bedrock-runtime uses geo/global inference profiles (us.xai.grok-4.6)
         # plus InvokeModel on the account default project.
         lambda_execution_role.add_to_policy(
@@ -385,10 +385,10 @@ class APIStack(Stack):
             role=role,
             **_lambda_net(vpc, sg),
             environment={
-                # Grok 4.6 count; Claude Sonnet 5 ounces; Nova Premier ounce fallback. No xAI API key.
+                # Grok 4.6 count; Claude Sonnet 5 ounces; Nova 2 Lite ounce fallback. No xAI API key.
                 "CLAUDE_MODEL_ID": "us.anthropic.claude-sonnet-5",
                 "CLAUDE_FALLBACK_MODEL_ID": "us.anthropic.claude-sonnet-4-6",
-                "NOVA_MODEL_ID": "us.amazon.nova-premier-v1:0",
+                "NOVA_MODEL_ID": "us.amazon.nova-2-lite-v1:0",
                 "GROK_MODEL_ID": "us.xai.grok-4.6",
                 "GROK_REASONING_EFFORT": "low",
                 "MIN_CONFIDENCE": "0.5",

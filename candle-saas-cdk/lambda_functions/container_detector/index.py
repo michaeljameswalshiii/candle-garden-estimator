@@ -22,7 +22,7 @@ CLAUDE_FALLBACK_MODEL_ID = os.environ.get(
     "CLAUDE_FALLBACK_MODEL_ID",
     "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
 )
-NOVA_MODEL_ID = os.environ.get("NOVA_MODEL_ID", "us.amazon.nova-premier-v1:0")
+NOVA_MODEL_ID = os.environ.get("NOVA_MODEL_ID", "us.amazon.nova-2-lite-v1:0")
 GROK_MODEL_ID = os.environ.get("GROK_MODEL_ID", "").strip()
 GROK_REASONING_EFFORT = os.environ.get("GROK_REASONING_EFFORT", "low").strip() or "low"
 SKIP_GROK = os.environ.get("SKIP_GROK", "1").strip().lower() in ("1", "true", "yes")
@@ -524,35 +524,25 @@ def _invoke_grok(image_data, image_format, prompt_text=None):
 
 
 def _invoke_nova(image_data, image_format, prompt_text=None):
-    """Call Amazon Nova Premier (ounce fallback). Returns response text."""
+    """Call Amazon Nova 2 Lite (ounce fallback). Returns response text."""
     fmt = "jpeg" if image_format in ("jpg", "jpeg") else image_format
     prompt_text = prompt_text or VISION_PROMPT
-    response = bedrock_runtime.invoke_model(
+    image_bytes = base64.b64decode(image_data, validate=False)
+    response = bedrock_runtime.converse(
         modelId=NOVA_MODEL_ID,
-        contentType="application/json",
-        accept="application/json",
-        body=json.dumps({
-            "messages": [{
-                "role": "user",
-                "content": [
-                    {"image": {"format": fmt, "source": {"bytes": image_data}}},
-                    {"text": prompt_text},
-                ],
-            }],
-            "inferenceConfig": {
-                "max_new_tokens": 1600,
-                "temperature": 0.0,
-                "topP": 0.95,
-            },
-        }),
+        messages=[{
+            "role": "user",
+            "content": [
+                {"image": {"format": fmt, "source": {"bytes": image_bytes}}},
+                {"text": prompt_text},
+            ],
+        }],
+        inferenceConfig={
+            "maxTokens": 1600,
+            "temperature": 0.0,
+        },
     )
-    response_body = json.loads(response["body"].read())
-    return (
-        response_body.get("output", {})
-        .get("message", {})
-        .get("content", [{}])[0]
-        .get("text", "")
-    )
+    return _converse_text(response)
 
 
 def _build_success_response(result, model_used):
@@ -808,7 +798,7 @@ def _run_estimate_pass(image_data, image_format, count_result):
         text = _invoke_nova(image_data, image_format, prompt)
         parsed = _parse_model_json(text)
         if parsed:
-            return parsed, "nova-premier-estimate"
+            return parsed, "nova-2-lite-estimate"
     except Exception as err:
         logger.error("Nova estimate failed: %s", err)
     return None, None
