@@ -23,6 +23,52 @@ function cognitoPhone(value) {
   return '';
 }
 
+function splitMailingAddress(value) {
+  const parts = String(value || '').split(',').map((part) => part.trim()).filter(Boolean);
+  const stateZip = parts[2]?.match(/^([A-Za-z]{2})\s+(\d{5}(?:-\d{4})?)$/);
+  return {
+    street: parts[0] || '',
+    city: parts[1] || '',
+    state: stateZip?.[1] || '',
+    zip: stateZip?.[2] || '',
+    country: parts[3] || (parts.length >= 3 ? 'United States' : ''),
+  };
+}
+
+function joinMailingAddress({ street, city, state, zip, country }) {
+  const region = [state.trim(), zip.trim()].filter(Boolean).join(' ');
+  return [street.trim(), city.trim(), region, country.trim()].filter(Boolean).join(', ');
+}
+
+function AddressFields({ street, setStreet, city, setCity, state, setState, zip, setZip, country, setCountry }) {
+  return (
+    <>
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Street address</Text>
+        <TextInput style={styles.input} value={street} onChangeText={setStreet} placeholder="123 Main Street" placeholderTextColor={colors.textFaint} autoCapitalize="words" autoComplete="street-address" textContentType="streetAddressLine1" importantForAutofill="yes" />
+      </View>
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>City</Text>
+        <TextInput style={styles.input} value={city} onChangeText={setCity} placeholder="City" placeholderTextColor={colors.textFaint} autoCapitalize="words" autoComplete="postal-address-locality" textContentType="addressCity" importantForAutofill="yes" />
+      </View>
+      <View style={styles.addressRow}>
+        <View style={[styles.inputGroup, styles.stateField]}>
+          <Text style={styles.label}>State</Text>
+          <TextInput style={styles.input} value={state} onChangeText={(value) => setState(value.toUpperCase().slice(0, 2))} placeholder="FL" placeholderTextColor={colors.textFaint} autoCapitalize="characters" autoComplete="postal-address-region" textContentType="addressState" importantForAutofill="yes" maxLength={2} />
+        </View>
+        <View style={[styles.inputGroup, styles.zipField]}>
+          <Text style={styles.label}>ZIP code</Text>
+          <TextInput style={styles.input} value={zip} onChangeText={setZip} placeholder="33957" placeholderTextColor={colors.textFaint} keyboardType="numbers-and-punctuation" autoComplete="postal-code" textContentType="postalCode" importantForAutofill="yes" />
+        </View>
+      </View>
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Country</Text>
+        <TextInput style={styles.input} value={country} onChangeText={setCountry} placeholder="United States" placeholderTextColor={colors.textFaint} autoCapitalize="words" autoComplete="country" textContentType="countryName" importantForAutofill="yes" />
+      </View>
+    </>
+  );
+}
+
 export default function ProfileScreen() {
   const {
     user,
@@ -44,7 +90,11 @@ export default function ProfileScreen() {
   const [mode, setMode] = useState('signup'); // signup | signin | confirm | forgot | reset
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
+  const [street, setStreet] = useState('');
+  const [city, setCity] = useState('');
+  const [addressState, setAddressState] = useState('');
+  const [zip, setZip] = useState('');
+  const [country, setCountry] = useState('United States');
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -56,7 +106,12 @@ export default function ProfileScreen() {
     if (!user) return;
     setName(user.name || '');
     setPhone(user.phone || '');
-    setAddress(user.address || '');
+    const savedAddress = splitMailingAddress(user.address);
+    setStreet(savedAddress.street);
+    setCity(savedAddress.city);
+    setAddressState(savedAddress.state);
+    setZip(savedAddress.zip);
+    setCountry(savedAddress.country || 'United States');
     setMarketingOptIn(Boolean(user.marketingOptIn));
   }, [user]);
 
@@ -93,7 +148,7 @@ export default function ProfileScreen() {
   const onSignUp = async () => {
     try {
       const normalizedPhone = cognitoPhone(phone);
-      const normalizedAddress = address.trim();
+      const normalizedAddress = joinMailingAddress({ street, city, state: addressState, zip, country });
       const normalizedName = name.trim();
       const normalizedEmail = email.trim();
       if (!normalizedEmail) {
@@ -107,8 +162,8 @@ export default function ProfileScreen() {
         );
         return;
       }
-      if (!normalizedAddress) {
-        Alert.alert('Address required', 'Mailing address is required to create an account.');
+      if (!street.trim() || !city.trim() || !addressState.trim() || !zip.trim()) {
+        Alert.alert('Address required', 'Enter your street, city, state, and ZIP code.');
         return;
       }
       if (!password || password.length < 8) {
@@ -154,7 +209,8 @@ export default function ProfileScreen() {
 
   const onSaveProfile = async () => {
     try {
-      await updateProfile({ name: name.trim(), phone: cognitoPhone(phone), address: address.trim(), marketingOptIn });
+      const address = joinMailingAddress({ street, city, state: addressState, zip, country });
+      await updateProfile({ name: name.trim(), phone: cognitoPhone(phone), address, marketingOptIn });
       Alert.alert('Profile updated', 'Your contact details and communication preference were saved.');
     } catch (e) {
       Alert.alert('Could not update profile', e.message || 'Try again');
@@ -319,16 +375,16 @@ export default function ProfileScreen() {
                 placeholder="Your name"
                 placeholderTextColor={colors.textFaint}
                 autoCapitalize="words"
+                autoComplete="name"
+                textContentType="name"
+                importantForAutofill="yes"
               />
             </View>
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Phone</Text>
-              <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="+1 904 555 0123" placeholderTextColor={colors.textFaint} keyboardType="phone-pad" autoComplete="tel" />
+              <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="+1 904 555 0123" placeholderTextColor={colors.textFaint} keyboardType="phone-pad" autoComplete="tel" textContentType="telephoneNumber" importantForAutofill="yes" />
             </View>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Mailing address</Text>
-              <TextInput style={[styles.input, styles.multiline]} value={address} onChangeText={setAddress} placeholder="Street, city, state, ZIP" placeholderTextColor={colors.textFaint} autoComplete="street-address" multiline />
-            </View>
+            <AddressFields street={street} setStreet={setStreet} city={city} setCity={setCity} state={addressState} setState={setAddressState} zip={zip} setZip={setZip} country={country} setCountry={setCountry} />
             <TouchableOpacity style={styles.consentRow} onPress={() => setMarketingOptIn((value) => !value)} activeOpacity={0.75} accessibilityRole="checkbox" accessibilityState={{ checked: marketingOptIn }}>
               <View style={[styles.checkbox, marketingOptIn && styles.checkboxOn]}>{marketingOptIn ? <Text style={styles.checkmark}>✓</Text> : null}</View>
               <Text style={styles.consentText}>Yes, send me Candle Garden news, product updates, classes, and occasional offers. I can unsubscribe at any time.</Text>
@@ -345,6 +401,9 @@ export default function ProfileScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              autoComplete="email"
+              textContentType="emailAddress"
+              importantForAutofill="yes"
               placeholder="you@example.com"
               placeholderTextColor={colors.textFaint}
             />
@@ -482,14 +541,14 @@ export default function ProfileScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Contact & communications</Text>
-        <View style={styles.inputGroup}><Text style={styles.label}>Name</Text><TextInput style={styles.input} value={name} onChangeText={setName} autoCapitalize="words" /></View>
-        <View style={styles.inputGroup}><Text style={styles.label}>Phone</Text><TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" autoComplete="tel" /></View>
-        <View style={styles.inputGroup}><Text style={styles.label}>Mailing address</Text><TextInput style={[styles.input, styles.multiline]} value={address} onChangeText={setAddress} multiline autoComplete="street-address" /></View>
+        <View style={styles.inputGroup}><Text style={styles.label}>Name</Text><TextInput style={styles.input} value={name} onChangeText={setName} autoCapitalize="words" autoComplete="name" textContentType="name" importantForAutofill="yes" /></View>
+        <View style={styles.inputGroup}><Text style={styles.label}>Phone</Text><TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" autoComplete="tel" textContentType="telephoneNumber" importantForAutofill="yes" /></View>
+        <AddressFields street={street} setStreet={setStreet} city={city} setCity={setCity} state={addressState} setState={setAddressState} zip={zip} setZip={setZip} country={country} setCountry={setCountry} />
         <TouchableOpacity style={styles.consentRow} onPress={() => setMarketingOptIn((value) => !value)} accessibilityRole="checkbox" accessibilityState={{ checked: marketingOptIn }}>
           <View style={[styles.checkbox, marketingOptIn && styles.checkboxOn]}>{marketingOptIn ? <Text style={styles.checkmark}>✓</Text> : null}</View>
           <Text style={styles.consentText}>Receive Candle Garden news, product updates, classes, and occasional offers.</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.button, busy && styles.buttonDisabled]} onPress={onSaveProfile} disabled={busy || !phone.trim() || !address.trim()}><Text style={styles.buttonText}>Save profile</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.button, busy && styles.buttonDisabled]} onPress={onSaveProfile} disabled={busy || !phone.trim() || !street.trim() || !city.trim() || !addressState.trim() || !zip.trim()}><Text style={styles.buttonText}>Save profile</Text></TouchableOpacity>
       </View>
 
       <View style={styles.section}>
@@ -669,6 +728,9 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
   },
   multiline: { minHeight: 72, textAlignVertical: 'top' },
+  addressRow: { flexDirection: 'row', gap: 10 },
+  stateField: { flex: 1 },
+  zipField: { flex: 2 },
   consentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 14 },
   checkbox: { width: 22, height: 22, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.borderStrong, borderRadius: 4, backgroundColor: colors.white },
   checkboxOn: { backgroundColor: colors.primary, borderColor: colors.primary },

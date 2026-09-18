@@ -1,0 +1,22 @@
+# EAS builds only the mobile workspace and its shared catalog.
+*
+!candle-garden-mobile/
+!candle-garden-mobile/**
+!packages/
+!packages/catalog/
+!packages/catalog/**
+
+# Local and generated mobile files.
+candle-garden-mobile/node_modules/
+candle-garden-mobile/.expo/
+candle-garden-mobile/dist/
+candle-garden-mobile/web-build/
+candle-garden-mobile/android/
+candle-garden-mobile/ios/
+candle-garden-mobile/.env
+candle-garden-mobile/.env.local
+candle-garden-mobile/.vercel/
+candle-garden-mobile/.vscode/
+candle-garden-mobile/*.log
+candle-garden-mobile/tsconfig.json.-*
+candle-garden-mobile/docs/
