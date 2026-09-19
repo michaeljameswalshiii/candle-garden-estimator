@@ -1,0 +1,32 @@
+name: EAS update production
+
+on:
+  workflow_dispatch:
+    inputs:
+      message:
+        description: Update message
+        required: false
+        default: Classes book on Squarespace
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: candle-garden-mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: candle-garden-mobile/package-lock.json
+      - run: npm ci
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npx eas-cli update --channel production --non-interactive --auto --message "${{ github.event.inputs.message }}"
