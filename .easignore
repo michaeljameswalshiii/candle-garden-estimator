@@ -1,0 +1,30 @@
+# Dependencies and local Expo state
+node_modules/
+.expo/
+
+# Generated native and web outputs
+dist/
+web-build/
+android/
+ios/
+*.apk
+*.aab
+
+# Unrelated monorepo projects and local tooling
+/candle-garden-web/
+/candle-saas-cdk/
+/.github/
+/.vercel/
+*.msi
+*.zip
+Screenshot*.png
+
+# Local configuration and editor state
+.env
+.env.local
+.vscode/
+*.log
+tsconfig.json.-*
+
+# Documentation is not needed in native builds
+docs/
