@@ -5,6 +5,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import * as Updates from 'expo-updates';
 import { StripeProvider } from './lib/stripeBridge';
 
 import HomeScreen from './screens/HomeScreen';
@@ -18,7 +19,6 @@ import { AuthProvider, useAuth } from './lib/AuthContext';
 import { setAuthTokenGetter, setAccessTokenGetter, trackEvent } from './lib/apiClient';
 import { STRIPE_PUBLISHABLE_KEY } from './lib/stripeConfig';
 
-// Lazy-load Estimator so expo-image-picker / prepareImage are not required at app start
 const EstimatorScreen = lazy(() => import('./screens/EstimatorScreen'));
 
 const Tab = createBottomTabNavigator();
@@ -41,9 +41,7 @@ function EstimatorSuspense() {
 function AuthTokenBridge({ children }) {
   const { getIdToken, getAccessToken } = useAuth();
   React.useEffect(() => {
-    // API Gateway Cognito authorizer expects the ID token
     setAuthTokenGetter(() => getIdToken());
-    // Detect attribution uses access token (Cognito GetUser)
     setAccessTokenGetter(() => getAccessToken());
   }, [getIdToken, getAccessToken]);
   return children;
@@ -161,6 +159,41 @@ function AppTree() {
 }
 
 export default function App() {
+  const [ready, setReady] = React.useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        if (Updates.isEnabled) {
+          const result = await Updates.checkForUpdateAsync();
+          if (result.isAvailable) {
+            await Updates.fetchUpdateAsync();
+            await Updates.reloadAsync();
+            return;
+          }
+        }
+      } catch {
+        // Use the bundle already on the device.
+      }
+      if (!cancelled) setReady(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!ready) {
+    return (
+      <View style={styles.fallback}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.fallbackText}>Checking for update…</Text>
+      </View>
+    );
+  }
+
   if (!STRIPE_PUBLISHABLE_KEY) {
     return <AppTree />;
   }
