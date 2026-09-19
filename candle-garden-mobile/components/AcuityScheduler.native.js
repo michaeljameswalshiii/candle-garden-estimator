@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { ACUITY_EMBED_HTML, ACUITY_SCHEDULER_URL } from '../lib/schedulingConfig';
+import { BOOKING_PAGE_URL } from '../lib/schedulingConfig';
 import { colors, fonts } from '../lib/theme';
 
 export default function AcuityScheduler() {
@@ -10,7 +10,7 @@ export default function AcuityScheduler() {
   if (failed) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.errorTitle}>The scheduler could not load.</Text>
+        <Text style={styles.errorTitle}>The class page could not load.</Text>
         <Text style={styles.errorText}>Check your connection, then try again.</Text>
       </View>
     );
@@ -18,7 +18,7 @@ export default function AcuityScheduler() {
 
   return (
     <WebView
-      source={{ html: ACUITY_EMBED_HTML, baseUrl: 'https://app.acuityscheduling.com' }}
+      source={{ uri: BOOKING_PAGE_URL }}
       style={styles.webView}
       originWhitelist={['https://*', 'http://*']}
       javaScriptEnabled
@@ -34,7 +34,7 @@ export default function AcuityScheduler() {
       renderLoading={() => (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Loading appointment times…</Text>
+          <Text style={styles.loadingText}>Loading class schedule…</Text>
         </View>
       )}
       onError={() => setFailed(true)}
@@ -46,10 +46,12 @@ export default function AcuityScheduler() {
         return (
           url.startsWith('about:') ||
           url.startsWith('data:') ||
-          url.includes('acuityscheduling.com') ||
+          url.includes('thecandlegarden.co') ||
           url.includes('squarespace.com') ||
+          url.includes('squarespace-cdn.com') ||
           url.includes('stripe.com') ||
-          url.startsWith(ACUITY_SCHEDULER_URL.slice(0, 40))
+          url.includes('paypal.com') ||
+          url.startsWith(BOOKING_PAGE_URL)
         );
       }}
       allowsBackForwardNavigationGestures

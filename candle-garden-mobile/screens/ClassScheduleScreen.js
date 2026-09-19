@@ -1,61 +1,44 @@
 import React from 'react';
 import { Alert, Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import AcuityScheduler from '../components/AcuityScheduler';
-import { useCart } from '../lib/cart';
 import { getUpcomingClasses } from '../lib/classesCatalog';
-import { ACUITY_SCHEDULER_URL } from '../lib/schedulingConfig';
+import { BOOKING_PAGE_URL } from '../lib/schedulingConfig';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 
 export default function ClassScheduleScreen() {
-  const { addItem } = useCart();
   const upcoming = getUpcomingClasses().slice(0, 8);
 
-  const openInBrowser = async () => {
+  const openBooking = async (url) => {
+    const target = url || BOOKING_PAGE_URL;
     try {
-      await Linking.openURL(ACUITY_SCHEDULER_URL);
+      await Linking.openURL(target);
     } catch {
-      // The embedded scheduler remains available if an external browser cannot open.
+      // Embedded Squarespace page remains available if an external browser cannot open.
     }
   };
 
-  const addClass = (course) => {
+  const bookClass = (course) => {
     if (course.soldOut) {
       Alert.alert('Sold out', 'That class is not available right now.');
       return;
     }
-    addItem(
-      {
-        id: course.id,
-        type: 'class',
-        name: course.title,
-        price: course.price,
-        image: course.image,
-        url: course.url,
-        date: course.date,
-        scheduleLabel: course.scheduleLabel,
-      },
-      { type: 'class', quantity: 1, size: course.scheduleLabel }
-    );
-    Alert.alert(
-      'Added to cart',
-      `${course.title} (${course.scheduleLabel}) is in your cart. Pay with shop items and refills in the Cart tab.`
-    );
+    openBooking(course.url || BOOKING_PAGE_URL);
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headingCopy}>
-          <Text style={styles.title}>Schedule an appointment</Text>
-          <Text style={styles.subtitle}>Add a class to your cart, or pick a time below.</Text>
+          <Text style={styles.title}>Book a class</Text>
+          <Text style={styles.subtitle}>Live availability from thecandlegarden.co</Text>
         </View>
         <TouchableOpacity
           accessibilityRole="link"
-          accessibilityLabel="Open scheduler in browser"
-          onPress={openInBrowser}
+          accessibilityLabel="Open class schedule in browser"
+          onPress={() => openBooking(BOOKING_PAGE_URL)}
           style={styles.browserButton}
         >
-          <Text style={styles.browserButtonText}>Open in browser</Text>
+          <Text style={styles.browserButtonText}>Open website</Text>
         </TouchableOpacity>
       </View>
       {upcoming.length ? (
@@ -68,8 +51,8 @@ export default function ClassScheduleScreen() {
               <Text style={styles.classTitle} numberOfLines={2}>{course.title}</Text>
               <Text style={styles.classMeta}>{course.scheduleLabel}</Text>
               <Text style={styles.classPrice}>${Number(course.price).toFixed(0)}</Text>
-              <TouchableOpacity style={styles.addBtn} onPress={() => addClass(course)}>
-                <Text style={styles.addBtnText}>{course.soldOut ? 'Sold out' : 'Add to cart'}</Text>
+              <TouchableOpacity style={styles.addBtn} onPress={() => bookClass(course)}>
+                <Text style={styles.addBtnText}>{course.soldOut ? 'Sold out' : 'Book on site'}</Text>
               </TouchableOpacity>
             </View>
           ))}
