@@ -72,7 +72,6 @@ export function CartProvider({ children }) {
     if (!ready) return;
     if (skipFirstPersist.current) {
       skipFirstPersist.current = false;
-      // still persist if we have lines from restore path that mutates
     }
     persistLines(lines);
   }, [lines, ready]);
@@ -85,6 +84,7 @@ export function CartProvider({ children }) {
       (Array.isArray(product.sizes) && product.sizes.length ? product.sizes[0] : null);
     const qty = Math.max(1, Number(options.quantity) || 1);
     const unitPrice = Number(options.unitPrice != null ? options.unitPrice : product.price) || 0;
+    const image = options.image || product.image;
     const entry = {
       key: null,
       type,
@@ -93,7 +93,7 @@ export function CartProvider({ children }) {
       size,
       unitPrice,
       quantity: qty,
-      image: product.image,
+      image,
       url: product.url,
       ounces: options.ounces != null ? Number(options.ounces) : undefined,
       boxKey: options.boxKey,
@@ -117,6 +117,7 @@ export function CartProvider({ children }) {
         next[idx] = {
           ...next[idx],
           quantity: next[idx].quantity + qty,
+          image: image || next[idx].image,
         };
         return next;
       }
