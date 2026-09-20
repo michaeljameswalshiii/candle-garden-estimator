@@ -337,8 +337,8 @@ class APIStack(Stack):
             vpc=vpc,
             security_groups=[sg],
             environment={
-                # Claude Sonnet 4.5 primary (US inference profile); Nova Pro fallback
-                "CLAUDE_MODEL_ID": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+                # Claude Sonnet 4.6 primary — Sonnet 5 is not enabled on this account
+                "CLAUDE_MODEL_ID": "us.anthropic.claude-sonnet-4-6",
                 "NOVA_MODEL_ID": "amazon.nova-pro-v1:0",
                 "MIN_CONFIDENCE": "0.5",
             },

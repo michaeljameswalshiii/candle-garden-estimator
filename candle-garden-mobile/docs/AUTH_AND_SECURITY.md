@@ -37,7 +37,7 @@ Password policy: min 8, upper + lower + number.
 
 ---
 
-## API Gateway (`yg1ec20ucf` / prod)
+## API Gateway (`ry95dso7lc` / prod)
 
 | Route | Auth |
 |-------|------|

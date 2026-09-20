@@ -14,7 +14,7 @@ bedrock_runtime = boto3.client("bedrock-runtime", region_name=AWS_REGION)
 
 CLAUDE_MODEL_ID = os.environ.get(
     "CLAUDE_MODEL_ID",
-    "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    "us.anthropic.claude-sonnet-4-6",
 )
 NOVA_MODEL_ID = os.environ.get("NOVA_MODEL_ID", "amazon.nova-pro-v1:0")
 MIN_CONFIDENCE = float(os.environ.get("MIN_CONFIDENCE", "0.5"))

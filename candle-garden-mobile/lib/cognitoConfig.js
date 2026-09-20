@@ -13,6 +13,6 @@ export const cognitoConfig = {
 };
 
 export const API_BASE =
-  'https://yg1ec20ucf.execute-api.us-east-1.amazonaws.com/prod';
+  'https://ry95dso7lc.execute-api.us-east-1.amazonaws.com/prod';
 
 export default cognitoConfig;

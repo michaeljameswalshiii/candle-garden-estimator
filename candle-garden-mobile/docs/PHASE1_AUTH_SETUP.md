@@ -51,9 +51,9 @@ This document is the single place for **what was built**, **where it lives**, **
 
 | Item | Value |
 |------|--------|
-| REST API ID | `yg1ec20ucf` |
+| REST API ID | `ry95dso7lc` |
 | Stage | `prod` |
-| Base URL | `https://yg1ec20ucf.execute-api.us-east-1.amazonaws.com/prod` |
+| Base URL | `https://ry95dso7lc.execute-api.us-east-1.amazonaws.com/prod` |
 | Cognito authorizer ID | `g4z8y1` |
 | Authorizer name | `CandleGardenCognito` |
 | Identity source | `method.request.header.Authorization` |
@@ -188,15 +188,15 @@ aws cognito-idp describe-user-pool-client \
 
 # Orders POST requires Cognito
 aws apigateway get-method \
-  --rest-api-id yg1ec20ucf \
-  --resource-id 5lvuym \
+  --rest-api-id ry95dso7lc \
+  --resource-id sj28w8 \
   --http-method POST \
   --region us-east-1
 
 # Detect stays public
 aws apigateway get-method \
-  --rest-api-id yg1ec20ucf \
-  --resource-id 5v0not \
+  --rest-api-id ry95dso7lc \
+  --resource-id w3v6qo \
   --http-method POST \
   --region us-east-1
 ```
