@@ -240,7 +240,10 @@ def _stripe_secret():
         return _secret_cache["value"]
     import boto3
 
-    raw = boto3.client("secretsmanager").get_secret_value(SecretId=arn).get("SecretString", "")
+    try:
+        raw = boto3.client("secretsmanager").get_secret_value(SecretId=arn).get("SecretString", "")
+    except Exception as error:
+        raise RuntimeError("Stripe test key is not configured yet") from error
     try:
         value = json.loads(raw).get("STRIPE_SECRET_KEY")
     except json.JSONDecodeError:
@@ -270,6 +273,28 @@ def _stripe_request(path, values):
     except urllib.error.HTTPError as error:
         data = json.loads(error.read().decode("utf-8"))
         message = ((data.get("error") or {}).get("message")) or "Stripe could not create the payment."
+        raise RuntimeError(message) from error
+
+
+def _stripe_get(path):
+    key = _stripe_secret()
+    if not key:
+        raise RuntimeError("Stripe test key is not configured yet")
+    if key.startswith("sk_live_") and os.environ.get("STRIPE_LIVE_ENABLED") != "true":
+        raise RuntimeError("Live Stripe charges are disabled for this app")
+    request = urllib.request.Request(
+        f"https://api.stripe.com/v1/{path}",
+        method="GET",
+        headers={
+            "Authorization": "Basic " + base64.b64encode(f"{key}:".encode()).decode(),
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        data = json.loads(error.read().decode("utf-8"))
+        message = ((data.get("error") or {}).get("message")) or "Stripe could not verify the payment."
         raise RuntimeError(message) from error
 
 
@@ -490,6 +515,27 @@ def _refill_labels(event):
         return _response(502, {"error": "Could not create UPS labels"})
 
 
+def _finalize_payment(event):
+    try:
+        body = _body(event)
+        payment_intent_id = str(body.get("paymentIntentId") or "").strip()
+        if not payment_intent_id.startswith("pi_"):
+            raise ValueError("A Stripe payment reference is required")
+        intent = _stripe_get(f"payment_intents/{urllib.parse.quote(payment_intent_id)}")
+        paid = intent.get("status") == "succeeded"
+        status = "paid" if paid and intent.get("livemode") else "paid_test" if paid else f"payment_{intent.get('status')}"
+        return _response(200, {
+            "ok": True,
+            "paid": paid,
+            "status": status,
+            "paymentIntentId": payment_intent_id,
+        })
+    except (ValueError, RuntimeError) as error:
+        return _response(400, {"error": str(error)})
+    except Exception:
+        return _response(502, {"error": "Could not verify payment"})
+
+
 def handler(event, context):
     method = (event.get("httpMethod") or "").upper()
     path = (event.get("path") or event.get("resource") or "").rstrip("/")
@@ -497,6 +543,8 @@ def handler(event, context):
         return _response(200, {"ok": True})
     if method == "POST" and path.endswith("/payments/payment-sheet"):
         return _create_payment_sheet(event)
+    if method == "POST" and path.endswith("/payments/finalize"):
+        return _finalize_payment(event)
     if method == "POST" and path.endswith("/payments/shipping-quote"):
         return _shipping_quote(event)
     if method == "POST" and path.endswith("/payments/refill-labels"):

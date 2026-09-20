@@ -394,6 +394,8 @@ class APIStack(Stack):
         integration = apigw.LambdaIntegration(function)
         payment_sheet = payments.add_resource("payment-sheet")
         payment_sheet.add_method("POST", integration)
+        finalize = payments.add_resource("finalize")
+        finalize.add_method("POST", integration)
         shipping_quote = payments.add_resource("shipping-quote")
         shipping_quote.add_method("POST", integration)
         refill_labels = payments.add_resource("refill-labels")
