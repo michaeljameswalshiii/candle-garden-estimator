@@ -7,7 +7,7 @@ Stripe stays in **test mode** for this candidate. Do not enable live charges unt
 EAS links for this candidate:
 
 - Build: https://expo.dev/accounts/michaeljameswalshiii/projects/candle-garden-estimator/builds/96f7ae44-c561-44bf-b3db-fda9f1c0a499
-- Submission: https://expo.dev/accounts/michaeljameswalshiii/projects/candle-garden-estimator/submissions/95af3c2b-d74d-4658-b868-22c4173462fd
+- Submission: https://expo.dev/accounts/michaeljameswalshiii/projects/candle-garden-estimator/submissions/79d1c24c-33a7-4101-b53b-6ce131286ff2
 
 ## Before you start
 
