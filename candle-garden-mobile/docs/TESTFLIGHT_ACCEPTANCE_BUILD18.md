@@ -1,12 +1,17 @@
-# TestFlight acceptance — build 18 (Stripe test mode)
+# TestFlight acceptance — build 19 (Stripe test mode)
 
-Use this checklist on a physical iPhone after build **1.1.0 (18)** appears in TestFlight.
+Use this checklist on a physical iPhone after build **1.1.0 (19)** appears in TestFlight.
 
 Stripe stays in **test mode** for this candidate. Do not enable live charges until every item below passes.
 
+EAS links for this candidate:
+
+- Build: https://expo.dev/accounts/michaeljameswalshiii/projects/candle-garden-estimator/builds/96f7ae44-c561-44bf-b3db-fda9f1c0a499
+- Submission: https://expo.dev/accounts/michaeljameswalshiii/projects/candle-garden-estimator/submissions/95af3c2b-d74d-4658-b868-22c4173462fd
+
 ## Before you start
 
-1. Install TestFlight build **1.1.0 (18)** (or newer production build from this candidate).
+1. Install TestFlight build **1.1.0 (19)** (or newer production build from this candidate).
 2. Fully close and reopen the app once so any OTA update can load.
 3. Confirm Shop shows **Live Squarespace inventory** (or a clear saved-inventory fallback).
 4. Confirm Classes shows public class dates only (no private / invite-only events).
@@ -44,7 +49,7 @@ Stripe stays in **test mode** for this candidate. Do not enable live charges unt
 
 ## After pass
 
-1. Reply that build 18 acceptance passed (or note any fail).
+1. Reply that build 19 acceptance passed (or note any fail).
 2. Only then flip Stripe to live keys / `MOBILE_LIVE_PAYMENTS` and cut a follow-up build if required.
 
 ## If something fails
