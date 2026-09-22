@@ -8,6 +8,21 @@ const KEYS = {
   profile: 'cg_profile_json',
 };
 
+const SKEW_MS = 90_000;
+
+function jwtExpMs(token) {
+  if (!token || typeof token !== 'string' || token.split('.').length < 2) return 0;
+  try {
+    const payload = token.split('.')[1];
+    const padded = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4));
+    const json = JSON.parse(globalThis.atob(padded + pad));
+    return json.exp ? Number(json.exp) * 1000 : 0;
+  } catch {
+    return 0;
+  }
+}
+
 async function setItem(key, value) {
   if (value == null || value === '') {
     await SecureStore.deleteItemAsync(key);
@@ -17,7 +32,12 @@ async function setItem(key, value) {
 }
 
 export async function saveTokens({ accessToken, idToken, refreshToken, expiresIn }) {
-  const expiresAt = Date.now() + (Number(expiresIn) || 3600) * 1000 - 60_000;
+  const fromTtl = Date.now() + (Number(expiresIn) || 3600) * 1000;
+  const fromJwt = Math.min(
+    jwtExpMs(idToken) || fromTtl,
+    jwtExpMs(accessToken) || fromTtl
+  );
+  const expiresAt = Math.min(fromTtl, fromJwt) - SKEW_MS;
   await setItem(KEYS.accessToken, accessToken);
   await setItem(KEYS.idToken, idToken);
   if (refreshToken) await setItem(KEYS.refreshToken, refreshToken);
@@ -25,19 +45,40 @@ export async function saveTokens({ accessToken, idToken, refreshToken, expiresIn
 }
 
 export async function loadTokens() {
-  const [accessToken, idToken, refreshToken, expiresAt] = await Promise.all([
+  const [accessToken, idToken, refreshToken, expiresAtRaw] = await Promise.all([
     SecureStore.getItemAsync(KEYS.accessToken),
     SecureStore.getItemAsync(KEYS.idToken),
     SecureStore.getItemAsync(KEYS.refreshToken),
     SecureStore.getItemAsync(KEYS.expiresAt),
   ]);
   if (!accessToken && !refreshToken) return null;
+  const stored = expiresAtRaw ? Number(expiresAtRaw) : 0;
+  const jwtExp = Math.min(
+    jwtExpMs(idToken) || Number.POSITIVE_INFINITY,
+    jwtExpMs(accessToken) || Number.POSITIVE_INFINITY
+  );
+  let expiresAt = stored;
+  if (jwtExp !== Number.POSITIVE_INFINITY) {
+    expiresAt = Math.min(stored || jwtExp, jwtExp - SKEW_MS);
+  }
   return {
     accessToken,
     idToken,
     refreshToken,
-    expiresAt: expiresAt ? Number(expiresAt) : 0,
+    expiresAt,
   };
+}
+
+export function isSessionExpired(session) {
+  if (!session) return true;
+  if (!session.accessToken && !session.idToken) return true;
+  if (session.expiresAt && Date.now() > session.expiresAt) return true;
+  const jwtExp = Math.min(
+    jwtExpMs(session.idToken) || Number.POSITIVE_INFINITY,
+    jwtExpMs(session.accessToken) || Number.POSITIVE_INFINITY
+  );
+  if (jwtExp !== Number.POSITIVE_INFINITY && Date.now() > jwtExp - SKEW_MS) return true;
+  return false;
 }
 
 export async function clearTokens() {

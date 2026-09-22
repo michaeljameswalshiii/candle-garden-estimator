@@ -7,6 +7,7 @@ import * as SecureStore from 'expo-secure-store';
 
 let idTokenGetter = async () => null;
 let accessTokenGetter = async () => null;
+let sessionInvalidator = async () => {};
 
 const DEVICE_ID_KEY = 'cg_device_id_v1';
 
@@ -29,6 +30,30 @@ export function setAuthTokenGetter(fn) {
 
 export function setAccessTokenGetter(fn) {
   accessTokenGetter = fn || (async () => null);
+}
+
+export function setSessionInvalidator(fn) {
+  sessionInvalidator = fn || (async () => {});
+}
+
+export function isExpiredTokenError(err) {
+  const raw = `${err?.message || ''} ${err?.data?.message || ''} ${err?.data?.Message || ''}`.toLowerCase();
+  return (
+    err?.status === 401
+    || raw.includes('incoming token has expired')
+    || raw.includes('token has expired')
+    || raw.includes('expired token')
+    || raw.includes('unauthorized')
+  );
+}
+
+export function friendlyAuthError(err, { signedIn = false } = {}) {
+  if (isExpiredTokenError(err)) {
+    return signedIn
+      ? 'Your session expired. Sign in again on the Profile tab to see order history.'
+      : null;
+  }
+  return err?.message || 'Could not load orders';
 }
 
 export async function authHeaders(extra = {}, { preferAccessToken = false } = {}) {
@@ -77,6 +102,25 @@ function friendlyNetworkError(err) {
   return raw || 'Network error';
 }
 
+async function parseResponse(res) {
+  const text = await res.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { raw: text };
+  }
+  if (!res.ok) {
+    const err = new Error(
+      data.message || data.error || data.Message || `Request failed (${res.status})`
+    );
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
+  return data;
+}
+
 export async function apiFetch(path, options = {}) {
   const {
     method = 'GET',
@@ -84,6 +128,7 @@ export async function apiFetch(path, options = {}) {
     requireAuth = false,
     headers: extraHeaders,
     preferAccessToken = false,
+    _retriedAuth = false,
   } = options;
   const headers = await authHeaders(extraHeaders, { preferAccessToken });
 
@@ -107,23 +152,15 @@ export async function apiFetch(path, options = {}) {
     throw err;
   }
 
-  const text = await res.text();
-  let data;
   try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    data = { raw: text };
-  }
-
-  if (!res.ok) {
-    const err = new Error(
-      data.message || data.error || data.Message || `Request failed (${res.status})`
-    );
-    err.status = res.status;
-    err.data = data;
+    return await parseResponse(res);
+  } catch (err) {
+    if (!_retriedAuth && headers.Authorization && isExpiredTokenError(err)) {
+      await sessionInvalidator();
+      return apiFetch(path, { ...options, _retriedAuth: true });
+    }
     throw err;
   }
-  return data;
 }
 
 export async function postDetect(payload) {
@@ -136,7 +173,7 @@ export async function postDetect(payload) {
 }
 
 export async function listOrders() {
-  return apiFetch('/orders', { method: 'GET', requireAuth: false });
+  return apiFetch('/orders', { method: 'GET', requireAuth: true });
 }
 
 export async function createOrder(orderBody) {
