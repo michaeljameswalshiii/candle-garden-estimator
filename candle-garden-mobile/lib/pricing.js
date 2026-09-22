@@ -18,7 +18,7 @@ import {
   isValidDestZip,
 } from './shippingConfig';
 
-export const WAX_PRICE_PER_OZ = 1.5;
+export const WAX_PRICE_PER_OZ = 1.75;
 export const MIN_CONFIDENCE = 0.5;
 export const DEFAULT_SHIPPING_METHOD = 'ship_own';
 

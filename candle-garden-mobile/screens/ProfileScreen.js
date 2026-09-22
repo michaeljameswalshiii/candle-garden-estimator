@@ -335,7 +335,7 @@ export default function ProfileScreen() {
           {mode === 'confirm' ? <TouchableOpacity style={styles.linkBtn} onPress={onResend} disabled={busy}><Text style={styles.linkText}>Resend code</Text></TouchableOpacity> : null}
           {mode === 'signin' ? <TouchableOpacity style={styles.linkBtn} onPress={() => setMode('forgot')} disabled={busy}><Text style={styles.linkText}>Forgot password?</Text></TouchableOpacity> : null}
         </View>
-        <Text style={styles.version}>Version 1.1.0 (16) \u00b7 The Candle Garden App</Text>
+        <Text style={styles.version}>Version 1.1.0 (16) {'·'} The Candle Garden App</Text>
       </ScrollView>
     );
   }
@@ -381,7 +381,7 @@ export default function ProfileScreen() {
       </View>
       <TouchableOpacity style={[styles.button, styles.logoutButton]} onPress={handleLogout} activeOpacity={0.8} disabled={busy}><Text style={[styles.buttonText, styles.logoutText]}>Sign out</Text></TouchableOpacity>
       <TouchableOpacity style={styles.deleteBtn} onPress={handleDeleteAccount} activeOpacity={0.8} disabled={busy}><Text style={styles.deleteText}>Delete account</Text></TouchableOpacity>
-      <Text style={styles.version}>Version 1.1.0 (16) \u00b7 The Candle Garden App</Text>
+      <Text style={styles.version}>Version 1.1.0 (16) {'·'} The Candle Garden App</Text>
     </ScrollView>
   );
 }

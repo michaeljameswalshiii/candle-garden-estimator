@@ -266,6 +266,8 @@ class APIStack(Stack):
                 "STRIPE_SECRET_ARN": self.node.try_get_context("stripeSecretArn")
                 or "arn:aws:secretsmanager:us-east-1:635449373837:secret:candlesaas/stripe/test-QNXlxT",
                 "STRIPE_LIVE_ENABLED": "true" if self.node.try_get_context("stripeLiveEnabled") == "true" else "false",
+                "CLASS_CATALOG_URL": "https://candle-garden-web.vercel.app/api/mobile/classes",
+                "PRODUCT_CATALOG_URL": "https://candle-garden-web.vercel.app/api/mobile/catalog",
                 "UPS_SECRET_ARN": self.node.try_get_context("upsSecretArn")
                 or "arn:aws:secretsmanager:us-east-1:635449373837:secret:candlesaas/ups",
             },

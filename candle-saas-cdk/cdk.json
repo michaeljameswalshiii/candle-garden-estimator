@@ -20,6 +20,6 @@
       "us-east-1b",
       "us-east-1c"
     ],
-    "stripeSecretArn": "arn:aws:secretsmanager:us-east-1:635449373837:secret:candlesaas/stripe/test-QNXlxT"
+    "stripeSecretArn": "arn:aws:secretsmanager:us-east-1:635449373837:secret:candlesaas/stripe/test-VjRgzI"
   }
 }

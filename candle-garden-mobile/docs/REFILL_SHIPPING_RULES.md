@@ -86,7 +86,7 @@ Old USPS keys (`frb_small`, `frb_medium_top`, …) still map to these cartons so
 
 | Line | Included? | Formula |
 |------|-----------|---------|
-| Wax | Yes | `ounces × $1.50 × quantity` |
+| Wax | Yes | `ounces × $1.75 × quantity` |
 | UPS Ground Saver | Yes, for the legs of the chosen method | zone/weight list + residential per package |
 | Customer → CG postage on **Ship on your own** | No | Customer pays their own carrier |
 | Packing kit materials | In method 2 as a **shipping** leg, not a product SKU | Kit billed as a light Ground Saver package |

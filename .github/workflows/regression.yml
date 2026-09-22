@@ -1,0 +1,75 @@
+name: Regression
+
+on:
+  pull_request:
+    paths:
+      - "tests/regression/**"
+      - "packages/catalog/**"
+      - "candle-garden-web/**"
+      - "candle-saas-cdk/tests/**"
+      - "candle-saas-cdk/lambda_functions/payment_processor/**"
+      - "candle-garden-mobile/App.js"
+      - "candle-garden-mobile/screens/**"
+      - "candle-garden-mobile/lib/**"
+      - "candle-garden-mobile/components/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/regression.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tests/regression/**"
+      - "packages/catalog/**"
+      - "candle-garden-web/**"
+      - "candle-saas-cdk/tests/**"
+      - "candle-saas-cdk/lambda_functions/payment_processor/**"
+      - "candle-garden-mobile/App.js"
+      - "candle-garden-mobile/screens/**"
+      - "candle-garden-mobile/lib/**"
+      - "candle-garden-mobile/components/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/regression.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --test tests/regression/*.test.mjs
+
+  payments:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install pytest
+      - run: python -m pytest candle-saas-cdk/tests/test_payment_processor.py -q
+
+  storefront:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: HTTP smoke
+        env:
+          BASE_URL: https://candle-garden-web.vercel.app
+        run: node tests/regression/http/run.mjs
+      - name: Browser storefront
+        env:
+          BASE_URL: https://candle-garden-web.vercel.app
+        run: npx playwright test --config tests/regression/playwright.config.mjs tests/regression/e2e/storefront.spec.js

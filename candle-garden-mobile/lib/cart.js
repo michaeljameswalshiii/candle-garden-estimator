@@ -91,6 +91,7 @@ export function CartProvider({ children }) {
       productId: type === 'refill' ? 'refill' : product.id,
       name: product.name,
       size,
+      variantId: options.variantId,
       unitPrice,
       quantity: qty,
       image,

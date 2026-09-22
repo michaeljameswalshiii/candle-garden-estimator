@@ -165,7 +165,7 @@ export default function RefillStep4() {
         <TextInput style={styles.zipInput} value={destZip} onChangeText={(t) => setDestZip(t.replace(/[^\d]/g, '').slice(0, 10))} keyboardType="number-pad" placeholder="32250" placeholderTextColor={colors.textFaint} maxLength={10} />
       </View>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>How we\u2019ll ship</Text>
+        <Text style={styles.sectionTitle}>How we’ll ship</Text>
         {methodQuotes.map(({ methodKey, method, cost: methodCost }) => (
           <TouchableOpacity key={methodKey} style={[styles.boxOption, shippingMethod === methodKey && styles.boxOptionSelected]} onPress={() => setShippingMethod(methodKey)}>
             <View style={styles.boxInfo}>
@@ -188,7 +188,7 @@ export default function RefillStep4() {
             <TouchableOpacity key={key} style={[styles.boxOption, selectedBox === key && styles.boxOptionSelected, key === recommendedBox && selectedBox !== key && styles.boxOptionRecommended]} onPress={() => setSelectedBox(key)}>
               <View style={styles.boxInfo}>
                 <Text style={styles.boxName}>{box.shortName}</Text>
-                <Text style={styles.boxDetails}>{dims} \u00b7 empty ~{box.emptyBoxOz} oz</Text>
+                <Text style={styles.boxDetails}>{dims} {'·'} empty ~{box.emptyBoxOz} oz</Text>
                 <Text style={styles.boxDetails} numberOfLines={2}>{box.notes}</Text>
               </View>
               {key === recommendedBox && <Text style={styles.recommendedBadge}>Recommended</Text>}

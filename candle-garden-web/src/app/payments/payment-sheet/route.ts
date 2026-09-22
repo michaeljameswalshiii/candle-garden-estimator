@@ -23,7 +23,7 @@ async function priceItems(raw: unknown, shipping: unknown) {
     if (kind === "refill") {
       const ounces = Number(item.ounces || 0);
       const quote = await priceRefillShipping(item, destination!);
-      const lineCents = Math.round(ounces * 150 * qty) + quote.shippingCents;
+      const lineCents = Math.round(ounces * 175 * qty) + quote.shippingCents;
       total += lineCents;
       return { type: "refill", productId: "refill", name: `Candle refill · ${ounces} oz`, size: quote.serviceSummary, quantity: qty, unitCents: Math.round(lineCents / qty), shippingCents: quote.shippingCents, ounces, boxKey: item.boxKey, shippingMethod: item.shippingMethod || "ship_own", vesselCount: Number(item.vesselCount || qty) };
     }

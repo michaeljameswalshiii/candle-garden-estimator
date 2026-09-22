@@ -10,7 +10,7 @@ try:
 except ImportError:
     ups_client = None
 
-WAX_CENTS_PER_OZ = 150
+WAX_CENTS_PER_OZ = 175
 ORIGIN_ZIP = "32233"
 RESIDENTIAL_CENTS = 465
 FUEL_PCT = 0.16

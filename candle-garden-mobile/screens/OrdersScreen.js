@@ -201,6 +201,7 @@ function OrdersScreenBody({ stripe }) {
           productId: line.productId,
           quantity: line.quantity,
           size: line.size,
+          variantId: line.variantId,
           ounces: line.ounces,
           boxKey: line.boxKey,
           destZip: line.destZip || shipping.zip,

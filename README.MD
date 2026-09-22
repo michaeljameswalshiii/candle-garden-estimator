@@ -11,6 +11,16 @@ This repository contains three independently deployable applications plus shared
 
 GitHub Actions use path filters so a web-only change does not validate the mobile app and a mobile-only change does not validate the website. Shared catalog changes validate both consumers.
 
+## Regression tests
+
+From the repository root:
+
+```bash
+npm test
+```
+
+That runs mobile-app, catalog, and shipping unit tests, payment-processor pytest, HTTP smoke against the live storefront, and Playwright browser scripts. The high-level list of every check is in [tests/regression/SUITE.md](tests/regression/SUITE.md). How to run it is in [tests/regression/README.md](tests/regression/README.md).
+
 **A powerful iOS tool for precise candle-making calculations**  
 Built for The Candle Garden – Jacksonville, Florida's premier soy candle and house plant studio.
 

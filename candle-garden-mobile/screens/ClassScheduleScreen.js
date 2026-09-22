@@ -36,6 +36,8 @@ export default function ClassScheduleScreen() {
 
   useEffect(() => {
     void refreshClasses();
+    const timer = setInterval(() => void refreshClasses(), 60 * 60 * 1000);
+    return () => clearInterval(timer);
   }, [refreshClasses]);
 
   const bookClass = (course) => {

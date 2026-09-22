@@ -19,7 +19,9 @@ import ups_client
 
 _secret_cache = {"value": None, "expires": 0}
 _catalog_cache = None
+_catalog_cache_expires = 0
 _classes_cache = None
+_classes_cache_expires = 0
 
 
 def _headers():
@@ -55,9 +57,28 @@ def _claims(event):
 
 
 def _load_catalog():
-    global _catalog_cache
-    if _catalog_cache is not None:
+    global _catalog_cache, _catalog_cache_expires
+    now = time.time()
+    if _catalog_cache is not None and _catalog_cache_expires > now:
         return _catalog_cache
+    live_url = os.environ.get("PRODUCT_CATALOG_URL")
+    if live_url:
+        request = urllib.request.Request(
+            live_url,
+            method="GET",
+            headers={"Accept": "application/json", "User-Agent": "CandleGardenPayments/1.0"},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=10) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            data = payload.get("products") if isinstance(payload, dict) else None
+            if not isinstance(data, list) or not data:
+                raise RuntimeError("Live product catalog is invalid")
+            _catalog_cache = {str(item.get("id")): item for item in data if item.get("id")}
+            _catalog_cache_expires = now + 60
+            return _catalog_cache
+        except (OSError, ValueError, urllib.error.URLError, json.JSONDecodeError):
+            pass
     here = os.path.dirname(os.path.abspath(__file__))
     candidates = [
         os.path.join(here, "catalog.json"),
@@ -70,14 +91,36 @@ def _load_catalog():
             if not isinstance(data, list):
                 raise RuntimeError("Product catalog is invalid")
             _catalog_cache = {str(item.get("id")): item for item in data if item.get("id")}
+            _catalog_cache_expires = now + 60
             return _catalog_cache
     raise RuntimeError("Product catalog is missing")
 
 
 def _load_classes():
-    global _classes_cache
-    if _classes_cache is not None:
+    global _classes_cache, _classes_cache_expires
+    now = time.time()
+    if _classes_cache is not None and _classes_cache_expires > now:
         return _classes_cache
+    live_url = os.environ.get("CLASS_CATALOG_URL")
+    if live_url:
+        request = urllib.request.Request(
+            live_url,
+            method="GET",
+            headers={"Accept": "application/json", "User-Agent": "CandleGardenPayments/1.0"},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=10) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            data = payload.get("classes") if isinstance(payload, dict) else None
+            if not isinstance(data, list) or not data:
+                raise RuntimeError("Live class catalog is invalid")
+            _classes_cache = {str(item.get("id")): item for item in data if item.get("id")}
+            _classes_cache_expires = now + 60
+            return _classes_cache
+        except (OSError, ValueError, urllib.error.URLError, json.JSONDecodeError):
+            # Keep checkout available from the packaged catalog during a brief
+            # website outage. Unknown new class IDs still fail closed.
+            pass
     here = os.path.dirname(os.path.abspath(__file__))
     candidates = [
         os.path.join(here, "classes.json"),
@@ -90,6 +133,7 @@ def _load_classes():
             if not isinstance(data, list):
                 raise RuntimeError("Class catalog is invalid")
             _classes_cache = {str(item.get("id")): item for item in data if item.get("id")}
+            _classes_cache_expires = now + 60
             return _classes_cache
     raise RuntimeError("Class catalog is missing")
 
@@ -121,15 +165,36 @@ def _price_product(item):
     product = catalog.get(product_id)
     if not product:
         raise ValueError("One or more items are not in the shop catalog")
-    if product.get("soldOut"):
-        raise ValueError(f"{product.get('name') or 'An item'} is sold out")
     qty = _qty(item)
-    unit = catalog_unit_cents(product, item.get("size"))
+    variants = product.get("variants") if isinstance(product.get("variants"), list) else []
+    selected = None
+    if variants:
+        variant_id = str(item.get("variantId") or "")
+        size = str(item.get("size") or "").strip().lower()
+        if variant_id:
+            selected = next((row for row in variants if str(row.get("id")) == variant_id), None)
+        if selected is None and size:
+            selected = next((row for row in variants if str(row.get("size") or "").strip().lower() == size), None)
+        if selected is None and len(variants) == 1:
+            selected = variants[0]
+        if selected is None:
+            raise ValueError(f"Choose an available size for {product.get('name') or 'this item'}")
+        if selected.get("soldOut"):
+            raise ValueError(f"{product.get('name') or 'An item'} {selected.get('size') or ''} is sold out".strip())
+        dollars = float(selected.get("price") or 0)
+        if dollars <= 0:
+            raise ValueError(f"{product.get('name') or 'Item'} has no price")
+        unit = int(round(dollars * 100))
+    else:
+        if product.get("soldOut"):
+            raise ValueError(f"{product.get('name') or 'An item'} is sold out")
+        unit = catalog_unit_cents(product, item.get("size"))
     return unit * qty, {
         "type": "product",
         "productId": product_id,
         "name": product.get("name"),
         "size": item.get("size") or None,
+        "variantId": selected.get("id") if selected else None,
         "quantity": qty,
         "unitCents": unit,
     }

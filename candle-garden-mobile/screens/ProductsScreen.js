@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -14,6 +14,8 @@ import { colors, fonts, radii, spacing } from '../lib/theme';
 import { lifestyle } from '../lib/images';
 import {
   SHOP_CATEGORIES,
+  products as bundledProducts,
+  fetchLatestProducts,
   filterProducts,
   formatPrice,
 } from '../lib/shopCatalog';
@@ -26,10 +28,34 @@ const CARD_W = (SCREEN_W - H_PAD * 2 - CARD_GAP) / 2;
 
 export default function ProductsScreen() {
   const [category, setCategory] = useState('all');
+  const [productCatalog, setProductCatalog] = useState(bundledProducts);
+  const [catalogStatus, setCatalogStatus] = useState('Loading live inventory…');
   const { addItem, itemCount } = useCart();
 
-  const items = useMemo(() => filterProducts(category), [category]);
+  const items = useMemo(() => filterProducts(category, productCatalog), [category, productCatalog]);
   const activeMeta = SHOP_CATEGORIES.find((c) => c.id === category) || SHOP_CATEGORIES[0];
+
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = () => {
+      fetchLatestProducts()
+        .then((latest) => {
+          if (!cancelled) {
+            setProductCatalog(latest.products);
+            setCatalogStatus('Live Squarespace inventory');
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setCatalogStatus('Showing saved inventory');
+        });
+    };
+    refresh();
+    const timer = setInterval(refresh, 60 * 60 * 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
 
   const handleAddToCart = (product) => {
     if (product.soldOut) {
@@ -37,10 +63,16 @@ export default function ProductsScreen() {
       return;
     }
 
-    const sizes = Array.isArray(product.sizes) ? product.sizes.filter(Boolean) : [];
+    const availableVariants = Array.isArray(product.variants)
+      ? product.variants.filter((variant) => !variant.soldOut)
+      : [];
+    const sizes = availableVariants.length
+      ? availableVariants.map((variant) => variant.size).filter(Boolean)
+      : Array.isArray(product.sizes) ? product.sizes.filter(Boolean) : [];
 
     const doAdd = (size) => {
-      addItem(product, { size, quantity: 1 });
+      const variant = availableVariants.find((row) => row.size === size) || availableVariants[0];
+      addItem(product, { size, quantity: 1, variantId: variant?.id, unitPrice: variant?.price ?? product.price });
       const sizeNote = size ? ` (${size})` : '';
       Alert.alert(
         'Added to cart',
@@ -100,6 +132,7 @@ export default function ProductsScreen() {
 
   return (
     <View style={styles.container}>
+      <Text style={styles.inventoryStatus}>{catalogStatus}</Text>
       <FlatList
         data={items}
         keyExtractor={(item) => item.id || item.name}
@@ -159,6 +192,7 @@ export default function ProductsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.white },
+  inventoryStatus: { color: colors.textMuted, fontFamily: fonts.body, fontSize: 11, textAlign: 'center', paddingVertical: 4 },
   list: { paddingHorizontal: H_PAD, paddingBottom: 28 },
   row: { justifyContent: 'space-between', marginBottom: CARD_GAP },
   header: {

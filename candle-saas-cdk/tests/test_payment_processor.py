@@ -15,17 +15,70 @@ def load_processor():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     module._catalog_cache = None
+    module._catalog_cache_expires = 0
     module._classes_cache = None
+    module._classes_cache_expires = 0
     return module
+
+
+def test_live_class_catalog_is_used(monkeypatch):
+    processor = load_processor()
+    monkeypatch.setenv("CLASS_CATALOG_URL", "https://example.test/classes")
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return b'{"classes":[{"id":"live-class","title":"Live Class","price":50,"available":4,"soldOut":false}]}'
+
+    monkeypatch.setattr(processor.urllib.request, "urlopen", lambda *_args, **_kwargs: Response())
+    amount, rows = processor.amount_from_catalog(
+        [{"type": "class", "productId": "live-class", "quantity": 2}]
+    )
+    assert amount == 10000
+    assert rows[0]["name"] == "Live Class"
+
+
+def test_live_product_variant_price_and_inventory_are_used(monkeypatch):
+    processor = load_processor()
+    monkeypatch.setenv("PRODUCT_CATALOG_URL", "https://example.test/products")
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return b'{"products":[{"id":"live-product","name":"Live Candle","soldOut":false,"variants":[{"id":"small","size":"10oz","price":35,"soldOut":false},{"id":"large","size":"18oz","price":42,"soldOut":true}]}]}'
+
+    monkeypatch.setattr(processor.urllib.request, "urlopen", lambda *_args, **_kwargs: Response())
+    amount, rows = processor.amount_from_catalog(
+        [{"productId": "live-product", "variantId": "small", "size": "10oz", "quantity": 2}]
+    )
+    assert amount == 7000
+    assert rows[0]["variantId"] == "small"
+    try:
+        processor.amount_from_catalog(
+            [{"productId": "live-product", "variantId": "large", "size": "18oz", "quantity": 1}]
+        )
+        assert False, "expected sold-out variant to fail"
+    except ValueError as error:
+        assert "sold out" in str(error).lower()
 
 
 def test_amount_uses_catalog_not_client_price():
     processor = load_processor()
     total, priced = processor.amount_from_catalog(
-        [{"productId": "65faf809b85f1d19a61c8374", "quantity": 2, "unitPrice": 1}]
+        [{"productId": "65faf809b85f1d19a61c8374", "quantity": 2, "size": "10oz", "unitPrice": 1}]
     )
-    assert priced[0]["unitCents"] == 3400
-    assert total == 6800
+    assert priced[0]["unitCents"] == 3500
+    assert total == 7000
 
 
 def test_18oz_uses_price_max():
@@ -33,8 +86,8 @@ def test_18oz_uses_price_max():
     total, priced = processor.amount_from_catalog(
         [{"productId": "65faf809b85f1d19a61c8374", "quantity": 1, "size": "18oz"}]
     )
-    assert priced[0]["unitCents"] == 3900
-    assert total == 3900
+    assert priced[0]["unitCents"] == 4200
+    assert total == 4200
 
 
 def test_unknown_product_is_rejected():
@@ -115,7 +168,7 @@ def test_refill_rejects_alaska():
 def test_class_uses_catalog_price():
     processor = load_processor()
     total, priced = processor.amount_from_catalog(
-        [{"type": "class", "productId": "6a3c45403645b97e2eae9160", "quantity": 1, "unitPrice": 1}]
+        [{"type": "class", "productId": "6a46945e1aa91b68f13fad5d", "quantity": 1, "unitPrice": 1}]
     )
     assert priced[0]["type"] == "class"
     assert priced[0]["unitCents"] == 6000
@@ -131,13 +184,13 @@ def test_mixed_cart_sums_all_kinds():
     )
     total, priced = processor.amount_from_catalog(
         [
-            {"productId": "65faf809b85f1d19a61c8374", "quantity": 1},
+            {"productId": "65faf809b85f1d19a61c8374", "quantity": 1, "size": "10oz"},
             {"type": "refill", "ounces": 10, "quantity": 1, "boxKey": "ups_small", "destZip": "32250", "shippingMethod": "ship_own"},
-            {"type": "class", "productId": "6a3c45403645b97e2eae9160", "quantity": 1},
+            {"type": "class", "productId": "6a46945e1aa91b68f13fad5d", "quantity": 1},
         ]
     )
     assert [row["type"] for row in priced] == ["product", "refill", "class"]
-    assert total == 3400 + refill["total_cents"] + 6000
+    assert total == 3500 + refill["total_cents"] + 6000
 
 
 def test_empty_cart_is_rejected():
@@ -167,7 +220,7 @@ def test_guest_payment_sheet_does_not_require_signin():
             "headers": {"X-Device-Id": "dev_abc123"},
             "body": json.dumps(
                 {
-                    "items": [{"productId": "65faf809b85f1d19a61c8374", "quantity": 1}],
+                    "items": [{"productId": "65faf809b85f1d19a61c8374", "quantity": 1, "size": "10oz"}],
                     "email": "guest@example.com",
                     "name": "Guest Shopper",
                 }
@@ -202,7 +255,7 @@ def test_signed_in_jwt_is_still_tagged_without_api_authorizer():
             "httpMethod": "POST",
             "path": "/prod/payments/payment-sheet",
             "headers": {"Authorization": f"Bearer {token}", "X-Device-Id": "dev_abc123"},
-            "body": json.dumps({"items": [{"productId": "65faf809b85f1d19a61c8374", "quantity": 1}]}),
+            "body": json.dumps({"items": [{"productId": "65faf809b85f1d19a61c8374", "quantity": 1, "size": "10oz"}]}),
         },
         None,
     )

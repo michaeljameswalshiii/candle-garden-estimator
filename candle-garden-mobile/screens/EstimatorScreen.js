@@ -308,16 +308,16 @@ export default function EstimatorScreen() {
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Refill Estimator</Text>
       <Text style={styles.buildTag}>
-        build: ups-ground-saver-v1 \u00b7 {isAuthenticated ? 'signed in' : 'guest'}
+        build: ups-ground-saver-v1 {'·'} {isAuthenticated ? 'signed in' : 'guest'}
       </Text>
       <Text style={styles.instruction}>
-        Put every vessel you want refilled in the foreground (include small jars). Place a 12 oz drink can beside them for scale only \u2014 we will not count the can. Empty glass with wick visible works best.
+        Put every vessel you want refilled in the foreground (include small jars). Place a 12 oz drink can beside them for scale only {'—'} we will not count the can. Empty glass with wick visible works best.
       </Text>
       {!manipulatorOk ? (
         <View style={styles.warnBanner}>
           <Text style={styles.warnTitle}>Limited photo conversion in this client</Text>
           <Text style={styles.warnBody}>
-            Update Expo Go to the latest version, or use the TestFlight app for full HEIC support. JPEG photos may still work \u2014 or enter ounces manually below.
+            Update Expo Go to the latest version, or use the TestFlight app for full HEIC support. JPEG photos may still work {'—'} or enter ounces manually below.
           </Text>
           <CustomButton title="Enter ounces manually" onPress={() => setShowManualEntry(true)} />
         </View>
@@ -326,7 +326,7 @@ export default function EstimatorScreen() {
         <Image source={{ uri: image }} style={styles.image} />
       ) : (
         <View style={styles.placeholderContainer}>
-          <Text style={styles.placeholderText}>\ud83d\udcf7</Text>
+          <Text style={styles.placeholderText}>{'📷'}</Text>
           <Text style={styles.placeholderHint}>No photo selected</Text>
         </View>
       )}
@@ -367,7 +367,7 @@ export default function EstimatorScreen() {
             <View style={styles.vesselList}>
               {result.vessels.map((v, i) => (
                 <Text key={i} style={styles.vesselLine}>
-                  \u2022 {v.description || `Vessel ${i + 1}`}:{' '}
+                  {'•'} {v.description || `Vessel ${i + 1}`}:{' '}
                   {v.wax_needed_oz != null ? `${v.wax_needed_oz} oz` : '\u2014'}
                 </Text>
               ))}
@@ -380,7 +380,7 @@ export default function EstimatorScreen() {
           <Text style={styles.sectionLabel}>Your ZIP</Text>
           <Text style={styles.shipNote}>Estimated UPS shipping is based on ZIP and packed weight. Checkout confirms the lowest live UPS rate available.</Text>
           <TextInput style={styles.zipInput} value={destZip} onChangeText={(t) => setDestZip(t.replace(/[^\d]/g, '').slice(0, 10))} keyboardType="number-pad" placeholder="32250" placeholderTextColor={colors.textFaint} maxLength={10} />
-          <Text style={styles.sectionLabel}>How we\u2019ll ship</Text>
+          <Text style={styles.sectionLabel}>How we’ll ship</Text>
           {methodQuotes.map(({ methodKey, method, cost: methodCost }) => {
             const selected = shippingMethod === methodKey;
             const live = liveQuotes.find((q) => q.method === methodKey);
@@ -395,7 +395,7 @@ export default function EstimatorScreen() {
                 <Text style={styles.methodMeta}>{methodKey === 'ship_own' ? '1 UPS return trip to you' : `${method.chargeCount} UPS trips`}</Text>
                 <Text style={styles.methodBody}>{method.summary}</Text>
                 {methodCost.quote_ok && methodCost.legs?.length ? methodCost.legs.map((leg) => (
-                  <Text key={leg.key} style={styles.legLine}>\u2022 {leg.title}: ${leg.totalUsd.toFixed(2)} ({leg.billedLb} lb, zone {leg.zone})</Text>
+                  <Text key={leg.key} style={styles.legLine}>{'•'} {leg.title}: ${leg.totalUsd.toFixed(2)} ({leg.billedLb} lb, zone {leg.zone})</Text>
                 )) : null}
                 {!methodCost.quote_ok && methodCost.quote_reason && !methodCost.needs_zip ? (
                   <Text style={styles.methodWarn}>{methodCost.quote_reason}</Text>
@@ -412,7 +412,7 @@ export default function EstimatorScreen() {
             return (
               <TouchableOpacity key={key} style={[styles.boxOption, active && styles.boxOptionSelected]} onPress={() => setSelectedBox(key)}>
                 <Text style={styles.boxName}>{box.shortName}</Text>
-                <Text style={styles.boxDetails}>{box.lengthIn}\u00d7{box.widthIn}\u00d7{box.heightIn} in \u00b7 empty ~{box.emptyBoxOz} oz</Text>
+                <Text style={styles.boxDetails}>{box.lengthIn}{'×'}{box.widthIn}{'×'}{box.heightIn} in {'·'} empty ~{box.emptyBoxOz} oz</Text>
                 <Text style={styles.boxDetails}>{box.notes}</Text>
               </TouchableOpacity>
             );
