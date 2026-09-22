@@ -16,7 +16,7 @@ import ProfileScreen from './screens/ProfileScreen';
 import { colors, navigationTheme, fonts } from './lib/theme';
 import { CartProvider, useCart } from './lib/cart';
 import { AuthProvider, useAuth } from './lib/AuthContext';
-import { setAuthTokenGetter, setAccessTokenGetter, trackEvent } from './lib/apiClient';
+import { setAuthTokenGetter, setAccessTokenGetter, setSessionInvalidator, trackEvent } from './lib/apiClient';
 import { STRIPE_PUBLISHABLE_KEY } from './lib/stripeConfig';
 
 const EstimatorScreen = lazy(() => import('./screens/EstimatorScreen'));
@@ -39,11 +39,12 @@ function EstimatorSuspense() {
 }
 
 function AuthTokenBridge({ children }) {
-  const { getIdToken, getAccessToken } = useAuth();
+  const { getIdToken, getAccessToken, invalidateAndRefresh } = useAuth();
   React.useEffect(() => {
     setAuthTokenGetter(() => getIdToken());
     setAccessTokenGetter(() => getAccessToken());
-  }, [getIdToken, getAccessToken]);
+    setSessionInvalidator(() => invalidateAndRefresh());
+  }, [getIdToken, getAccessToken, invalidateAndRefresh]);
   return children;
 }
 
@@ -117,7 +118,8 @@ function MainTabs() {
         component={ProfileScreen}
         options={{
           title: 'Profile',
-          tabBarBadge: isAuthenticated ? undefined : '!',
+          tabBarBadge: isAuthenticated ? undefined : '!'
+          ,
           tabBarBadgeStyle: {
             backgroundColor: colors.warning,
             fontSize: 10,
@@ -175,7 +177,6 @@ export default function App() {
           }
         }
       } catch {
-        // Use the bundle already on the device.
       }
       if (!cancelled) setReady(true);
     })();
