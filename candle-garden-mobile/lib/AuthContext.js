@@ -24,6 +24,7 @@ import {
 import { purgeAccountData } from './apiClient';
 import {
   clearTokens,
+  isSessionExpired,
   loadProfile,
   loadTokens,
   saveProfile,
@@ -41,12 +42,27 @@ export function AuthProvider({ children }) {
 
   const applySession = useCallback(async (sessionTokens) => {
     await saveTokens(sessionTokens);
-    setTokens(sessionTokens);
-    const raw = await getUser(sessionTokens.accessToken);
+    const stored = await loadTokens();
+    setTokens(stored || sessionTokens);
+    const raw = await getUser((stored || sessionTokens).accessToken);
     const profile = attributesToObject(raw);
     await saveProfile(profile);
     setUser(profile);
     return profile;
+  }, []);
+
+  const dropSession = useCallback(async () => {
+    await clearTokens();
+    setTokens(null);
+    setUser(null);
+  }, []);
+
+  const refreshAndApply = useCallback(async (refreshToken) => {
+    const session = await refreshSession(refreshToken);
+    await saveTokens(session);
+    const stored = await loadTokens();
+    setTokens(stored || session);
+    return stored || session;
   }, []);
 
   const restore = useCallback(async () => {
@@ -61,15 +77,12 @@ export function AuthProvider({ children }) {
       }
 
       let session = stored;
-      if (!stored.accessToken || (stored.expiresAt && Date.now() > stored.expiresAt)) {
+      if (isSessionExpired(stored)) {
         if (!stored.refreshToken) {
-          await clearTokens();
-          setUser(null);
-          setTokens(null);
+          await dropSession();
           return;
         }
-        session = await refreshSession(stored.refreshToken);
-        await saveTokens(session);
+        session = await refreshAndApply(stored.refreshToken);
       }
 
       setTokens(session);
@@ -79,25 +92,20 @@ export function AuthProvider({ children }) {
         await saveProfile(profile);
         setUser(profile);
       } catch {
-        // Token may be stale — try refresh once
         if (session.refreshToken) {
-          const refreshed = await refreshSession(session.refreshToken);
+          const refreshed = await refreshAndApply(session.refreshToken);
           await applySession(refreshed);
         } else {
-          await clearTokens();
-          setUser(null);
-          setTokens(null);
+          await dropSession();
         }
       }
     } catch (e) {
-      await clearTokens();
-      setUser(null);
-      setTokens(null);
+      await dropSession();
       setError(e.message);
     } finally {
       setBooting(false);
     }
-  }, [applySession]);
+  }, [applySession, dropSession, refreshAndApply]);
 
   useEffect(() => {
     restore();
@@ -189,12 +197,10 @@ export function AuthProvider({ children }) {
         await globalSignOut(tokens.accessToken);
       }
     } finally {
-      await clearTokens();
-      setTokens(null);
-      setUser(null);
+      await dropSession();
       setBusy(false);
     }
-  }, [tokens]);
+  }, [tokens, dropSession]);
 
   const deleteAccount = useCallback(async () => {
     setBusy(true);
@@ -206,17 +212,13 @@ export function AuthProvider({ children }) {
       if (!access) {
         throw new Error('Not signed in');
       }
-      // Purge server-side data while JWT still valid, then delete Cognito user
       try {
         await purgeAccountData();
       } catch (purgeErr) {
-        // Continue with Cognito delete even if purge soft-fails
         console.warn('Account purge warning:', purgeErr?.message);
       }
       await cognitoDeleteUser(access);
-      await clearTokens();
-      setTokens(null);
-      setUser(null);
+      await dropSession();
       return true;
     } catch (e) {
       setError(e.message);
@@ -224,7 +226,7 @@ export function AuthProvider({ children }) {
     } finally {
       setBusy(false);
     }
-  }, [tokens]);
+  }, [tokens, dropSession]);
 
   const forgotPassword = useCallback(async (email) => {
     setBusy(true);
@@ -280,43 +282,38 @@ export function AuthProvider({ children }) {
     }
   }, [tokens]);
 
+  const ensureFreshSession = useCallback(async ({ force = false } = {}) => {
+    let session = tokens || (await loadTokens());
+    if (!session) return null;
+
+    if (force || isSessionExpired(session)) {
+      if (!session.refreshToken) {
+        await dropSession();
+        return null;
+      }
+      try {
+        session = await refreshAndApply(session.refreshToken);
+      } catch {
+        await dropSession();
+        return null;
+      }
+    }
+    return session;
+  }, [tokens, dropSession, refreshAndApply]);
+
   const getAccessToken = useCallback(async () => {
-    let session = tokens || (await loadTokens());
-    if (!session) return null;
+    const session = await ensureFreshSession();
+    return session?.accessToken || null;
+  }, [ensureFreshSession]);
 
-    if (!session.accessToken || (session.expiresAt && Date.now() > session.expiresAt)) {
-      if (!session.refreshToken) return null;
-      try {
-        session = await refreshSession(session.refreshToken);
-        await saveTokens(session);
-        setTokens(session);
-      } catch {
-        await clearTokens();
-        setTokens(null);
-        setUser(null);
-        return null;
-      }
-    }
-    return session.accessToken;
-  }, [tokens]);
-
-  /** ID token is preferred for API Gateway Cognito authorizers */
   const getIdToken = useCallback(async () => {
-    let session = tokens || (await loadTokens());
-    if (!session) return null;
+    const session = await ensureFreshSession();
+    return session?.idToken || null;
+  }, [ensureFreshSession]);
 
-    if (!session.idToken || (session.expiresAt && Date.now() > session.expiresAt)) {
-      if (!session.refreshToken) return null;
-      try {
-        session = await refreshSession(session.refreshToken);
-        await saveTokens(session);
-        setTokens(session);
-      } catch {
-        return null;
-      }
-    }
-    return session.idToken;
-  }, [tokens]);
+  const invalidateAndRefresh = useCallback(async () => {
+    return ensureFreshSession({ force: true });
+  }, [ensureFreshSession]);
 
   const value = useMemo(
     () => ({
@@ -338,6 +335,7 @@ export function AuthProvider({ children }) {
       changePassword,
       getAccessToken,
       getIdToken,
+      invalidateAndRefresh,
       restore,
       cachedProfile: user,
     }),
@@ -358,6 +356,7 @@ export function AuthProvider({ children }) {
       changePassword,
       getAccessToken,
       getIdToken,
+      invalidateAndRefresh,
       restore,
     ]
   );
