@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const session = await getAdminSession();
   if (!session.ok) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const social = socialStatus();
+  const social = await socialStatus();
   return NextResponse.json({
     id: session.id,
     adminConfigured: isAdminConfigured(),

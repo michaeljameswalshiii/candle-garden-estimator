@@ -18,7 +18,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { href: "/admin/photos", label: "Photos", detail: "Hero and story images", section: "Website" },
   { href: "/admin/announcements", label: "Announcements", detail: "News and closed days", section: "Website" },
   { href: "/admin/ai", label: "Content AI", detail: "Rewrite copy", section: "Website" },
-  { href: "/admin/social", label: "Social Media", detail: "Draft posts", section: "Website" },
+  { href: "/admin/social", label: "Social Media", detail: "Connect and post", section: "Website" },
   { href: "/admin/staff", label: "Staff logins", detail: "Add people", section: "Account" },
   { href: "/admin/settings", label: "Settings", detail: "Connections", section: "Account" },
 ];

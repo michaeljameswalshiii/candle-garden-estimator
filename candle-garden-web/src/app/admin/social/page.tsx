@@ -1,5 +1,7 @@
-import { SocialDesk } from "@/components/admin/desks";
+import { SocialHubClient } from "@/components/admin/SocialHubClient";
+
+export const dynamic = "force-dynamic";
 
 export default function SocialPage() {
-  return <SocialDesk />;
+  return <SocialHubClient />;
 }
