@@ -215,11 +215,13 @@ export function SocialHubClient() {
 
   return (
     <div className="social-hub">
-      <p className="eyebrow">Website</p>
-      <h1>Social Media</h1>
-      <p className="admin-lede">
-        Write once for The Candle Garden, then send it to the networks you have connected. App passwords never enter this desk.
-      </p>
+      <header className="admin-page-head">
+        <p className="eyebrow">Website</p>
+        <h1>Social Media</h1>
+        <p className="admin-lede">
+          Write once for The Candle Garden, then send it to the networks you have connected. App passwords never enter this desk.
+        </p>
+      </header>
 
       <div className="social-layout">
         <form className="social-composer" onSubmit={savePost}>

@@ -57,7 +57,7 @@ export function AdminShell({
           <span>
             <small>Storefront admin</small>
             <strong>The Candle Garden</strong>
-            <i>Visitors, orders, classes, and website updates in one place.</i>
+            <i>Garden desk</i>
           </span>
         </Link>
         <nav>
@@ -98,8 +98,8 @@ export function AdminShell({
         <header className="admin-topbar">
           <button className="admin-menu-toggle" type="button" onClick={() => setOpen(true)}><Menu size={18} /> Menu</button>
           <span>{ADMIN_NAV.find((item) => item.href === "/admin" ? pathname === "/admin" : pathname.startsWith(item.href))?.label || "Garden admin"}</span>
-          <a href="https://candle-garden-web.vercel.app" target="_blank" rel="noreferrer">
-            candle-garden-web.vercel.app
+          <a className="admin-topbar-link" href={site.url} target="_blank" rel="noreferrer">
+            View site
           </a>
           <button className="admin-menu-close" type="button" aria-label="Close menu" onClick={() => setOpen(false)}><X size={18} /></button>
         </header>

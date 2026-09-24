@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { Facebook, HardDrive, Instagram, Linkedin, Share2, Sparkles } from "lucide-react";
 import type { Announcement, GardenContent, HourRow } from "@/lib/admin/content";
 import type { PhotoSlots } from "@/lib/admin/photos";
 
@@ -13,8 +14,8 @@ function formatWhen(iso: string) {
 }
 
 function Notice({ error, notice }: { error?: string; notice?: string }) {
-  if (error) return <p className="admin-error">{error}</p>;
-  if (notice) return <p className="admin-notice">{notice}</p>;
+  if (error) return <p className="admin-banner is-error">{error}</p>;
+  if (notice) return <p className="admin-banner is-ok">{notice}</p>;
   return null;
 }
 
@@ -54,11 +55,13 @@ export function HealthDesk() {
   const inquiries = (data?.inquiries || {}) as { unread?: number; recent?: number };
   return (
     <>
-      <p className="eyebrow">Overview</p>
-      <h1>Site health</h1>
-      <p className="admin-lede">
-        {(data?.headline as string) || "Visitors, messages, and catalog counts for the Vercel storefront."}
-      </p>
+      <header className="admin-page-head">
+        <p className="eyebrow">Overview</p>
+        <h1>Site health</h1>
+        <p className="admin-lede">
+          {(data?.headline as string) || "Visitors, messages, and catalog counts for the Vercel storefront."}
+        </p>
+      </header>
       <Notice error={error} />
       <div className="admin-stats">
         <article>
@@ -78,7 +81,13 @@ export function HealthDesk() {
           <strong>{catalog.candles ?? 0}</strong>
         </article>
       </div>
-      {visitors.series ? <Bars series={visitors.series} /> : null}
+      {visitors.series ? (
+        <section className="admin-card">
+          <p className="eyebrow">Last 7 days</p>
+          <h2>Visitor trend</h2>
+          <Bars series={visitors.series} />
+        </section>
+      ) : null}
       <div className="admin-grid">
         <section className="admin-card">
           <p className="eyebrow">Top pages</p>
@@ -132,9 +141,11 @@ export function ReportsDesk() {
   }, [days, load]);
   return (
     <>
-      <p className="eyebrow">Overview</p>
-      <h1>Reports</h1>
-      <p className="admin-lede">Weekly numbers from the public storefront. Print this page if you want a paper copy.</p>
+      <header className="admin-page-head">
+        <p className="eyebrow">Overview</p>
+        <h1>Reports</h1>
+        <p className="admin-lede">Weekly numbers from the public storefront. Print this page if you want a paper copy.</p>
+      </header>
       <div className="admin-toolbar">
         <button className={days === 7 ? "button button-dark" : "button button-outline"} type="button" onClick={() => setDays(7)}>
           7 days
@@ -163,7 +174,11 @@ export function ReportsDesk() {
         </article>
       </div>
       {Array.isArray(report?.series) ? (
-        <Bars series={report.series as Array<{ label: string; value: number }>} />
+        <section className="admin-card">
+          <p className="eyebrow">Trend</p>
+          <h2>Views over time</h2>
+          <Bars series={report.series as Array<{ label: string; value: number }>} />
+        </section>
       ) : null}
     </>
   );
@@ -188,11 +203,13 @@ export function VisitorsDesk() {
   }, [data, query]);
   return (
     <>
-      <p className="eyebrow">People</p>
-      <h1>Visitors</h1>
-      <p className="admin-lede">
-        {data?.uniqueVisitors || 0} unique visitors. Public pages do not set cookies; this log is staff-only.
-      </p>
+      <header className="admin-page-head">
+        <p className="eyebrow">People</p>
+        <h1>Visitors</h1>
+        <p className="admin-lede">
+          {data?.uniqueVisitors || 0} unique visitors. Public pages do not set cookies; this log is staff-only.
+        </p>
+      </header>
       <div className="admin-toolbar">
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search city, IP, or page…" />
         <button className={days === 7 ? "button button-dark" : "button button-outline"} type="button" onClick={() => setDays(7)}>
@@ -214,17 +231,25 @@ export function VisitorsDesk() {
             </tr>
           </thead>
           <tbody>
-            {rows.slice(0, 80).map((item) => (
-              <tr key={item.id}>
-                <td>{formatWhen(item.createdAt)}</td>
-                <td>{item.path}</td>
-                <td>{[item.city, item.region, item.country].filter(Boolean).join(", ") || "Unknown"}</td>
-                <td>{item.ip}</td>
-                <td>
-                  {item.device} · {item.browser}
+            {rows.length === 0 ? (
+              <tr>
+                <td className="admin-empty-cell" colSpan={5}>
+                  No visits in this window.
                 </td>
               </tr>
-            ))}
+            ) : (
+              rows.slice(0, 80).map((item) => (
+                <tr key={item.id}>
+                  <td>{formatWhen(item.createdAt)}</td>
+                  <td>{item.path}</td>
+                  <td>{[item.city, item.region, item.country].filter(Boolean).join(", ") || "Unknown"}</td>
+                  <td>{item.ip}</td>
+                  <td>
+                    {item.device} · {item.browser}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -256,39 +281,52 @@ export function MessagesDesk() {
   );
   return (
     <>
-      <p className="eyebrow">People</p>
-      <h1>Messages</h1>
-      <p className="admin-lede">Notes from the public Visit page. Mark them read as you work through the day.</p>
+      <header className="admin-page-head">
+        <p className="eyebrow">People</p>
+        <h1>Messages</h1>
+        <p className="admin-lede">Notes from the public Visit page. Mark them read as you work through the day.</p>
+      </header>
       <input className="admin-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search name, phone, or message…" />
-      <div className="admin-list">
-        {filtered.length === 0 ? <p>No messages yet.</p> : null}
-        {filtered.map((item) => (
-          <article className="admin-card" key={item.id}>
-            <p className="eyebrow">{item.status === "new" ? "New" : "Read"} · {formatWhen(item.createdAt)}</p>
-            <h2>{item.name}</h2>
-            <p>
-              {item.email} {item.phone}
-            </p>
-            <p>{item.message}</p>
-            {item.status === "new" ? (
-              <button
-                className="button button-outline"
-                type="button"
-                onClick={() => {
-                  void fetch("/api/admin/inquiries", {
-                    method: "PATCH",
-                    credentials: "include",
-                    headers: { "content-type": "application/json" },
-                    body: JSON.stringify({ id: item.id }),
-                  }).then(() => load());
-                }}
-              >
-                Mark read
-              </button>
-            ) : null}
-          </article>
-        ))}
-      </div>
+      {filtered.length === 0 ? (
+        <div className="admin-empty">{query ? "No messages match that search." : "No messages yet."}</div>
+      ) : (
+        <div className="admin-list">
+          {filtered.map((item) => (
+            <article className="admin-card" key={item.id}>
+              <div className="admin-card-head">
+                <div>
+                  <p className="eyebrow">{formatWhen(item.createdAt)}</p>
+                  <h2>{item.name}</h2>
+                </div>
+                <span className={`admin-pill ${item.status === "new" ? "is-warn" : "is-ok"}`}>
+                  {item.status === "new" ? "New" : "Read"}
+                </span>
+              </div>
+              <p className="admin-meta">
+                {item.email ? <a href={`mailto:${item.email}`}>{item.email}</a> : null}
+                {item.phone ? <a href={`tel:${item.phone}`}>{item.phone}</a> : null}
+              </p>
+              <p>{item.message}</p>
+              {item.status === "new" ? (
+                <button
+                  className="button button-outline"
+                  type="button"
+                  onClick={() => {
+                    void fetch("/api/admin/inquiries", {
+                      method: "PATCH",
+                      credentials: "include",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify({ id: item.id }),
+                    }).then(() => load());
+                  }}
+                >
+                  Mark read
+                </button>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      )}
     </>
   );
 }
@@ -323,7 +361,7 @@ export function PracticeDesk() {
       setNotice("Saved. The public site will use this on the next load.");
     }
   }
-  if (!content) return <p>Loading business info…</p>;
+  if (!content) return <p className="admin-loading">Loading business info…</p>;
   function patch(partial: Partial<GardenContent>) {
     setContent((current) => (current ? { ...current, ...partial } : current));
   }
@@ -336,10 +374,15 @@ export function PracticeDesk() {
   }
   return (
     <form onSubmit={(event) => void save(event)}>
-      <p className="eyebrow">Website</p>
-      <h1>Business info</h1>
-      <p className="admin-lede">Hours, phone, and story copy — no AI needed. Shop checkout still lives on Squarespace.</p>
+      <header className="admin-page-head">
+        <p className="eyebrow">Website</p>
+        <h1>Business info</h1>
+        <p className="admin-lede">Hours, phone, and story copy — no AI needed. Shop checkout still lives on Squarespace.</p>
+      </header>
       <Notice error={error} notice={notice} />
+      <section className="admin-panel">
+        <p className="eyebrow">Contact</p>
+        <h2>How guests reach you</h2>
       <div className="admin-form-grid">
         <label>
           Phone
@@ -366,9 +409,11 @@ export function PracticeDesk() {
           <input value={content.facebook} onChange={(event) => patch({ facebook: event.target.value })} />
         </label>
       </div>
+      </section>
+      <section className="admin-panel">
       <h2 className="admin-subhead">Hours</h2>
       {content.hours.map((row, index) => (
-        <div className="admin-form-grid" key={index}>
+        <div className="admin-hours-row" key={index}>
           <label>
             Days
             <input value={row.days} onChange={(event) => patchHour(index, { days: event.target.value })} />
@@ -379,6 +424,8 @@ export function PracticeDesk() {
           </label>
         </div>
       ))}
+      </section>
+      <section className="admin-panel">
       <h2 className="admin-subhead">Story</h2>
       <label className="admin-full">
         Quote
@@ -397,6 +444,7 @@ export function PracticeDesk() {
       <button className="button button-dark" type="submit" disabled={busy}>
         {busy ? "Saving…" : "Save business info"}
       </button>
+      </section>
     </form>
   );
 }
@@ -425,32 +473,40 @@ export function PhotosDesk() {
       setNotice("Photos updated.");
     }
   }
-  if (!slots) return <p>Loading photos…</p>;
+  if (!slots) return <p className="admin-loading">Loading photos…</p>;
   return (
     <>
-      <p className="eyebrow">Website</p>
-      <h1>Photos</h1>
-      <p className="admin-lede">Paste image URLs for the home hero and story mark. File upload needs a Vercel Blob token.</p>
+      <header className="admin-page-head">
+        <p className="eyebrow">Website</p>
+        <h1>Photos</h1>
+        <p className="admin-lede">Paste image URLs for the home hero and story mark. File upload needs a Vercel Blob token.</p>
+      </header>
       <Notice error={error} notice={notice} />
-      <label className="admin-full">
-        Hero image URL
-        <input value={slots.hero} onChange={(event) => setSlots({ ...slots, hero: event.target.value })} />
-      </label>
-      <label className="admin-full">
-        Hero alt text
-        <input value={slots.heroAlt} onChange={(event) => setSlots({ ...slots, heroAlt: event.target.value })} />
-      </label>
-      <label className="admin-full">
-        Story image URL
-        <input value={slots.about} onChange={(event) => setSlots({ ...slots, about: event.target.value })} />
-      </label>
-      <label className="admin-full">
-        Story alt text
-        <input value={slots.aboutAlt} onChange={(event) => setSlots({ ...slots, aboutAlt: event.target.value })} />
-      </label>
-      <button className="button button-dark" type="button" onClick={() => void save()}>
-        Save photos
-      </button>
+      <section className="admin-panel">
+        <p className="eyebrow">Storefront images</p>
+        <h2>Hero and story</h2>
+        {slots.hero ? <img className="admin-photo-preview" src={slots.hero} alt={slots.heroAlt || "Hero preview"} /> : null}
+        <label className="admin-full">
+          Hero image URL
+          <input value={slots.hero} onChange={(event) => setSlots({ ...slots, hero: event.target.value })} />
+        </label>
+        <label className="admin-full">
+          Hero alt text
+          <input value={slots.heroAlt} onChange={(event) => setSlots({ ...slots, heroAlt: event.target.value })} />
+        </label>
+        {slots.about ? <img className="admin-photo-preview" src={slots.about} alt={slots.aboutAlt || "Story preview"} /> : null}
+        <label className="admin-full">
+          Story image URL
+          <input value={slots.about} onChange={(event) => setSlots({ ...slots, about: event.target.value })} />
+        </label>
+        <label className="admin-full">
+          Story alt text
+          <input value={slots.aboutAlt} onChange={(event) => setSlots({ ...slots, aboutAlt: event.target.value })} />
+        </label>
+        <button className="button button-dark" type="button" onClick={() => void save()}>
+          Save photos
+        </button>
+      </section>
     </>
   );
 }
@@ -518,37 +574,49 @@ export function AnnouncementsDesk() {
   }
   return (
     <>
-      <p className="eyebrow">Website</p>
-      <h1>Announcements</h1>
-      <p className="admin-lede">The top bar on the public site, plus news notes and a closed-today switch.</p>
+      <header className="admin-page-head">
+        <p className="eyebrow">Website</p>
+        <h1>Announcements</h1>
+        <p className="admin-lede">The top bar on the public site, plus news notes and a closed-today switch.</p>
+      </header>
       <Notice notice={notice} />
-      <label className="admin-full">
-        Top bar
-        <input value={banner} onChange={(event) => setBanner(event.target.value)} />
-      </label>
-      <label className="admin-check">
-        <input type="checkbox" checked={closedToday} onChange={(event) => setClosedToday(event.target.checked)} />
-        Closed today
-      </label>
-      <label className="admin-full">
-        Closed message
-        <input value={closedMessage} onChange={(event) => setClosedMessage(event.target.value)} />
-      </label>
-      <button className="button button-dark" type="button" onClick={() => void saveBanner()}>
-        Save banner
-      </button>
-      <h2 className="admin-subhead">New note</h2>
-      <label className="admin-full">
-        Title
-        <input value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} />
-      </label>
-      <label className="admin-full">
-        Body
-        <textarea rows={4} value={draft.body} onChange={(event) => setDraft({ ...draft, body: event.target.value })} />
-      </label>
-      <button className="button button-outline" type="button" onClick={() => void addPost()}>
-        Publish note
-      </button>
+      <section className="admin-panel">
+        <p className="eyebrow">Public site</p>
+        <h2>Banner and hours</h2>
+        <label className="admin-full">
+          Top bar
+          <input value={banner} onChange={(event) => setBanner(event.target.value)} />
+        </label>
+        <label className="admin-switch">
+          <input type="checkbox" checked={closedToday} onChange={(event) => setClosedToday(event.target.checked)} />
+          Closed today
+        </label>
+        <label className="admin-full">
+          Closed message
+          <input value={closedMessage} onChange={(event) => setClosedMessage(event.target.value)} />
+        </label>
+        <button className="button button-dark" type="button" onClick={() => void saveBanner()}>
+          Save banner
+        </button>
+      </section>
+      <section className="admin-panel">
+        <p className="eyebrow">News</p>
+        <h2>New note</h2>
+        <label className="admin-full">
+          Title
+          <input value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} />
+        </label>
+        <label className="admin-full">
+          Body
+          <textarea rows={4} value={draft.body} onChange={(event) => setDraft({ ...draft, body: event.target.value })} />
+        </label>
+        <button className="button button-outline" type="button" onClick={() => void addPost()}>
+          Publish note
+        </button>
+      </section>
+      {items.length === 0 ? (
+        <div className="admin-empty">No notes yet. Publish the first one above.</div>
+      ) : (
       <div className="admin-list">
         {items.map((item) => (
           <article className="admin-card" key={item.id}>
@@ -561,122 +629,7 @@ export function AnnouncementsDesk() {
           </article>
         ))}
       </div>
-    </>
-  );
-}
-
-export function AiDesk() {
-  const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  async function send(event: FormEvent) {
-    event.preventDefault();
-    if (!input.trim()) return;
-    const next = [...messages, { role: "user" as const, content: input.trim() }];
-    setMessages(next);
-    setInput("");
-    setBusy(true);
-    setError("");
-    const res = await fetch("/api/admin/chat", {
-      method: "POST",
-      credentials: "include",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ messages: next }),
-    });
-    const data = await res.json().catch(() => ({}));
-    setBusy(false);
-    if (!res.ok) setError(data.error || "Grok could not reply.");
-    else setMessages([...next, { role: "assistant", content: data.reply || "" }]);
-  }
-  return (
-    <>
-      <p className="eyebrow">Website</p>
-      <h1>Content AI</h1>
-      <p className="admin-lede">Rewrite banner copy, class blurbs, or story lines. Paste the result into Business info or Announcements.</p>
-      <Notice error={error} />
-      <div className="admin-chat">
-        {messages.map((item, index) => (
-          <article key={index} className={item.role === "assistant" ? "admin-card" : "admin-card user"}>
-            <p className="eyebrow">{item.role === "assistant" ? "Grok" : "You"}</p>
-            <p>{item.content}</p>
-          </article>
-        ))}
-      </div>
-      <form className="admin-chat-form" onSubmit={(event) => void send(event)}>
-        <textarea rows={3} value={input} onChange={(event) => setInput(event.target.value)} placeholder="Ask for a warmer banner, a class description, or a closed-today note…" />
-        <button className="button button-dark" type="submit" disabled={busy}>
-          {busy ? "Writing…" : "Ask Grok"}
-        </button>
-      </form>
-    </>
-  );
-}
-
-export function SocialDesk() {
-  const [body, setBody] = useState("");
-  const [platforms, setPlatforms] = useState<string[]>(["instagram"]);
-  const [items, setItems] = useState<Array<{ id: string; body: string; platforms: string[]; createdAt: string; status: string }>>([]);
-  const [connected, setConnected] = useState<Record<string, boolean>>({});
-  const [notice, setNotice] = useState("");
-  const load = useCallback(async () => {
-    const data = await fetch("/api/admin/social", { credentials: "include" }).then((res) => res.json());
-    setItems(data.items || []);
-    setConnected(data.connected || {});
-  }, []);
-  useEffect(() => {
-    void load();
-  }, [load]);
-  function toggle(platform: string) {
-    setPlatforms((current) =>
-      current.includes(platform) ? current.filter((item) => item !== platform) : [...current, platform]
-    );
-  }
-  async function save() {
-    await fetch("/api/admin/social", {
-      method: "POST",
-      credentials: "include",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ body, platforms }),
-    });
-    setBody("");
-    setNotice("Draft saved. Connect Instagram/Facebook tokens in Settings to post live.");
-    await load();
-  }
-  return (
-    <>
-      <p className="eyebrow">Website</p>
-      <h1>Social Media</h1>
-      <p className="admin-lede">
-        Instagram {connected.instagram ? "connected" : "needs setup"} · Facebook {connected.facebook ? "connected" : "needs setup"}.
-      </p>
-      <Notice notice={notice} />
-      <label className="admin-full">
-        Post
-        <textarea rows={5} value={body} onChange={(event) => setBody(event.target.value)} />
-      </label>
-      <div className="admin-toolbar">
-        <label className="admin-check">
-          <input type="checkbox" checked={platforms.includes("instagram")} onChange={() => toggle("instagram")} />
-          Instagram
-        </label>
-        <label className="admin-check">
-          <input type="checkbox" checked={platforms.includes("facebook")} onChange={() => toggle("facebook")} />
-          Facebook
-        </label>
-      </div>
-      <button className="button button-dark" type="button" onClick={() => void save()}>
-        Save draft
-      </button>
-      <div className="admin-list">
-        {items.map((item) => (
-          <article className="admin-card" key={item.id}>
-            <p className="eyebrow">{item.status} · {formatWhen(item.createdAt)}</p>
-            <p>{item.body}</p>
-            <p>{item.platforms.join(", ")}</p>
-          </article>
-        ))}
-      </div>
+      )}
     </>
   );
 }
@@ -715,30 +668,41 @@ export function StaffDesk({ currentId }: { currentId?: string }) {
   }
   return (
     <>
-      <p className="eyebrow">Account</p>
-      <h1>Staff logins</h1>
-      <p className="admin-lede">Owner accounts stay. Extra IDs can be added and removed here.</p>
+      <header className="admin-page-head">
+        <p className="eyebrow">Account</p>
+        <h1>Staff logins</h1>
+        <p className="admin-lede">Owner accounts stay. Extra IDs can be added and removed here.</p>
+      </header>
       <Notice error={error} notice={notice} />
-      <form className="admin-form-grid" onSubmit={(event) => void onAdd(event)}>
-        <label>
-          New ID
-          <input value={id} onChange={(event) => setId(event.target.value)} required />
-        </label>
-        <label>
-          Password
-          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} />
-        </label>
-        <button className="button button-dark" type="submit">
-          Add login
-        </button>
-      </form>
+      <section className="admin-panel">
+        <p className="eyebrow">Add staff</p>
+        <h2>New login</h2>
+        <form className="admin-form-grid has-action" onSubmit={(event) => void onAdd(event)}>
+          <label>
+            New ID
+            <input value={id} onChange={(event) => setId(event.target.value)} required />
+          </label>
+          <label>
+            Password
+            <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} />
+          </label>
+          <button className="button button-dark" type="submit">
+            Add login
+          </button>
+        </form>
+      </section>
+      <section className="admin-panel">
+        <p className="eyebrow">People</p>
+        <h2>Who can sign in</h2>
       <ul className="admin-staff">
         {users.map((user) => (
           <li key={user.id}>
             <div>
               <strong>{user.id}</strong>
               <span>
-                {user.source === "env" ? "Owner account" : "Staff"}
+                <span className={`admin-pill ${user.source === "env" ? "is-ok" : "is-warn"}`}>
+                  {user.source === "env" ? "Owner" : "Staff"}
+                </span>
                 {user.id === currentId ? " · you" : ""}
               </span>
             </div>
@@ -762,6 +726,7 @@ export function StaffDesk({ currentId }: { currentId?: string }) {
           </li>
         ))}
       </ul>
+      </section>
     </>
   );
 }
@@ -780,49 +745,135 @@ export function SettingsDesk() {
         if (data.alerts) setAlerts(data.alerts);
       });
   }, []);
-  const social = (session?.social || { connected: {} }) as { connected?: Record<string, boolean> };
+  const social = (session?.social || { connected: {}, configured: {} }) as {
+    connected?: Record<string, boolean>;
+    configured?: Record<string, boolean>;
+  };
+  function serviceState(connected: boolean, configured?: boolean) {
+    if (connected) return { label: "Live", pill: "is-ok" as const };
+    if (configured) return { label: "Ready", pill: "is-warn" as const };
+    return { label: "Needs setup", pill: "is-off" as const };
+  }
+  const rows = [
+    {
+      name: "Content AI",
+      detail: session?.grokConfigured ? "Ready on AWS Bedrock" : "Needs AWS Bedrock credentials",
+      ...serviceState(Boolean(session?.grokConfigured)),
+      href: "/admin/ai",
+      Icon: Sparkles,
+    },
+    {
+      name: "File storage",
+      detail: session?.blobConfigured ? "Vercel Blob is connected" : "Temporary until Blob is set",
+      ...serviceState(Boolean(session?.blobConfigured)),
+      href: undefined as string | undefined,
+      Icon: HardDrive,
+    },
+    {
+      name: "Instagram",
+      detail: social.connected?.instagram ? "Connected" : social.configured?.instagram ? "Ready to connect" : "Set up on Social Media",
+      ...serviceState(Boolean(social.connected?.instagram), social.configured?.instagram),
+      href: "/admin/social",
+      Icon: Instagram,
+    },
+    {
+      name: "Facebook",
+      detail: social.connected?.facebook ? "Connected" : social.configured?.facebook ? "Ready to connect" : "Set up on Social Media",
+      ...serviceState(Boolean(social.connected?.facebook), social.configured?.facebook),
+      href: "/admin/social",
+      Icon: Facebook,
+    },
+    {
+      name: "LinkedIn",
+      detail: social.connected?.linkedin ? "Connected" : social.configured?.linkedin ? "Ready to connect" : "Set up on Social Media",
+      ...serviceState(Boolean(social.connected?.linkedin), social.configured?.linkedin),
+      href: "/admin/social",
+      Icon: Linkedin,
+    },
+    {
+      name: "X",
+      detail: social.connected?.x ? "Connected" : social.configured?.x ? "Ready to connect" : "Set up on Social Media",
+      ...serviceState(Boolean(social.connected?.x), social.configured?.x),
+      href: "/admin/social",
+      Icon: Share2,
+    },
+  ];
   return (
     <>
-      <p className="eyebrow">Account</p>
-      <h1>Settings</h1>
-      <p className="admin-lede">Connections that power health numbers, Content AI, and message alerts.</p>
-      <section className="admin-card">
-        <p className="eyebrow">Signed in</p>
-        <h2>{String(session?.id || "Staff")}</h2>
-        <p>Sessions last 12 hours.</p>
-      </section>
-      <section className="admin-card">
-        <p className="eyebrow">Connections</p>
-        <p>Content AI {session?.grokConfigured ? "ready on AWS Bedrock" : "needs AWS Bedrock credentials"}</p>
-        <p>Saved records {session?.blobConfigured ? "on Vercel Blob" : "local / temporary until Blob is set"}</p>
-        <p>Instagram {social.connected?.instagram ? "connected" : "needs INSTAGRAM_ACCESS_TOKEN"}</p>
-        <p>Facebook {social.connected?.facebook ? "connected" : "needs FACEBOOK_PAGE_TOKEN"}</p>
-      </section>
-      <form
-        className="admin-form-grid"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void fetch("/api/admin/alerts", {
-            method: "POST",
-            credentials: "include",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify(alerts),
-          }).then(() => setNotice("Alert contacts saved."));
-        }}
-      >
-        <label>
-          Ping email
-          <input value={alerts.email} onChange={(event) => setAlerts({ ...alerts, email: event.target.value })} />
-        </label>
-        <label>
-          Ping phone
-          <input value={alerts.phone} onChange={(event) => setAlerts({ ...alerts, phone: event.target.value })} />
-        </label>
-        <button className="button button-dark" type="submit">
-          Save alerts
-        </button>
-      </form>
+      <header className="admin-page-head">
+        <p className="eyebrow">Account</p>
+        <h1>Settings</h1>
+        <p className="admin-lede">Who is signed in, which services are live, and where alerts should go.</p>
+      </header>
       <Notice notice={notice} />
+      <section className="admin-identity">
+        <div>
+          <p className="eyebrow">Signed in</p>
+          <h2>{String(session?.id || "Staff")}</h2>
+          <p>This login stays active for 12 hours, then you will sign in again.</p>
+        </div>
+        <small>Garden desk</small>
+      </section>
+      <section className="admin-panel">
+        <p className="eyebrow">Connections</p>
+        <h2>Services</h2>
+        <div className="admin-service-grid">
+          {rows.map((row) => {
+            const body = (
+              <>
+                <span className="admin-service-icon" aria-hidden="true">
+                  <row.Icon size={18} />
+                </span>
+                <div>
+                  <h3>{row.name}</h3>
+                  <p>{row.detail}</p>
+                  <span className={`admin-pill ${row.pill}`}>{row.label}</span>
+                </div>
+              </>
+            );
+            return row.href ? (
+              <Link className="admin-service" href={row.href} key={row.name}>
+                {body}
+              </Link>
+            ) : (
+              <div className="admin-service" key={row.name}>
+                {body}
+              </div>
+            );
+          })}
+        </div>
+        <Link className="text-link" href="/admin/social">
+          Open Social Media →
+        </Link>
+      </section>
+      <section className="admin-panel">
+        <p className="eyebrow">Alerts</p>
+        <h2>Ping when a message arrives</h2>
+        <form
+          className="admin-form-grid has-action"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void fetch("/api/admin/alerts", {
+              method: "POST",
+              credentials: "include",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(alerts),
+            }).then(() => setNotice("Alert contacts saved."));
+          }}
+        >
+          <label>
+            Ping email
+            <input value={alerts.email} onChange={(event) => setAlerts({ ...alerts, email: event.target.value })} />
+          </label>
+          <label>
+            Ping phone
+            <input value={alerts.phone} onChange={(event) => setAlerts({ ...alerts, phone: event.target.value })} />
+          </label>
+          <button className="button button-dark" type="submit">
+            Save alerts
+          </button>
+        </form>
+      </section>
     </>
   );
 }
