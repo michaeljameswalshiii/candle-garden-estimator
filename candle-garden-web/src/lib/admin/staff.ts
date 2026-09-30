@@ -21,11 +21,11 @@ export async function addStaff(input: {
   createdBy?: string;
 }): Promise<StoredStaff> {
   const id = String(input.id || "").trim();
-  if (id.length < 3) throw new Error("ID must be at least 3 characters.");
+  if (!id.includes("@") || id.length < 5) throw new Error("Use an email address as the login.");
   if (input.password.length < 8) throw new Error("Password must be at least 8 characters.");
   const users = await listStaff();
   if (users.some((user) => user.id.toLowerCase() === id.toLowerCase())) {
-    throw new Error("That ID is already in use.");
+    throw new Error("That email is already in use.");
   }
   const next: StoredStaff = {
     id,

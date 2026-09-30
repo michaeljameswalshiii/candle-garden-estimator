@@ -42,12 +42,12 @@ function normalizeId(value: string): string {
 }
 
 /**
- * Built-in staff IDs. Override with ADMIN_USERS_LINES=id|password;id|password
+ * Built-in staff emails. Override with ADMIN_USERS_LINES=email|password;email|password
  */
 const BUILTIN_USERS: AdminUser[] = [
   {
-    id: "Thepotentpig",
-    passwordHash: "a04fa208e6e63a7d949650012f501224407d5f9e8e0424a650478cf1d40c247a",
+    id: "thepotentpig@gmail.com",
+    passwordHash: "7097b83cf9fea27d5b9115ba62b5b9998a080c6cf9ecffd639f41f9ad47d7eb1",
   },
   {
     id: "GardenAdmin",

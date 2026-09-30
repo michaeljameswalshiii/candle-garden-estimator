@@ -20,14 +20,15 @@ export function AdminLogin() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ id: id.trim(), password }),
+        body: JSON.stringify({ email: id.trim(), password }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error || "Login failed");
         return;
       }
-      window.location.assign("/admin");
+      const next = window.location.pathname.startsWith("/mobileadmin") ? "/mobileadmin" : "/admin";
+      window.location.assign(next);
     } catch {
       setError("Could not reach the garden desk.");
     } finally {
@@ -43,9 +44,10 @@ export function AdminLogin() {
         <h1>Admin suite</h1>
         <p>Sign in to manage the Vercel storefront for The Candle Garden.</p>
         <label>
-          ID
+          Email
           <input
             autoComplete="username"
+            inputMode="email"
             value={id}
             onChange={(event) => setId(event.target.value)}
             required

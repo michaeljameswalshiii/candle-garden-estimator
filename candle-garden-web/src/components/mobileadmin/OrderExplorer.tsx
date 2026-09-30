@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { MobileOrder } from "@/lib/mobileadmin/data";
+import { customerLabel } from "@/lib/mobileadmin/labels";
 
 function orderChannel(order: MobileOrder) {
   if (String(order.customer_id || "").startsWith("guest:")) return "Guest checkout";
@@ -25,7 +26,8 @@ const ORDER_STATUSES = [
 function customerDetails(order: MobileOrder) {
   const shipping = order.shipping || {};
   const location = [shipping.address, shipping.city, shipping.state, shipping.zip].filter(Boolean).join(", ");
-  return { name: shipping.name, phone: shipping.phone, location };
+  const name = customerLabel(order);
+  return { name, phone: shipping.phone, location };
 }
 
 export function OrderExplorer({ orders }: { orders: MobileOrder[] }) {
@@ -87,7 +89,7 @@ export function OrderExplorer({ orders }: { orders: MobileOrder[] }) {
       <span>{filtered.length} result{filtered.length === 1 ? "" : "s"}</span>
     </div>
     <div className="mobileadmin-order-list">{filtered.length ? filtered.map((order) => { const details = customerDetails(order); return <article key={order.id}>
-      <div><small>{order.created_at ? new Date(order.created_at).toLocaleString() : "Date unavailable"}</small><strong>{details.name || order.customer_email || "App customer"}</strong>{details.name && order.customer_email ? <span>{order.customer_email}</span> : null}{details.phone ? <a href={`tel:${details.phone}`}>{details.phone}</a> : null}{details.location ? <span>{details.location}</span> : null}<span>#{order.id.slice(0, 8)} · {(order.items || []).reduce((sum, item) => sum + Number(item.quantity || 1), 0)} items</span><b className="mobileadmin-channel">{orderChannel(order)}</b></div>
+      <div><small>{order.created_at ? new Date(order.created_at).toLocaleString() : "Date unavailable"}</small><strong>{details.name}</strong>{details.phone ? <a href={`tel:${details.phone}`}>{details.phone}</a> : null}{details.location ? <span>{details.location}</span> : null}<span>#{order.id.slice(0, 8)} · {(order.items || []).reduce((sum, item) => sum + Number(item.quantity || 1), 0)} items</span><b className="mobileadmin-channel">{orderChannel(order)}</b></div>
       <div className="mobileadmin-order-items">{(order.items || []).slice(0, 3).map((item, index) => <span key={`${item.name}-${index}`}>{item.quantity || 1}× {item.name || "Item"}{item.size ? ` · ${item.size}` : ""}</span>)}</div>
       <div className="mobileadmin-order-total"><label><span>Status</span><select aria-label={`Status for order ${order.id}`} value={order.status || "payment_pending"} disabled={busy === order.id} onChange={(event) => void update(order, "price", event.target.value)}>{order.status && !ORDER_STATUSES.some(([value]) => value === order.status) ? <option value={order.status}>{order.status.replaceAll("_", " ")}</option> : null}{ORDER_STATUSES.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><strong>${Number(order.total_amount || 0).toFixed(2)}</strong>{order.tracking_numbers?.map((tracking) => <a key={tracking} href={`https://www.ups.com/track?tracknum=${encodeURIComponent(tracking)}`} target="_blank" rel="noreferrer">Track {tracking}</a>)}<div className="mobileadmin-order-actions"><button disabled={busy === order.id} onClick={() => void update(order, "price")}>Adjust total</button><button disabled={busy === order.id || !String(order.status || "").startsWith("paid") || order.label_status === "created" || !(order.items || []).some((item) => item.type === "refill")} onClick={() => void update(order, "labels")}>{order.label_status === "created" ? "Labels created" : "Create UPS labels"}</button><button className="is-danger" disabled={busy === order.id || !order.payment_intent_id} title={!order.payment_intent_id ? "No Stripe payment reference on this order" : "Issue refund"} onClick={() => void update(order, "refund")}>Refund</button></div></div>
     </article> }) : <div className="mobileadmin-empty">No orders match this search.</div>}</div>

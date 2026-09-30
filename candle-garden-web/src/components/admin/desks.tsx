@@ -655,7 +655,7 @@ export function StaffDesk({ currentId }: { currentId?: string }) {
       method: "POST",
       credentials: "include",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id, password }),
+      body: JSON.stringify({ email: id, password }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) setError(data.error || "Could not add that login.");
@@ -671,7 +671,7 @@ export function StaffDesk({ currentId }: { currentId?: string }) {
       <header className="admin-page-head">
         <p className="eyebrow">Account</p>
         <h1>Staff logins</h1>
-        <p className="admin-lede">Owner accounts stay. Extra IDs can be added and removed here.</p>
+        <p className="admin-lede">Owner accounts stay. Extra emails can be added and removed here.</p>
       </header>
       <Notice error={error} notice={notice} />
       <section className="admin-panel">
@@ -679,8 +679,8 @@ export function StaffDesk({ currentId }: { currentId?: string }) {
         <h2>New login</h2>
         <form className="admin-form-grid has-action" onSubmit={(event) => void onAdd(event)}>
           <label>
-            New ID
-            <input value={id} onChange={(event) => setId(event.target.value)} required />
+            Email
+            <input value={id} onChange={(event) => setId(event.target.value)} required inputMode="email" autoComplete="off" />
           </label>
           <label>
             Password
