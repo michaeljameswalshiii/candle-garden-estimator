@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { MobileOrder } from "@/lib/mobileadmin/data";
 import { customerLabel } from "@/lib/mobileadmin/labels";
+import { pirateshipCsv, pirateshipReady, trackingUrl } from "@/lib/mobileadmin/pirateship";
 
 function orderChannel(order: MobileOrder) {
   if (String(order.customer_id || "").startsWith("guest:")) return "Guest checkout";
@@ -44,7 +45,24 @@ export function OrderExplorer({ orders }: { orders: MobileOrder[] }) {
     return (!query || haystack.includes(query.toLowerCase())) && (status === "all" || (order.status || "unknown") === status) && (channel === "all" || orderChannel(order) === channel);
   }), [orders, query, status, channel]);
 
-  async function update(order: MobileOrder, action: "price" | "refund" | "labels", statusValue?: string) {
+  function downloadPirateShip(orders: MobileOrder[]) {
+    const { csv, count, skipped } = pirateshipCsv(orders);
+    if (!count) {
+      window.alert(skipped ? "Those orders need a street, city, state, and ZIP before Pirate Ship can print a label." : "No orders to export.");
+      return;
+    }
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = count === 1 ? `pirate-ship-${orders[0].id.slice(0, 8)}.csv` : `pirate-ship-orders-${count}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    window.open("https://ship.pirateship.com", "_blank", "noopener,noreferrer");
+    if (skipped) window.alert(`Exported ${count} order${count === 1 ? "" : "s"}. Skipped ${skipped} without a complete address.`);
+  }
+
+  async function update(order: MobileOrder, action: "price" | "refund" | "labels" | "tracking", statusValue?: string) {
     let body: Record<string, unknown> = {};
     if (statusValue) {
       body = { status: statusValue };
@@ -57,6 +75,10 @@ export function OrderExplorer({ orders }: { orders: MobileOrder[] }) {
       const value = window.prompt("Refund amount. Leave blank for the full order total.", "");
       if (value == null) return;
       body = { action: "refund", amount: value };
+    } else if (action === "tracking") {
+      const value = window.prompt("Paste the tracking number from Pirate Ship");
+      if (value == null) return;
+      body = { action: "set_tracking", tracking: value };
     } else {
       if (!window.confirm("Purchase the lowest-cost available UPS label(s) for this paid refill order?")) return;
       body = { action: "create_labels" };
@@ -87,11 +109,12 @@ export function OrderExplorer({ orders }: { orders: MobileOrder[] }) {
       <select value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">All statuses</option>{statuses.map((value) => <option key={value}>{value}</option>)}</select>
       <select value={channel} onChange={(event) => setChannel(event.target.value)}><option value="all">All order channels</option>{channels.map((value) => <option key={value}>{value}</option>)}</select>
       <span>{filtered.length} result{filtered.length === 1 ? "" : "s"}</span>
+      <button type="button" onClick={() => downloadPirateShip(filtered)}>Download Pirate Ship CSV</button>
     </div>
     <div className="mobileadmin-order-list">{filtered.length ? filtered.map((order) => { const details = customerDetails(order); return <article key={order.id}>
       <div><small>{order.created_at ? new Date(order.created_at).toLocaleString() : "Date unavailable"}</small><strong>{details.name}</strong>{details.phone ? <a href={`tel:${details.phone}`}>{details.phone}</a> : null}{details.location ? <span>{details.location}</span> : null}<span>#{order.id.slice(0, 8)} · {(order.items || []).reduce((sum, item) => sum + Number(item.quantity || 1), 0)} items</span><b className="mobileadmin-channel">{orderChannel(order)}</b></div>
       <div className="mobileadmin-order-items">{(order.items || []).slice(0, 3).map((item, index) => <span key={`${item.name}-${index}`}>{item.quantity || 1}× {item.name || "Item"}{item.size ? ` · ${item.size}` : ""}</span>)}</div>
-      <div className="mobileadmin-order-total"><label><span>Status</span><select aria-label={`Status for order ${order.id}`} value={order.status || "payment_pending"} disabled={busy === order.id} onChange={(event) => void update(order, "price", event.target.value)}>{order.status && !ORDER_STATUSES.some(([value]) => value === order.status) ? <option value={order.status}>{order.status.replaceAll("_", " ")}</option> : null}{ORDER_STATUSES.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><strong>${Number(order.total_amount || 0).toFixed(2)}</strong>{order.tracking_numbers?.map((tracking) => <a key={tracking} href={`https://www.ups.com/track?tracknum=${encodeURIComponent(tracking)}`} target="_blank" rel="noreferrer">Track {tracking}</a>)}<div className="mobileadmin-order-actions"><button disabled={busy === order.id} onClick={() => void update(order, "price")}>Adjust total</button><button disabled={busy === order.id || !String(order.status || "").startsWith("paid") || order.label_status === "created" || !(order.items || []).some((item) => item.type === "refill")} onClick={() => void update(order, "labels")}>{order.label_status === "created" ? "Labels created" : "Create UPS labels"}</button><button className="is-danger" disabled={busy === order.id || !order.payment_intent_id} title={!order.payment_intent_id ? "No Stripe payment reference on this order" : "Issue refund"} onClick={() => void update(order, "refund")}>Refund</button></div></div>
+      <div className="mobileadmin-order-total"><label><span>Status</span><select aria-label={`Status for order ${order.id}`} value={order.status || "payment_pending"} disabled={busy === order.id} onChange={(event) => void update(order, "price", event.target.value)}>{order.status && !ORDER_STATUSES.some(([value]) => value === order.status) ? <option value={order.status}>{order.status.replaceAll("_", " ")}</option> : null}{ORDER_STATUSES.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><strong>${Number(order.total_amount || 0).toFixed(2)}</strong>{order.tracking_numbers?.map((tracking) => <a key={tracking} href={trackingUrl(tracking)} target="_blank" rel="noreferrer">Track {tracking}</a>)}<div className="mobileadmin-order-actions"><button disabled={busy === order.id} onClick={() => void update(order, "price")}>Adjust total</button><button disabled={!pirateshipReady(order)} title={pirateshipReady(order) ? "Download a CSV and open Pirate Ship" : "Needs a complete U.S. shipping address"} onClick={() => downloadPirateShip([order])}>Pirate Ship</button><button disabled={busy === order.id} onClick={() => void update(order, "tracking")}>Paste tracking</button><button disabled={busy === order.id || !String(order.status || "").startsWith("paid") || order.label_status === "created" || !(order.items || []).some((item) => item.type === "refill")} onClick={() => void update(order, "labels")}>{order.label_status === "created" ? "Labels created" : "Create UPS labels"}</button><button className="is-danger" disabled={busy === order.id || !order.payment_intent_id} title={!order.payment_intent_id ? "No Stripe payment reference on this order" : "Issue refund"} onClick={() => void update(order, "refund")}>Refund</button></div></div>
     </article> }) : <div className="mobileadmin-empty">No orders match this search.</div>}</div>
   </>;
 }

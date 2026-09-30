@@ -53,7 +53,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       await updateMobileOrder(id, { status: requested && requested < Number(order.total_amount || 0) ? "partially_refunded" : "refunded", refund_id: refund.id, refunded_amount: refund.amount / 100 });
       return NextResponse.json({ ok: true, message: "Stripe refund issued." });
     }
-    const patch: { status?: string; total_amount?: number } = {};
+    const patch: { status?: string; total_amount?: number; tracking_numbers?: string[]; label_status?: string } = {};
     if (body.status) {
       const status = String(body.status);
       if (!allowedStatuses.has(status)) throw new Error("Choose a valid order status.");
@@ -64,8 +64,15 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       if (!Number.isFinite(total) || total < 0) throw new Error("Enter a valid non-negative order total.");
       patch.total_amount = total;
     }
+    if (body.action === "set_tracking" || body.tracking) {
+      const tracking = String(body.tracking || "").trim();
+      if (tracking.length < 8) throw new Error("Paste a tracking number from Pirate Ship.");
+      patch.tracking_numbers = [tracking];
+      patch.label_status = "pirateship";
+      if (!patch.status) patch.status = "shipped";
+    }
     await updateMobileOrder(id, patch);
-    return NextResponse.json({ ok: true, message: "Order updated." });
+    return NextResponse.json({ ok: true, message: patch.tracking_numbers ? "Tracking saved from Pirate Ship." : "Order updated." });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not update order" }, { status: 400 });
   }
