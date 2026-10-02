@@ -1,5 +1,6 @@
-"""UPS Rating + Shipping (OAuth REST). Ground Saver = service 93 (1 lb+).
+"""UPS Rating + Shipping (OAuth REST).
 
+Ground Saver = service 93 (1 lb+). 2nd Day Air = service 02.
 Credentials from env or Secrets Manager JSON:
   clientId / client_id, clientSecret / client_secret, accountNumber / account_number
   optional: baseUrl (default production onlinetools.ups.com)
@@ -17,7 +18,12 @@ import urllib.request
 import uuid
 
 SERVICE_GROUND_SAVER = "93"
+SERVICE_2ND_DAY = "02"
 RETURN_PRINT_LABEL = "9"
+SERVICE_NAMES = {
+    SERVICE_GROUND_SAVER: "UPS Ground Saver",
+    SERVICE_2ND_DAY: "UPS 2nd Day Air",
+}
 
 ORIGIN = {
     "name": "The Candle Garden",
@@ -158,9 +164,14 @@ def _package(weight_lb, length_in, width_in, height_in):
     }
 
 
-def rate_ground_saver(ship_from, ship_to, weight_lb, length_in, width_in, height_in):
-    """Return total USD cents for one Ground Saver package. Raises on UPS errors."""
+def service_for_speed(speed):
+    return SERVICE_2ND_DAY if str(speed or "").lower() == "expedited" else SERVICE_GROUND_SAVER
+
+
+def rate_package(ship_from, ship_to, weight_lb, length_in, width_in, height_in, service_code=SERVICE_GROUND_SAVER):
+    """Return total USD cents for one package on the given UPS service."""
     creds = _secret_dict()
+    code = service_code if service_code in SERVICE_NAMES else SERVICE_GROUND_SAVER
     shipper = dict(ORIGIN)
     shipper["account"] = creds["accountNumber"]
     ship_from = ship_from or ORIGIN
@@ -179,7 +190,7 @@ def rate_ground_saver(ship_from, ship_to, weight_lb, length_in, width_in, height
                         {"Type": "01", "BillShipper": {"AccountNumber": creds["accountNumber"]}}
                     ]
                 },
-                "Service": {"Code": SERVICE_GROUND_SAVER, "Description": "UPS Ground Saver"},
+                "Service": {"Code": code, "Description": SERVICE_NAMES[code]},
                 "NumOfPieces": "1",
                 "Package": _package(weight_lb, length_in, width_in, height_in),
                 "ShipmentRatingOptions": {"NegotiatedRatesIndicator": "Y"},
@@ -203,7 +214,13 @@ def rate_ground_saver(ship_from, ship_to, weight_lb, length_in, width_in, height
     return int(round(float(amount) * 100))
 
 
-def create_ground_saver_label(
+def rate_ground_saver(ship_from, ship_to, weight_lb, length_in, width_in, height_in):
+    return rate_package(
+        ship_from, ship_to, weight_lb, length_in, width_in, height_in, SERVICE_GROUND_SAVER
+    )
+
+
+def create_label(
     ship_from,
     ship_to,
     weight_lb,
@@ -212,9 +229,11 @@ def create_ground_saver_label(
     height_in,
     description="Candle Garden refill",
     return_label=False,
+    service_code=SERVICE_GROUND_SAVER,
 ):
-    """Create a Ground Saver label billed to Candle Garden. Returns tracking + GIF base64."""
+    """Create a label billed to Candle Garden. Returns tracking + GIF base64."""
     creds = _secret_dict()
+    code = service_code if service_code in SERVICE_NAMES else SERVICE_GROUND_SAVER
     shipper = dict(ORIGIN)
     shipment = {
         "Description": description[:50],
@@ -227,7 +246,7 @@ def create_ground_saver_label(
                 "BillShipper": {"AccountNumber": creds["accountNumber"]},
             }
         },
-        "Service": {"Code": SERVICE_GROUND_SAVER, "Description": "UPS Ground Saver"},
+        "Service": {"Code": code, "Description": SERVICE_NAMES[code]},
         "Package": {
             "Description": description[:35],
             "Packaging": {"Code": "02", "Description": "Package"},
@@ -267,5 +286,30 @@ def create_ground_saver_label(
     return {
         "trackingNumber": tracking,
         "labelGifBase64": graphic,
-        "service": "UPS Ground Saver",
+        "service": SERVICE_NAMES[code],
+        "serviceCode": code,
     }
+
+
+def create_ground_saver_label(
+    ship_from,
+    ship_to,
+    weight_lb,
+    length_in,
+    width_in,
+    height_in,
+    description="Candle Garden refill",
+    return_label=False,
+    service_code=SERVICE_GROUND_SAVER,
+):
+    return create_label(
+        ship_from,
+        ship_to,
+        weight_lb,
+        length_in,
+        width_in,
+        height_in,
+        description=description,
+        return_label=return_label,
+        service_code=service_code,
+    )
