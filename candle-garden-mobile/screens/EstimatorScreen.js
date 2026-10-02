@@ -36,6 +36,13 @@ function CustomButton({ title, onPress, disabled, color }) {
   );
 }
 
+const PHOTO_STEPS = [
+  'Empty each vessel. Clean glass with the wick still in place gives the best estimate.',
+  'Group every jar you want refilled in front, including small ones. Leave other objects out of the shot.',
+  'Stand a standard 12 oz drink can beside them. We use it only to judge size and will not count it.',
+  'Hold the phone upright, in even light, so the can and every vessel fit in the frame.',
+];
+
 export default function EstimatorScreen() {
   const navigation = useNavigation();
   const { addItem } = useCart();
@@ -119,7 +126,7 @@ export default function EstimatorScreen() {
       {
         id: 'refill',
         type: 'refill',
-        name: `Candle refill · ${result.estimated_ounces} oz`,
+        name: `Candle refill \u00b7 ${result.estimated_ounces} oz`,
         price: Number(cost.total_cost),
         image: image || undefined,
       },
@@ -133,8 +140,8 @@ export default function EstimatorScreen() {
         vesselCount,
         detail:
           shippingMethod === 'ship_own'
-            ? `Ship empties on your own · UPS return shipping to you · $${cost.shipping_cost}`
-            : `${method?.title || 'UPS shipping'} · ${cost.shipping_label}`,
+            ? `Ship empties on your own \u00b7 UPS return shipping to you \u00b7 $${cost.shipping_cost}`
+            : `${method?.title || 'UPS shipping'} \u00b7 ${cost.shipping_label}`,
         unitPrice: Number(cost.total_cost),
         waxUnitPrice: cost.wax_cost_num,
         returnShippingUnitPrice: cost.shipping_cost_num,
@@ -142,7 +149,7 @@ export default function EstimatorScreen() {
     );
     Alert.alert(
       'Added to cart',
-      'Your refill is in the cart. Add shop items or a class if you want, then check out. We’ll confirm your address at the end.',
+      'Your refill is in the cart. Add shop items or a class if you want, then check out. We\u2019ll confirm your address at the end.',
       [
         { text: 'Keep estimating', style: 'cancel' },
         { text: 'Go to cart', onPress: () => navigation.navigate('Orders') },
@@ -191,8 +198,8 @@ export default function EstimatorScreen() {
 
   const promptManualFallback = (tips) => {
     const tipList = tips && tips.length
-      ? tips.map((t) => `• ${t}`).join('\n')
-      : '• Make sure the vessel is well-lit\n• Take photo from above or side\n• Empty the vessel if possible';
+      ? tips.map((t) => `\u2022 ${t}`).join('\n')
+      : '\u2022 Make sure the vessel is well-lit\n\u2022 Take photo from above or side\n\u2022 Empty the vessel if possible';
     Alert.alert(
       'Could Not Auto-Estimate',
       `${tipList}\n\nEnter the volume manually for an accurate quote.`,
@@ -216,7 +223,7 @@ export default function EstimatorScreen() {
       } catch (convErr) {
         promptManualFallback([
           convErr.message || 'Could not convert photo to JPEG',
-          'Try: Settings → Camera → Formats → Most Compatible',
+          'Try: Settings \u2192 Camera \u2192 Formats \u2192 Most Compatible',
           'Or export the photo as JPEG from Photos and pick again',
         ]);
         return;
@@ -234,7 +241,7 @@ export default function EstimatorScreen() {
           return;
         }
         promptManualFallback([
-          apiErr.message || 'Server error — photo may be too large or network failed',
+          apiErr.message || 'Server error \u2014 photo may be too large or network failed',
         ]);
         return;
       }
@@ -245,7 +252,7 @@ export default function EstimatorScreen() {
         promptManualFallback([
           'Photo was still HEIC after conversion',
           'Close Expo Go completely and reopen the project URL',
-          'Or Settings → Camera → Formats → Most Compatible, then retake',
+          'Or Settings \u2192 Camera \u2192 Formats \u2192 Most Compatible, then retake',
         ]);
         return;
       }
@@ -305,14 +312,19 @@ export default function EstimatorScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Refill Estimator</Text>
-      <Text style={styles.instruction}>
-        Put every vessel you want refilled in the foreground (include small jars). Place a 12 oz drink can beside them for scale only — we will not count the can. Empty glass with wick visible works best.
-      </Text>
+      <Text style={styles.howtoLabel}>How to photograph</Text>
+      <View style={styles.steps}>
+        {PHOTO_STEPS.map((step, i) => (
+          <Text key={step} style={styles.step}>
+            {i + 1}. {step}
+          </Text>
+        ))}
+      </View>
       {!manipulatorOk ? (
         <View style={styles.warnBanner}>
           <Text style={styles.warnTitle}>Limited photo conversion in this client</Text>
           <Text style={styles.warnBody}>
-            Update Expo Go to the latest version, or use the TestFlight app for full HEIC support. JPEG photos may still work — or enter ounces manually below.
+            Update Expo Go to the latest version, or use the TestFlight app for full HEIC support. JPEG photos may still work \u2014 or enter ounces manually below.
           </Text>
           <CustomButton title="Enter ounces manually" onPress={() => setShowManualEntry(true)} />
         </View>
@@ -390,7 +402,7 @@ export default function EstimatorScreen() {
                 <Text style={styles.methodMeta}>{methodKey === 'ship_own' ? '1 UPS return trip to you' : `${method.chargeCount} UPS trips`}</Text>
                 <Text style={styles.methodBody}>{method.summary}</Text>
                 {methodCost.quote_ok && methodCost.legs?.length ? methodCost.legs.map((leg) => (
-                  <Text key={leg.key} style={styles.legLine}>{'•'} {leg.title}: ${leg.totalUsd.toFixed(2)} ({leg.billedLb} lb, zone {leg.zone})</Text>
+                  <Text key={leg.key} style={styles.legLine}>{'\u2022'} {leg.title}: ${leg.totalUsd.toFixed(2)} ({leg.billedLb} lb, zone {leg.zone})</Text>
                 )) : null}
                 {!methodCost.quote_ok && methodCost.quote_reason && !methodCost.needs_zip ? (
                   <Text style={styles.methodWarn}>{methodCost.quote_reason}</Text>
@@ -407,7 +419,7 @@ export default function EstimatorScreen() {
             return (
               <TouchableOpacity key={key} style={[styles.boxOption, active && styles.boxOptionSelected]} onPress={() => setSelectedBox(key)}>
                 <Text style={styles.boxName}>{box.shortName}</Text>
-                <Text style={styles.boxDetails}>{box.lengthIn}{'×'}{box.widthIn}{'×'}{box.heightIn} in {'\u00b7'} empty ~{box.emptyBoxOz} oz</Text>
+                <Text style={styles.boxDetails}>{box.lengthIn}{'\u00d7'}{box.widthIn}{'\u00d7'}{box.heightIn} in {'\u00b7'} empty ~{box.emptyBoxOz} oz</Text>
                 <Text style={styles.boxDetails}>{box.notes}</Text>
               </TouchableOpacity>
             );
@@ -431,7 +443,7 @@ export default function EstimatorScreen() {
             </View>
           ) : null}
           {cost.customer_note ? <Text style={styles.shipNote}>{cost.customer_note}</Text> : null}
-          <Text style={styles.total}>Total: {cost.quote_ok ? `$${cost.total_cost}` : '—'}</Text>
+          <Text style={styles.total}>Total: {cost.quote_ok ? `$${cost.total_cost}` : '\u2014'}</Text>
           <Text style={styles.weightBreakdown}>Wax ${cost.wax_cost}{cost.quote_ok ? ` + return shipping to you ${cost.shipping_cost}` : ''}</Text>
           <CustomButton title="Add refill to cart" onPress={addEstimateToCart} disabled={!cost.quote_ok} />
         </View>
@@ -443,7 +455,9 @@ export default function EstimatorScreen() {
 const styles = StyleSheet.create({
   container: { flexGrow: 1, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', padding: spacing.md + 4 },
   title: { fontFamily: fonts.heading, fontSize: 26, fontWeight: '400', marginBottom: 12, color: colors.primary },
-  instruction: { fontFamily: fonts.body, fontSize: 14, textAlign: 'center', marginBottom: 20, color: colors.textMuted, paddingHorizontal: 20, lineHeight: 20 },
+  howtoLabel: { fontFamily: fonts.body, fontSize: 13, fontWeight: '600', color: colors.primary, marginBottom: 8, letterSpacing: 0.3 },
+  steps: { width: '100%', paddingHorizontal: 8, marginBottom: 18 },
+  step: { fontFamily: fonts.body, fontSize: 14, color: colors.textMuted, lineHeight: 20, marginBottom: 8, textAlign: 'left' },
   image: { width: 280, height: 280, marginBottom: 20, borderRadius: radii.md },
   placeholderContainer: { width: 280, height: 280, backgroundColor: colors.surface, borderRadius: radii.md, justifyContent: 'center', alignItems: 'center', marginBottom: 20, borderWidth: 2, borderColor: colors.borderStrong, borderStyle: 'dashed' },
   placeholderText: { fontSize: 60, marginBottom: 10 },
