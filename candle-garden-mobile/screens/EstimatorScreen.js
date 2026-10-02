@@ -15,7 +15,6 @@ import { BOX_FIT_ORDER, PACKING_INSTRUCTIONS } from '../lib/shippingConfig';
 import { prepareImageForDetect, isImageManipulatorAvailable } from '../lib/prepareImage';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 import { postDetect, postShippingQuote } from '../lib/apiClient';
-import { useAuth } from '../lib/AuthContext';
 import { useCart } from '../lib/cart';
 
 function CustomButton({ title, onPress, disabled, color }) {
@@ -39,7 +38,6 @@ function CustomButton({ title, onPress, disabled, color }) {
 
 export default function EstimatorScreen() {
   const navigation = useNavigation();
-  const { isAuthenticated } = useAuth();
   const { addItem } = useCart();
   const [image, setImage] = useState(null);
   const [result, setResult] = useState(null);
@@ -307,9 +305,6 @@ export default function EstimatorScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Refill Estimator</Text>
-      <Text style={styles.buildTag}>
-        build: ups-ground-saver-v1 · {isAuthenticated ? 'signed in' : 'guest'}
-      </Text>
       <Text style={styles.instruction}>
         Put every vessel you want refilled in the foreground (include small jars). Place a 12 oz drink can beside them for scale only — we will not count the can. Empty glass with wick visible works best.
       </Text>
@@ -380,7 +375,7 @@ export default function EstimatorScreen() {
           <Text style={styles.sectionLabel}>Your ZIP</Text>
           <Text style={styles.shipNote}>Estimated UPS shipping is based on ZIP and packed weight. Checkout confirms the lowest live UPS rate available.</Text>
           <TextInput style={styles.zipInput} value={destZip} onChangeText={(t) => setDestZip(t.replace(/[^\d]/g, '').slice(0, 10))} keyboardType="number-pad" placeholder="32250" placeholderTextColor={colors.textFaint} maxLength={10} />
-          <Text style={styles.sectionLabel}>How we{'’'}ll ship</Text>
+          <Text style={styles.sectionLabel}>How we{'\u2019'}ll ship</Text>
           {methodQuotes.map(({ methodKey, method, cost: methodCost }) => {
             const selected = shippingMethod === methodKey;
             const live = liveQuotes.find((q) => q.method === methodKey);
@@ -447,8 +442,7 @@ export default function EstimatorScreen() {
 
 const styles = StyleSheet.create({
   container: { flexGrow: 1, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', padding: spacing.md + 4 },
-  title: { fontFamily: fonts.heading, fontSize: 26, fontWeight: '400', marginBottom: 4, color: colors.primary },
-  buildTag: { fontFamily: fonts.body, fontSize: 11, color: colors.textFaint, marginBottom: 10 },
+  title: { fontFamily: fonts.heading, fontSize: 26, fontWeight: '400', marginBottom: 12, color: colors.primary },
   instruction: { fontFamily: fonts.body, fontSize: 14, textAlign: 'center', marginBottom: 20, color: colors.textMuted, paddingHorizontal: 20, lineHeight: 20 },
   image: { width: 280, height: 280, marginBottom: 20, borderRadius: radii.md },
   placeholderContainer: { width: 280, height: 280, backgroundColor: colors.surface, borderRadius: radii.md, justifyContent: 'center', alignItems: 'center', marginBottom: 20, borderWidth: 2, borderColor: colors.borderStrong, borderStyle: 'dashed' },
