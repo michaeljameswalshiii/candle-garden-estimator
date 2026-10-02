@@ -1,6 +1,8 @@
-"""UPS Ground Saver refill quotes — keep in sync with candle-garden-mobile/lib.
+"""UPS refill quotes — keep in sync with candle-garden-mobile/lib.
 
-Live UPS Rating is used when credentials exist; otherwise the published table.
+Standard uses Ground Saver. Expedited uses UPS 2nd Day Air.
+Live UPS Rating is used when credentials exist; otherwise the published table,
+with a factor for 2nd Day Air until a live rate returns.
 """
 
 from math import ceil
@@ -10,7 +12,9 @@ try:
 except ImportError:
     ups_client = None
 
-WAX_CENTS_PER_OZ = 150
+WAX_CENTS_BY_SPEED = {"standard": 175, "expedited": 225}
+WAX_CENTS_PER_OZ = WAX_CENTS_BY_SPEED["standard"]
+EXPEDITED_SHIPPING_FACTOR = 2.2
 ORIGIN_ZIP = "32233"
 RESIDENTIAL_CENTS = 465
 FUEL_PCT = 0.16
@@ -72,6 +76,10 @@ METHODS = {
 }
 
 
+def normalize_speed(speed):
+    return "expedited" if str(speed or "").lower() == "expedited" else "standard"
+
+
 def _zip_digits(zip_code):
     return "".join(ch for ch in str(zip_code or "") if ch.isdigit())[:5]
 
@@ -79,10 +87,10 @@ def _zip_digits(zip_code):
 def _zone(zip_code):
     z = _zip_digits(zip_code)
     if len(z) < 5:
-        raise ValueError("Enter a 5-digit U.S. ZIP for UPS Ground Saver")
+        raise ValueError("Enter a 5-digit U.S. ZIP for UPS shipping")
     prefix = int(z[:3])
     if prefix < 10 or 90 <= prefix <= 99 or 967 <= prefix <= 968 or prefix >= 995:
-        raise ValueError("UPS Ground Saver quotes cover the 48 contiguous states only")
+        raise ValueError("UPS shipping quotes cover the 48 contiguous states only")
     for start, end, zone in PREFIX_ZONES:
         if start <= prefix <= end:
             return zone
@@ -169,27 +177,6 @@ def _dims_for_leg(leg_key, box):
     return box["l"], box["w"], box["h"]
 
 
-def _leg_cents_live_or_table(leg_key, zone, billed_lb, box, dest_zip, dest=None):
-    residential = leg_key != "empties_in"
-    table_cents, lb, z = _leg_cents(zone, billed_lb, residential=residential)
-    if not ups_client or not ups_client.configured():
-        return table_cents, lb, z, "table"
-    try:
-        length, width, height = _dims_for_leg(leg_key, box)
-        customer = _customer_party(dest_zip, dest)
-        origin = dict(ups_client.ORIGIN)
-        if leg_key == "empties_in":
-            ship_from, ship_to = customer, origin
-        else:
-            ship_from, ship_to = origin, customer
-        live_cents = ups_client.rate_ground_saver(
-            ship_from, ship_to, billed_lb, length, width, height
-        )
-        return live_cents, lb, z, "ups"
-    except Exception:
-        return table_cents, lb, z, "table"
-
-
 def _leg_cents(zone, billed_lb, residential=True):
     lb = max(1, min(MAX_TABLE_LB, int(billed_lb)))
     if billed_lb > MAX_TABLE_LB:
@@ -201,6 +188,31 @@ def _leg_cents(zone, billed_lb, residential=True):
     return int(round((base + fuel + res) * 100)), lb, zone
 
 
+def _leg_cents_live_or_table(leg_key, zone, billed_lb, box, dest_zip, dest=None, speed="standard"):
+    residential = leg_key != "empties_in"
+    table_cents, lb, z = _leg_cents(zone, billed_lb, residential=residential)
+    expedited = normalize_speed(speed) == "expedited"
+    service_code = "02" if expedited else "93"
+    if expedited:
+        table_cents = int(round(table_cents * EXPEDITED_SHIPPING_FACTOR))
+    if not ups_client or not ups_client.configured():
+        return table_cents, lb, z, "table"
+    try:
+        length, width, height = _dims_for_leg(leg_key, box)
+        customer = _customer_party(dest_zip, dest)
+        origin = dict(ups_client.ORIGIN)
+        if leg_key == "empties_in":
+            ship_from, ship_to = customer, origin
+        else:
+            ship_from, ship_to = origin, customer
+        live_cents = ups_client.rate_package(
+            ship_from, ship_to, billed_lb, length, width, height, service_code
+        )
+        return live_cents, lb, z, "ups"
+    except Exception:
+        return table_cents, lb, z, "table"
+
+
 def quote_refill_shipping(
     ounces,
     quantity=1,
@@ -209,12 +221,14 @@ def quote_refill_shipping(
     shipping_method="ship_own",
     vessel_count=None,
     dest=None,
+    speed="standard",
 ):
     qty = max(1, int(quantity or 1))
     total_wax = float(ounces) * qty
     count = max(1, int(vessel_count or qty))
     method_key = shipping_method if shipping_method in METHODS else "ship_own"
     method = METHODS[method_key]
+    speed_key = normalize_speed(speed)
     rec = recommend_box(total_wax, count)
     box = _resolve_box(box_key) or rec
     weights = packed_weight(total_wax, count, box)
@@ -233,27 +247,28 @@ def quote_refill_shipping(
     sources = []
     if method_key == "kit_roundtrip":
         cents, lb, z, src = _leg_cents_live_or_table(
-            "kit_out", zone, weights["kit_billed"], box, dest_zip, dest
+            "kit_out", zone, weights["kit_billed"], box, dest_zip, dest, speed_key
         )
         legs.append(("kit_out", cents, lb, z))
         sources.append(src)
     if method_key in ("kit_roundtrip", "prepaid_labels"):
         cents, lb, z, src = _leg_cents_live_or_table(
-            "empties_in", zone, weights["empties_billed"], box, dest_zip, dest
+            "empties_in", zone, weights["empties_billed"], box, dest_zip, dest, speed_key
         )
         legs.append(("empties_in", cents, lb, z))
         sources.append(src)
     cents, lb, z, src = _leg_cents_live_or_table(
-        "refills_out", zone, weights["refills_billed"], box, dest_zip, dest
+        "refills_out", zone, weights["refills_billed"], box, dest_zip, dest, speed_key
     )
     legs.append(("refills_out", cents, lb, z))
     sources.append(src)
 
     shipping_cents = sum(row[1] for row in legs)
-    wax_cents = int(round(float(ounces) * WAX_CENTS_PER_OZ * qty))
+    wax_cents = int(round(float(ounces) * WAX_CENTS_BY_SPEED[speed_key] * qty))
     rate_source = "ups" if sources and all(s == "ups" for s in sources) else (
         "mixed" if "ups" in sources else "table"
     )
+    service_code = "02" if speed_key == "expedited" else "93"
     return {
         "wax_cents": wax_cents,
         "shipping_cents": shipping_cents,
@@ -262,6 +277,8 @@ def quote_refill_shipping(
         "box_name": box["name"],
         "method": method_key,
         "method_title": method["title"],
+        "speed": speed_key,
+        "service_code": service_code,
         "zone": zone,
         "rate_source": rate_source,
         "legs": [{"key": k, "cents": c, "billedLb": lb, "zone": z} for k, c, lb, z in legs],
