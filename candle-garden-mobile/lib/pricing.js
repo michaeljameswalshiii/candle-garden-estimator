@@ -1,5 +1,5 @@
 /**
- * Shared refill pricing — wax + UPS Ground Saver (1 / 2 / 3 trips).
+ * Shared refill pricing — wax + UPS (standard Ground Saver, expedited 2nd Day Air).
  * Shipping: lib/shippingConfig.js + lib/upsRates.js
  * Product rules: docs/REFILL_SHIPPING_RULES.md
  */
@@ -18,9 +18,33 @@ import {
   isValidDestZip,
 } from './shippingConfig';
 
-export const WAX_PRICE_PER_OZ = 1.5;
+export const WAX_PRICE_PER_OZ = 1.75;
+export const EXPEDITED_WAX_PRICE_PER_OZ = 2.25;
+/** Estimate until live UPS 2nd Day Air rating is returned. Not shown to customers. */
+export const EXPEDITED_SHIPPING_FACTOR = 2.2;
 export const MIN_CONFIDENCE = 0.5;
 export const DEFAULT_SHIPPING_METHOD = 'ship_own';
+
+export const SPEED_OPTIONS = {
+  standard: {
+    key: 'standard',
+    title: 'Standard',
+    timing: 'About 14 days',
+    detail: 'We make the refill and ship it back with standard UPS.',
+    serviceLabel: 'UPS Ground Saver',
+  },
+  expedited: {
+    key: 'expedited',
+    title: 'Expedited',
+    timing: 'About 7 days',
+    detail: 'We make the refill and ship it back UPS 2nd Day Air.',
+    serviceLabel: 'UPS 2nd Day Air',
+  },
+};
+
+export function waxPricePerOz(speed) {
+  return speed === 'expedited' ? EXPEDITED_WAX_PRICE_PER_OZ : WAX_PRICE_PER_OZ;
+}
 
 /**
  * @deprecated Postage is no longer flat by box. Kept so older screens don't crash.
@@ -47,22 +71,16 @@ export function isValidOunces(ounces) {
 }
 
 /**
- * Calculate refill wax + UPS Ground Saver for a shipping method.
- *
- * @param {number} ounces
- * @param {object} [options]
- * @param {number} [options.quantity=1]
- * @param {string} [options.boxKey]
- * @param {number} [options.vesselCount]
- * @param {number[]} [options.perVesselOz]
- * @param {string} [options.destZip]
- * @param {string} [options.shippingMethod]
+ * Calculate refill wax + UPS for a shipping method and speed.
+ * Speed changes the wax rate and the carrier service. Do not display the per-ounce rates.
  */
 export function calculateCost(ounces, options = {}) {
   const quantity = Math.max(1, Number(options.quantity) || 1);
   const totalWaxOz = Number(ounces) * quantity;
   const vesselCount = options.vesselCount || quantity;
   const methodKey = options.shippingMethod || DEFAULT_SHIPPING_METHOD;
+  const speed = options.speed === 'expedited' ? 'expedited' : 'standard';
+  const speedOption = SPEED_OPTIONS[speed];
 
   const recommendation = recommendShippingBox({
     totalWaxOz,
@@ -80,10 +98,16 @@ export function calculateCost(ounces, options = {}) {
   });
 
   const box = quote.box || UPS_BOXES.ups_medium;
-  const waxCost = Number(ounces) * WAX_PRICE_PER_OZ * quantity;
-  const shippingCost = quote.ok ? quote.shippingCostUsd : 0;
+  const waxCost = Number(ounces) * waxPricePerOz(speed) * quantity;
+  let shippingCost = quote.ok ? quote.shippingCostUsd : 0;
+  if (speed === 'expedited' && quote.ok) {
+    shippingCost = Math.round(shippingCost * EXPEDITED_SHIPPING_FACTOR * 100) / 100;
+  }
   const total = waxCost + shippingCost;
   const packedWeight = quote.packedWeight;
+  const shippingLabel = quote.ok
+    ? `${speedOption.serviceLabel} · ${quote.shippingLabel}`
+    : shippingLineLabel(box);
 
   return {
     wax_cost: waxCost.toFixed(2),
@@ -91,10 +115,14 @@ export function calculateCost(ounces, options = {}) {
     box_type: box.shortName || box.name,
     box_key: box.key,
     box_full_name: box.name,
-    shipping_label: quote.ok ? quote.shippingLabel : shippingLineLabel(box),
+    shipping_label: shippingLabel,
     shipping_policy: quote.method?.summary || SHIPPING_POLICY.summary,
     shipping_method: quote.method?.key || methodKey,
     shipping_method_title: quote.method?.title,
+    speed,
+    speed_title: speedOption.title,
+    speed_timing: speedOption.timing,
+    service_label: speedOption.serviceLabel,
     dest_zip: quote.destZip || '',
     zone: quote.zone,
     quote_ok: !!quote.ok,
