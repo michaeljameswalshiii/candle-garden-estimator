@@ -1,0 +1,40 @@
+name: Patch checkout speed
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Send refill speed at checkout
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("candle-garden-mobile/screens/OrdersScreen.js")
+          text = path.read_text()
+          old = "shippingMethod: line.shippingMethod || 'ship_own',\n          vesselCount: line.vesselCount,"
+          new = "shippingMethod: line.shippingMethod || 'ship_own',\n          speed: line.speed || 'standard',\n          vesselCount: line.vesselCount,"
+          if old not in text:
+              raise SystemExit("checkout map pattern not found")
+          text = text.replace(old, new, 1)
+          split = """        {item.type === 'refill' && Number.isFinite(item.waxUnitPrice) && Number.isFinite(item.returnShippingUnitPrice) ? (
+            <Text style={styles.lineMeta}>
+              ${item.waxUnitPrice.toFixed(2)} refill + ${item.returnShippingUnitPrice.toFixed(2)} return shipping
+            </Text>
+          ) : null}
+"""
+          text = text.replace(split, "")
+          path.write_text(text)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "michaeljameswalshiii"
+          git config user.email "michaeljameswalshiii@gmail.com"
+          git add candle-garden-mobile/screens/OrdersScreen.js
+          git commit -m "Send refill speed with checkout"
+          git push
