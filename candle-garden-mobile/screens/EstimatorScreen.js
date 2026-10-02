@@ -37,7 +37,6 @@ function CustomButton({ title, onPress, disabled, color }) {
 }
 
 const PHOTO_STEPS = [
-  'Empty each vessel. Clean glass with the wick still in place gives the best estimate.',
   'Group every jar you want refilled in front, including small ones. Leave other objects out of the shot.',
   'Stand a standard 12 oz drink can beside them. We use it only to judge size and will not count it.',
   'Hold the phone upright, in even light, so the can and every vessel fit in the frame.',
