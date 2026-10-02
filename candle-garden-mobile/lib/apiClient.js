@@ -180,8 +180,16 @@ export async function createOrder(orderBody) {
   return apiFetch('/orders', { method: 'POST', body: orderBody, requireAuth: true });
 }
 
+function withRefillSpeed(item) {
+  if (!item || item.speed) return item;
+  const size = String(item.size || '').toLowerCase();
+  if (size === 'expedited' || size.startsWith('expedited')) return { ...item, speed: 'expedited' };
+  if (size === 'standard' || size.startsWith('standard')) return { ...item, speed: 'standard' };
+  return item;
+}
+
 export async function createStripePaymentSheet(items, contact = {}) {
-  const body = { items };
+  const body = { items: (Array.isArray(items) ? items : []).map(withRefillSpeed) };
   if (contact.email) body.email = String(contact.email).trim();
   if (contact.name) body.name = String(contact.name).trim();
   if (contact.zip) body.destZip = String(contact.zip).replace(/\D/g, '').slice(0, 5);
