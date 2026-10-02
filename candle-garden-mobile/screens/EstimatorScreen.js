@@ -10,6 +10,7 @@ import {
   SHIPPING_METHODS,
   UPS_BOXES,
   DEFAULT_SHIPPING_METHOD,
+  SPEED_OPTIONS,
 } from '../lib/pricing';
 import { BOX_FIT_ORDER, PACKING_INSTRUCTIONS } from '../lib/shippingConfig';
 import { prepareImageForDetect, isImageManipulatorAvailable } from '../lib/prepareImage';
@@ -42,6 +43,8 @@ const PHOTO_STEPS = [
   'Hold the phone upright, in even light, so the can and every vessel fit in the frame.',
 ];
 
+const SPEED_ORDER = ['standard', 'expedited'];
+
 export default function EstimatorScreen() {
   const navigation = useNavigation();
   const { addItem } = useCart();
@@ -54,6 +57,7 @@ export default function EstimatorScreen() {
   const [shippingMethod, setShippingMethod] = useState(DEFAULT_SHIPPING_METHOD);
   const [selectedBox, setSelectedBox] = useState(null);
   const [liveQuotes, setLiveQuotes] = useState([]);
+  const [speed, setSpeed] = useState(null);
   const manipulatorOk = isImageManipulatorAvailable();
 
   const vesselCount = Array.isArray(result?.vessels) && result.vessels.length
@@ -66,19 +70,20 @@ export default function EstimatorScreen() {
     : undefined;
 
   const cost = useMemo(() => {
-    if (!result?.estimated_ounces) return null;
+    if (!result?.estimated_ounces || !speed) return null;
     return calculateCost(result.estimated_ounces, {
       vesselCount,
       perVesselOz,
       destZip,
       shippingMethod,
       boxKey: selectedBox,
+      speed,
     });
-  }, [result, vesselCount, perVesselOz, destZip, shippingMethod, selectedBox]);
+  }, [result, vesselCount, perVesselOz, destZip, shippingMethod, selectedBox, speed]);
 
   useEffect(() => {
     const zip = String(destZip || '').replace(/\D/g, '');
-    if (!result?.estimated_ounces || zip.length < 5) {
+    if (!result?.estimated_ounces || !speed || zip.length < 5) {
       setLiveQuotes([]);
       return undefined;
     }
@@ -88,6 +93,7 @@ export default function EstimatorScreen() {
       destZip: zip,
       boxKey: selectedBox,
       vesselCount,
+      speed,
       methods: ['ship_own', 'kit_roundtrip', 'prepaid_labels'],
     })
       .then((data) => {
@@ -99,28 +105,34 @@ export default function EstimatorScreen() {
     return () => {
       cancelled = true;
     };
-  }, [result, destZip, selectedBox, vesselCount]);
+  }, [result, destZip, selectedBox, vesselCount, speed]);
 
   const methodQuotes = useMemo(() => {
-    if (!result?.estimated_ounces) return [];
+    if (!result?.estimated_ounces || !speed) return [];
     return quoteAllMethods(result.estimated_ounces, {
       vesselCount,
       perVesselOz,
       destZip,
       boxKey: selectedBox,
+      speed,
     });
-  }, [result, vesselCount, perVesselOz, destZip, selectedBox]);
+  }, [result, vesselCount, perVesselOz, destZip, selectedBox, speed]);
 
   const addEstimateToCart = () => {
-    if (!result?.estimated_ounces || !cost) return;
-    if (!cost.quote_ok) {
+    if (!result?.estimated_ounces) return;
+    if (!speed) {
+      Alert.alert('Choose a speed', 'Select standard or expedited before adding this refill.');
+      return;
+    }
+    if (!cost?.quote_ok) {
       Alert.alert(
         'ZIP needed',
-        cost.quote_reason || 'Enter your 5-digit ZIP so we can estimate UPS shipping.'
+        cost?.quote_reason || 'Enter your 5-digit ZIP so we can estimate UPS shipping.'
       );
       return;
     }
     const method = SHIPPING_METHODS[shippingMethod];
+    const speedOption = SPEED_OPTIONS[speed];
     addItem(
       {
         id: 'refill',
@@ -136,11 +148,9 @@ export default function EstimatorScreen() {
         boxKey: cost.box_key,
         destZip: cost.dest_zip,
         shippingMethod,
+        speed,
         vesselCount,
-        detail:
-          shippingMethod === 'ship_own'
-            ? `Ship empties on your own \u00b7 UPS return shipping to you \u00b7 $${cost.shipping_cost}`
-            : `${method?.title || 'UPS shipping'} \u00b7 ${cost.shipping_label}`,
+        detail: `${speedOption.title} \u00b7 ${speedOption.timing} \u00b7 ${method?.title || 'UPS shipping'}`,
         unitPrice: Number(cost.total_cost),
         waxUnitPrice: cost.wax_cost_num,
         returnShippingUnitPrice: cost.shipping_cost_num,
@@ -172,6 +182,7 @@ export default function EstimatorScreen() {
       if (!pickerResult.canceled) {
         setImage(pickerResult.assets[0].uri);
         setResult(null);
+        setSpeed(null);
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to pick image: ' + error.message);
@@ -189,6 +200,7 @@ export default function EstimatorScreen() {
       if (!cameraResult.canceled) {
         setImage(cameraResult.assets[0].uri);
         setResult(null);
+        setSpeed(null);
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to take photo: ' + error.message);
@@ -275,8 +287,10 @@ export default function EstimatorScreen() {
       const firstQuote = calculateCost(check.ounces, {
         vesselCount: detectedCount,
         perVesselOz: detectedPerVessel,
+        speed: 'standard',
       });
       setSelectedBox(firstQuote.box_key);
+      setSpeed(null);
       setResult({
         estimated_ounces: check.ounces,
         container_type: check.container_type,
@@ -297,8 +311,9 @@ export default function EstimatorScreen() {
       Alert.alert('Invalid Input', 'Please enter a positive volume in ounces (e.g. 8, 12.5, 40)');
       return;
     }
-    const firstQuote = calculateCost(ounces);
+    const firstQuote = calculateCost(ounces, { speed: 'standard' });
     setSelectedBox(firstQuote.box_key);
+    setSpeed(null);
     setResult({
       estimated_ounces: ounces,
       container_type: 'Manual Entry',
@@ -341,7 +356,7 @@ export default function EstimatorScreen() {
         <CustomButton title="Pick from Gallery" onPress={pickImage} />
         {image && (
           <>
-            <CustomButton title="Clear Photo" onPress={() => { setImage(null); setResult(null); }} color={colors.danger} />
+            <CustomButton title="Clear Photo" onPress={() => { setImage(null); setResult(null); setSpeed(null); }} color={colors.danger} />
             <CustomButton title={loading ? 'Estimating...' : 'Get Estimate'} onPress={estimateCandle} disabled={loading} />
           </>
         )}
@@ -362,7 +377,7 @@ export default function EstimatorScreen() {
           </View>
         </View>
       )}
-      {result && cost && (
+      {result && (
         <View style={styles.result}>
           <Text style={styles.resultTitle}>Estimate</Text>
           <Text style={styles.resultText}>
@@ -379,72 +394,70 @@ export default function EstimatorScreen() {
               ))}
             </View>
           )}
-          {result.confidence != null && result.confidence < 1 && (
-            <Text style={styles.resultText}>Confidence: {Math.round(result.confidence * 100)}%</Text>
-          )}
-          <Text style={styles.resultText}>Wax: ${cost.wax_cost}</Text>
-          <Text style={styles.sectionLabel}>Your ZIP</Text>
-          <Text style={styles.shipNote}>Estimated UPS shipping is based on ZIP and packed weight. Checkout confirms the lowest live UPS rate available.</Text>
-          <TextInput style={styles.zipInput} value={destZip} onChangeText={(t) => setDestZip(t.replace(/[^\d]/g, '').slice(0, 10))} keyboardType="number-pad" placeholder="32250" placeholderTextColor={colors.textFaint} maxLength={10} />
-          <Text style={styles.sectionLabel}>How we{'\u2019'}ll ship</Text>
-          {methodQuotes.map(({ methodKey, method, cost: methodCost }) => {
-            const selected = shippingMethod === methodKey;
-            const live = liveQuotes.find((q) => q.method === methodKey);
-            const liveShip = live && live.shipping_cents != null ? (live.shipping_cents / 100).toFixed(2) : null;
-            const priceLabel = liveShip ? `$${liveShip}` : methodCost.quote_ok ? `$${methodCost.shipping_cost}` : methodCost.needs_zip ? 'Enter ZIP' : 'See note';
+          <Text style={styles.sectionLabel}>How fast do you need it?</Text>
+          <Text style={styles.shipNote}>Choose one to continue. The clock starts when we receive your empties.</Text>
+          {SPEED_ORDER.map((key) => {
+            const option = SPEED_OPTIONS[key];
+            const selected = speed === key;
             return (
-              <TouchableOpacity key={methodKey} style={[styles.methodCard, selected && styles.methodCardSelected]} onPress={() => setShippingMethod(methodKey)} activeOpacity={0.8}>
+              <TouchableOpacity key={key} style={[styles.methodCard, selected && styles.methodCardSelected]} onPress={() => setSpeed(key)} activeOpacity={0.8}>
                 <View style={styles.methodHeader}>
-                  <Text style={styles.methodTitle}>{method.title}</Text>
-                  <Text style={styles.methodPrice}>{priceLabel}</Text>
+                  <Text style={styles.methodTitle}>{option.title}</Text>
+                  <Text style={styles.methodPrice}>{option.timing}</Text>
                 </View>
-                <Text style={styles.methodMeta}>{methodKey === 'ship_own' ? '1 UPS return trip to you' : `${method.chargeCount} UPS trips`}</Text>
-                <Text style={styles.methodBody}>{method.summary}</Text>
-                {methodCost.quote_ok && methodCost.legs?.length ? methodCost.legs.map((leg) => (
-                  <Text key={leg.key} style={styles.legLine}>{'\u2022'} {leg.title}: ${leg.totalUsd.toFixed(2)} ({leg.billedLb} lb, zone {leg.zone})</Text>
-                )) : null}
-                {!methodCost.quote_ok && methodCost.quote_reason && !methodCost.needs_zip ? (
-                  <Text style={styles.methodWarn}>{methodCost.quote_reason}</Text>
-                ) : null}
+                <Text style={styles.methodBody}>{option.detail}</Text>
               </TouchableOpacity>
             );
           })}
-          <Text style={styles.sectionLabel}>Carton</Text>
-          <Text style={styles.shipNote}>Packed weight includes vessels, cardboard, and packing. UPS bills the greater of scale weight and dimensional weight.</Text>
-          {BOX_FIT_ORDER.map((key) => {
-            const box = UPS_BOXES[key];
-            if (!box) return null;
-            const active = (selectedBox || cost.box_key) === key;
-            return (
-              <TouchableOpacity key={key} style={[styles.boxOption, active && styles.boxOptionSelected]} onPress={() => setSelectedBox(key)}>
-                <Text style={styles.boxName}>{box.shortName}</Text>
-                <Text style={styles.boxDetails}>{box.lengthIn}{'\u00d7'}{box.widthIn}{'\u00d7'}{box.heightIn} in {'\u00b7'} empty ~{box.emptyBoxOz} oz</Text>
-                <Text style={styles.boxDetails}>{box.notes}</Text>
-              </TouchableOpacity>
-            );
-          })}
-          {cost.packed_weight ? (
-            <View style={styles.weightBlock}>
-              <Text style={styles.resultText}>Refills packed: {cost.packed_weight.refillsOutboundLabel}</Text>
-              <Text style={styles.weightBreakdown}>{cost.packed_weight.breakdownOutbound}</Text>
-              <Text style={styles.resultText}>Empties packed: {cost.packed_weight.emptiesInboundLabel}</Text>
-              {shippingMethod === 'kit_roundtrip' ? (
-                <Text style={styles.resultText}>Packing kit: {cost.packed_weight.kitLabel}</Text>
+          {!speed ? (
+            <Text style={styles.shipNote}>Select standard or expedited to see shipping and your total.</Text>
+          ) : cost && (
+            <>
+              <Text style={styles.sectionLabel}>Your ZIP</Text>
+              <Text style={styles.shipNote}>Postage is estimated from your ZIP and packed weight. Checkout confirms the live UPS rate.</Text>
+              <TextInput style={styles.zipInput} value={destZip} onChangeText={(t) => setDestZip(t.replace(/[^\d]/g, '').slice(0, 10))} keyboardType="number-pad" placeholder="32250" placeholderTextColor={colors.textFaint} maxLength={10} />
+              <Text style={styles.sectionLabel}>How empties get to us</Text>
+              {methodQuotes.map(({ methodKey, method, cost: methodCost }) => {
+                const selected = shippingMethod === methodKey;
+                const live = speed === 'standard' ? liveQuotes.find((q) => q.method === methodKey) : null;
+                const liveShip = live && live.shipping_cents != null ? (live.shipping_cents / 100).toFixed(2) : null;
+                const priceLabel = liveShip ? `$${liveShip}` : methodCost.quote_ok ? `$${methodCost.shipping_cost}` : methodCost.needs_zip ? 'Enter ZIP' : 'See note';
+                return (
+                  <TouchableOpacity key={methodKey} style={[styles.methodCard, selected && styles.methodCardSelected]} onPress={() => setShippingMethod(methodKey)} activeOpacity={0.8}>
+                    <View style={styles.methodHeader}>
+                      <Text style={styles.methodTitle}>{method.title}</Text>
+                      <Text style={styles.methodPrice}>{priceLabel}</Text>
+                    </View>
+                    <Text style={styles.methodMeta}>{methodKey === 'ship_own' ? '1 UPS return trip to you' : `${method.chargeCount} UPS trips`} \u00b7 {SPEED_OPTIONS[speed].serviceLabel}</Text>
+                    <Text style={styles.methodBody}>{method.summary}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+              <Text style={styles.sectionLabel}>Carton</Text>
+              {BOX_FIT_ORDER.map((key) => {
+                const box = UPS_BOXES[key];
+                if (!box) return null;
+                const active = (selectedBox || cost.box_key) === key;
+                return (
+                  <TouchableOpacity key={key} style={[styles.boxOption, active && styles.boxOptionSelected]} onPress={() => setSelectedBox(key)}>
+                    <Text style={styles.boxName}>{box.shortName}</Text>
+                    <Text style={styles.boxDetails}>{box.lengthIn}{'\u00d7'}{box.widthIn}{'\u00d7'}{box.heightIn} in \u00b7 {box.notes}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+              {shippingMethod === 'prepaid_labels' ? (
+                <View style={styles.instructBox}>
+                  <Text style={styles.sectionLabel}>Packing instructions</Text>
+                  {PACKING_INSTRUCTIONS.map((line, i) => (
+                    <Text key={i} style={styles.instructLine}>{i + 1}. {line}</Text>
+                  ))}
+                </View>
               ) : null}
-            </View>
-          ) : null}
-          {shippingMethod === 'prepaid_labels' ? (
-            <View style={styles.instructBox}>
-              <Text style={styles.sectionLabel}>Packing instructions</Text>
-              {PACKING_INSTRUCTIONS.map((line, i) => (
-                <Text key={i} style={styles.instructLine}>{i + 1}. {line}</Text>
-              ))}
-            </View>
-          ) : null}
-          {cost.customer_note ? <Text style={styles.shipNote}>{cost.customer_note}</Text> : null}
-          <Text style={styles.total}>Total: {cost.quote_ok ? `$${cost.total_cost}` : '\u2014'}</Text>
-          <Text style={styles.weightBreakdown}>Wax ${cost.wax_cost}{cost.quote_ok ? ` + return shipping to you ${cost.shipping_cost}` : ''}</Text>
-          <CustomButton title="Add refill to cart" onPress={addEstimateToCart} disabled={!cost.quote_ok} />
+              <Text style={styles.total}>Total: {cost.quote_ok ? `$${cost.total_cost}` : '\u2014'}</Text>
+              <Text style={styles.weightBreakdown}>{SPEED_OPTIONS[speed].title} \u00b7 {SPEED_OPTIONS[speed].serviceLabel}</Text>
+              <CustomButton title="Add refill to cart" onPress={addEstimateToCart} disabled={!cost.quote_ok} />
+            </>
+          )}
         </View>
       )}
     </ScrollView>
