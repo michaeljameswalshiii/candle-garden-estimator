@@ -18,7 +18,7 @@ const CART_KEY = 'cg_cart_v1';
 function lineKey(item) {
   const type = item.type || 'product';
   if (type === 'refill') {
-    return `refill::${Number(item.ounces || 0).toFixed(1)}::${item.boxKey || 'box'}::${item.shippingMethod || 'ship_own'}::${item.destZip || ''}`;
+    return `refill::${Number(item.ounces || 0).toFixed(1)}::${item.boxKey || 'box'}::${item.shippingMethod || 'ship_own'}::${item.speed || 'standard'}::${item.destZip || ''}`;
   }
   if (type === 'class') {
     return `class::${item.productId}`;
@@ -99,6 +99,7 @@ export function CartProvider({ children }) {
       boxKey: options.boxKey,
       destZip: options.destZip,
       shippingMethod: options.shippingMethod,
+      speed: options.speed === 'expedited' ? 'expedited' : options.speed === 'standard' ? 'standard' : undefined,
       vesselCount: options.vesselCount,
       waxUnitPrice: options.waxUnitPrice != null ? Number(options.waxUnitPrice) : undefined,
       returnShippingUnitPrice:
