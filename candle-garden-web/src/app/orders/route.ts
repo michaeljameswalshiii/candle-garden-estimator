@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     total_amount: Number(body.total || 0), status: "payment_verification_pending",
     source: "mobile", payment_provider: "stripe", payment_intent_id: String(body.payment_intent_id || ""),
     shipping: body.shipping && typeof body.shipping === "object" ? body.shipping : undefined,
-    label_status: "owner_review", created_at: now, updated_at: now,
+    label_status: "queued", created_at: now, updated_at: now,
   };
   if (!order.payment_intent_id.startsWith("pi_")) return NextResponse.json({ error: "A Stripe payment reference is required" }, { status: 400 });
   await putMobileOrder(order);

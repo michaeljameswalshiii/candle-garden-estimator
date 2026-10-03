@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   TextInput,
   Linking,
+  Share,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors, fonts, radii, spacing } from '../lib/theme';
@@ -36,6 +37,25 @@ const STATUS_COPY = {
 
 function customerStatus(status) {
   return STATUS_COPY[status] || [String(status || 'Order received').replaceAll('_', ' '), 'Pull down to refresh for the latest update.'];
+}
+
+function customerPrintLabels(source) {
+  const rows = source?.labels || source?.shipping_labels || [];
+  return rows.filter((row) => row && row.key === 'empties_in' && (row.labelUrl || row.imageBase64));
+}
+
+async function openLabel(label) {
+  const url = label?.labelUrl;
+  if (url) {
+    const canOpen = await Linking.canOpenURL(url);
+    if (canOpen) {
+      await Linking.openURL(url);
+      return;
+    }
+    await Share.share({ message: url, url, title: 'Prepaid empties label' });
+    return;
+  }
+  Alert.alert('Label not ready', 'Your prepaid label is still being prepared. Pull down to refresh, or check your email.');
 }
 
 function progressIndex(status) {
@@ -206,6 +226,7 @@ function OrdersScreenBody({ stripe }) {
           boxKey: line.boxKey,
           destZip: line.destZip || shipping.zip,
           shippingMethod: line.shippingMethod || 'ship_own',
+          speed: line.speed || 'standard',
           vesselCount: line.vesselCount,
         })),
         { email: shipping.email, name: shipping.name, zip: shipping.zip, shipping }
@@ -223,18 +244,25 @@ function OrdersScreenBody({ stripe }) {
         return;
       }
       const paidTotal = Number(sheet.amount || 0) / 100;
-      await finalizeStripePayment(sheet.paymentIntentId);
+      const finalized = await finalizeStripePayment(sheet.paymentIntentId);
       trackEvent('payment_success');
+      const printLabels = customerPrintLabels(finalized);
+      const refillLines = lines.filter((line) => line.type === 'refill');
+      const methods = refillLines.map((line) => line.shippingMethod);
       let labelNote = '';
-      const refillLines = lines.filter(
-        (line) => line.type === 'refill' && line.shippingMethod && line.shippingMethod !== 'ship_own'
-      );
-      if (refillLines.length) {
-        labelNote = ' Shipping labels are queued for Candle Garden owner review.';
+      if (printLabels.length) {
+        labelNote = 'Your prepaid empties label is ready. Print it and tape it to the box.';
+      } else if (methods.includes('kit_roundtrip')) {
+        labelNote = 'We will mail a packing kit with a prepaid empties label inside. The refill return label stays queued for The Candle Garden.';
+      } else if (methods.includes('ship_own')) {
+        labelNote = 'Ship empties on your own. We will print the refill return label when your candles are ready.';
+      } else if (methods.some(Boolean)) {
+        labelNote = 'Your refill return label is queued for The Candle Garden to print when the candles are ready.';
       }
       await loadHistory();
       const completedOrder = {
         paymentIntentId: sheet.paymentIntentId,
+        orderId: finalized?.orderId || sheet.orderId,
         total: paidTotal || subtotal,
         items: lines.map((item) => ({
           key: item.key,
@@ -247,6 +275,7 @@ function OrdersScreenBody({ stripe }) {
         email: shipping.email,
         shipping: needsShipping ? { ...shipping } : null,
         labelNote: labelNote.trim(),
+        labels: printLabels,
       };
       setLastCompletedOrder(completedOrder);
       setCheckoutStep('choice');
@@ -274,7 +303,10 @@ function OrdersScreenBody({ stripe }) {
         <Text style={styles.lineMeta}>
           {item.type === 'class' ? 'Class' : item.type === 'refill' ? 'Refill' : 'Shop'}
         </Text>
-        {item.size ? <Text style={styles.lineMeta}>{item.type === 'class' ? item.size : `Size: ${item.size}`}</Text> : null}
+        {item.type === 'refill' && item.speed ? (
+          <Text style={styles.lineMeta}>{item.speed === 'expedited' ? 'Expedited · about 7 days' : 'Standard · about 14 days'}</Text>
+        ) : null}
+        {item.size ? <Text style={styles.lineMeta}>{item.type === 'class' ? item.size : item.type === 'refill' ? item.detail || item.size : `Size: ${item.size}`}</Text> : null}
         {item.detail ? <Text style={styles.lineMeta}>{item.detail}</Text> : null}
         {item.type === 'refill' && Number.isFinite(item.waxUnitPrice) && Number.isFinite(item.returnShippingUnitPrice) ? (
           <Text style={styles.lineMeta}>
@@ -342,6 +374,11 @@ function OrdersScreenBody({ stripe }) {
           <Text key={`${orderItem.name || 'item'}-${index}`} style={styles.historyItem}>
             {orderItem.quantity || 1}× {orderItem.name || 'Candle Garden item'}{orderItem.size ? ` · ${orderItem.size}` : ''}
           </Text>
+        ))}
+        {customerPrintLabels(item).map((label) => (
+          <TouchableOpacity key={label.trackingNumber || label.labelUrl} onPress={() => void openLabel(label)}>
+            <Text style={styles.historyLink}>Print empties label</Text>
+          </TouchableOpacity>
         ))}
         {total != null && !Number.isNaN(total) ? (
           <Text style={styles.historyTotal}>${total.toFixed(2)}</Text>
@@ -429,6 +466,15 @@ function OrdersScreenBody({ stripe }) {
                 {lastCompletedOrder.labelNote ? (
                   <Text style={styles.successNote}>{lastCompletedOrder.labelNote}</Text>
                 ) : null}
+                {(lastCompletedOrder.labels || []).map((label) => (
+                  <TouchableOpacity
+                    key={label.trackingNumber || label.labelUrl}
+                    style={[styles.checkoutBtn, styles.successPrintBtn]}
+                    onPress={() => void openLabel(label)}
+                  >
+                    <Text style={styles.checkoutText}>Print empties label</Text>
+                  </TouchableOpacity>
+                ))}
               </View>
 
               <TouchableOpacity style={styles.secondaryBtn} onPress={() => setLastCompletedOrder(null)}>
@@ -500,9 +546,9 @@ function OrdersScreenBody({ stripe }) {
                     <Text style={styles.shippingHint}>
                       {checkoutStep === 'guest'
                         ? needsShipping
-                          ? 'Pay without creating an account. We need a way to reach you and where to send this order. Refill shipping uses the lowest-cost available UPS service, priced for this address.'
+                          ? 'Pay without creating an account. We need a way to reach you and where to send this order. Refill shipping uses the lowest-cost available carrier, priced for this address.'
                           : 'Pay without creating an account. Add a way to reach you.'
-                        : 'One address for this whole order. Refill shipping uses the lowest-cost available UPS service, priced for this address.'}
+                        : 'One address for this whole order. Refill shipping uses the lowest-cost available carrier, priced for this address.'}
                     </Text>
                     {(needsShipping
                       ? asGuest
@@ -853,6 +899,11 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 12,
   },
+  successPrintBtn: {
+    alignSelf: 'stretch',
+    marginTop: 12,
+    marginBottom: 0,
+  },
   footer: {
     marginTop: 8,
     paddingTop: 16,
@@ -1023,6 +1074,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textMuted,
     marginTop: 2,
+  },
+  historyLink: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary,
+    marginTop: 8,
   },
   historyTotal: {
     fontFamily: fonts.body,

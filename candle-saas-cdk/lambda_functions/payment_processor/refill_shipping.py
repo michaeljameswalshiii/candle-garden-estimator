@@ -1,17 +1,39 @@
-"""UPS Ground Saver refill quotes — keep in sync with candle-garden-mobile/lib.
+"""Refill shipping quotes — keep in sync with candle-garden-mobile/lib.
 
-Live UPS Rating is used when credentials exist; otherwise the published table.
+Live Shippo rates (USPS in test) are used when SHIPPO_API_TOKEN is set.
+Direct UPS Rating is kept in ups_client but off unless UPS_ENABLED=true.
+Otherwise the published Ground Saver table is used so the app still quotes.
 """
 
 from math import ceil
+
+try:
+    import shippo_client
+except ImportError:
+    shippo_client = None
 
 try:
     import ups_client
 except ImportError:
     ups_client = None
 
-WAX_CENTS_PER_OZ = 175
+WAX_CENTS_STANDARD = 175
+WAX_CENTS_EXPEDITED = 225
+WAX_CENTS_PER_OZ = WAX_CENTS_STANDARD
+EXPEDITED_AIR_MULTIPLIER = 2.2
 ORIGIN_ZIP = "32233"
+ORIGIN_PARTY = {
+    "name": "The Candle Garden",
+    "attention": "Refill Desk",
+    "phone": "9043167608",
+    "email": "jordan@thecandlegarden.co",
+    "address": "363 Atlantic Boulevard, Suite 8",
+    "address2": "",
+    "city": "Atlantic Beach",
+    "state": "FL",
+    "zip": ORIGIN_ZIP,
+    "country": "US",
+}
 RESIDENTIAL_CENTS = 465
 FUEL_PCT = 0.16
 MAX_TABLE_LB = 24
@@ -70,6 +92,28 @@ METHODS = {
     "kit_roundtrip": {"title": "We send packing", "charges": 3, "legs": ["kit_out", "empties_in", "refills_out"]},
     "prepaid_labels": {"title": "Prepaid labels", "charges": 2, "legs": ["empties_in", "refills_out"]},
 }
+
+LEG_TITLES = {
+    "kit_out": "Packing kit out",
+    "empties_in": "Empties inbound",
+    "refills_out": "Refills back to customer",
+}
+
+# Buy only the customer-printable inbound label at payment.
+# Kit-out and refills-out stay queued until staff prints them.
+PAY_NOW_LEGS = ("empties_in",)
+
+
+def method_legs(shipping_method):
+    method = shipping_method if shipping_method in METHODS else "ship_own"
+    return list(METHODS[method]["legs"])
+
+
+def label_purchase_plan(shipping_method):
+    legs = method_legs(shipping_method)
+    now = [key for key in legs if key in PAY_NOW_LEGS]
+    queued = [key for key in legs if key not in PAY_NOW_LEGS]
+    return {"method": shipping_method if shipping_method in METHODS else "ship_own", "now": now, "queued": queued, "legs": legs}
 
 
 def _zip_digits(zip_code):
@@ -154,7 +198,9 @@ def _customer_party(dest_zip, dest=None):
         "name": dest.get("name") or "Customer",
         "attention": dest.get("name") or "Customer",
         "phone": dest.get("phone") or "9043167608",
+        "email": dest.get("email") or "jordan@thecandlegarden.co",
         "address": dest.get("address") or "Address",
+        "address2": dest.get("address2") or dest.get("street2") or "",
         "city": dest.get("city") or "City",
         "state": (dest.get("state") or "FL")[:2].upper(),
         "zip": zip_code,
@@ -169,25 +215,70 @@ def _dims_for_leg(leg_key, box):
     return box["l"], box["w"], box["h"]
 
 
-def _leg_cents_live_or_table(leg_key, zone, billed_lb, box, dest_zip, dest=None):
+def _leg_parties(leg_key, dest_zip, dest=None):
+    customer = _customer_party(dest_zip, dest)
+    origin = dict(ORIGIN_PARTY)
+    if leg_key == "empties_in":
+        return customer, origin, True
+    return origin, customer, False
+
+
+def normalize_speed(speed):
+    raw = str(speed or "").strip().lower()
+    if raw in ("expedited", "express", "2nd_day", "2nd-day-air", "air"):
+        return "expedited"
+    return "standard"
+
+
+def wax_cents_per_oz(speed="standard"):
+    return WAX_CENTS_EXPEDITED if normalize_speed(speed) == "expedited" else WAX_CENTS_STANDARD
+
+
+def _leg_cents_live_or_table(leg_key, zone, billed_lb, box, dest_zip, dest=None, speed="standard"):
     residential = leg_key != "empties_in"
     table_cents, lb, z = _leg_cents(zone, billed_lb, residential=residential)
-    if not ups_client or not ups_client.configured():
-        return table_cents, lb, z, "table"
-    try:
-        length, width, height = _dims_for_leg(leg_key, box)
-        customer = _customer_party(dest_zip, dest)
-        origin = dict(ups_client.ORIGIN)
-        if leg_key == "empties_in":
-            ship_from, ship_to = customer, origin
-        else:
-            ship_from, ship_to = origin, customer
-        live_cents = ups_client.rate_ground_saver(
-            ship_from, ship_to, billed_lb, length, width, height
-        )
-        return live_cents, lb, z, "ups"
-    except Exception:
-        return table_cents, lb, z, "table"
+    expedited = normalize_speed(speed) == "expedited"
+    if expedited:
+        table_cents = int(round(table_cents * EXPEDITED_AIR_MULTIPLIER))
+    length, width, height = _dims_for_leg(leg_key, box)
+    ship_from, ship_to, is_return = _leg_parties(leg_key, dest_zip, dest)
+    if expedited:
+        if ups_client and ups_client.configured():
+            try:
+                live_cents = ups_client.rate_package(
+                    ship_from, ship_to, billed_lb, length, width, height,
+                    service_code=ups_client.SERVICE_2ND_DAY_AIR,
+                )
+                return live_cents, lb, z, "ups", {"provider": "UPS", "service": "2nd Day Air"}
+            except Exception:
+                pass
+        if shippo_client and shippo_client.configured():
+            try:
+                live = shippo_client.lowest_rate(
+                    ship_from, ship_to, billed_lb, length, width, height,
+                    is_return=is_return, prefer_2nd_day=True,
+                )
+                return live["cents"], lb, z, "shippo", live
+            except Exception:
+                pass
+        return table_cents, lb, z, "table", {"provider": "UPS", "service": "2nd Day Air"}
+    if shippo_client and shippo_client.configured():
+        try:
+            live = shippo_client.lowest_rate(
+                ship_from, ship_to, billed_lb, length, width, height, is_return=is_return
+            )
+            return live["cents"], lb, z, "shippo", live
+        except Exception:
+            pass
+    if ups_client and ups_client.configured():
+        try:
+            live_cents = ups_client.rate_ground_saver(
+                ship_from, ship_to, billed_lb, length, width, height
+            )
+            return live_cents, lb, z, "ups", None
+        except Exception:
+            pass
+    return table_cents, lb, z, "table", None
 
 
 def _leg_cents(zone, billed_lb, residential=True):
@@ -209,12 +300,14 @@ def quote_refill_shipping(
     shipping_method="ship_own",
     vessel_count=None,
     dest=None,
+    speed="standard",
 ):
     qty = max(1, int(quantity or 1))
     total_wax = float(ounces) * qty
     count = max(1, int(vessel_count or qty))
     method_key = shipping_method if shipping_method in METHODS else "ship_own"
     method = METHODS[method_key]
+    speed_key = normalize_speed(speed)
     rec = recommend_box(total_wax, count)
     box = _resolve_box(box_key) or rec
     weights = packed_weight(total_wax, count, box)
@@ -231,29 +324,37 @@ def quote_refill_shipping(
 
     legs = []
     sources = []
-    if method_key == "kit_roundtrip":
-        cents, lb, z, src = _leg_cents_live_or_table(
-            "kit_out", zone, weights["kit_billed"], box, dest_zip, dest
-        )
-        legs.append(("kit_out", cents, lb, z))
-        sources.append(src)
-    if method_key in ("kit_roundtrip", "prepaid_labels"):
-        cents, lb, z, src = _leg_cents_live_or_table(
-            "empties_in", zone, weights["empties_billed"], box, dest_zip, dest
-        )
-        legs.append(("empties_in", cents, lb, z))
-        sources.append(src)
-    cents, lb, z, src = _leg_cents_live_or_table(
-        "refills_out", zone, weights["refills_billed"], box, dest_zip, dest
-    )
-    legs.append(("refills_out", cents, lb, z))
-    sources.append(src)
+    services = []
 
-    shipping_cents = sum(row[1] for row in legs)
-    wax_cents = int(round(float(ounces) * WAX_CENTS_PER_OZ * qty))
-    rate_source = "ups" if sources and all(s == "ups" for s in sources) else (
-        "mixed" if "ups" in sources else "table"
-    )
+    def add_leg(key, billed):
+        cents, lb, z, src, live = _leg_cents_live_or_table(
+            key, zone, billed, box, dest_zip, dest, speed=speed_key
+        )
+        row = {"key": key, "cents": cents, "billedLb": lb, "zone": z}
+        if live:
+            row["service"] = live.get("service")
+            row["provider"] = live.get("provider")
+            services.append(f"{live.get('provider')} {live.get('service')}".strip())
+        legs.append(row)
+        sources.append(src)
+
+    if method_key == "kit_roundtrip":
+        add_leg("kit_out", weights["kit_billed"])
+    if method_key in ("kit_roundtrip", "prepaid_labels"):
+        add_leg("empties_in", weights["empties_billed"])
+    add_leg("refills_out", weights["refills_billed"])
+
+    shipping_cents = sum(row["cents"] for row in legs)
+    wax_cents = int(round(float(ounces) * wax_cents_per_oz(speed_key) * qty))
+    unique_sources = set(sources)
+    if unique_sources == {"shippo"}:
+        rate_source = "shippo"
+    elif unique_sources == {"ups"}:
+        rate_source = "ups"
+    elif unique_sources == {"table"}:
+        rate_source = "table"
+    else:
+        rate_source = "mixed"
     return {
         "wax_cents": wax_cents,
         "shipping_cents": shipping_cents,
@@ -262,9 +363,11 @@ def quote_refill_shipping(
         "box_name": box["name"],
         "method": method_key,
         "method_title": method["title"],
+        "speed": speed_key,
         "zone": zone,
         "rate_source": rate_source,
-        "legs": [{"key": k, "cents": c, "billedLb": lb, "zone": z} for k, c, lb, z in legs],
+        "service_summary": " + ".join(services) if services else None,
+        "legs": legs,
         "weights": weights,
         "box": box,
     }

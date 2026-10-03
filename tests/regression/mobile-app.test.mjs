@@ -24,6 +24,24 @@ test("the app still exposes the six customer tabs", () => {
   }
 });
 
+test("checkout can print a prepaid empties label and leaves the return label for staff", () => {
+  const source = fs.readFileSync(path.join(mobile, "screens", "OrdersScreen.js"), "utf8");
+  assert.match(source, /Print empties label/);
+  assert.match(source, /finalizeStripePayment/);
+  assert.match(source, /empties_in/);
+  const admin = fs.readFileSync(
+    path.join(ROOT, "candle-garden-web/src/components/mobileadmin/OrderExplorer.tsx"),
+    "utf8",
+  );
+  assert.match(admin, /Print return label/);
+  assert.match(admin, /print_leg/);
+  const plan = fs.readFileSync(
+    path.join(ROOT, "candle-saas-cdk/lambda_functions/payment_processor/refill_shipping.py"),
+    "utf8",
+  );
+  assert.match(plan, /PAY_NOW_LEGS = \("empties_in",\)/);
+});
+
 test("estimator screen still quotes from pricing.js and can fall back to manual ounces", () => {
   const source = fs.readFileSync(path.join(mobile, "screens", "EstimatorScreen.js"), "utf8");
   assert.match(source, /isAcceptableDetection/);

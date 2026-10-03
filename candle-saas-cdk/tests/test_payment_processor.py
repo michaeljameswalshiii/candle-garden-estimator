@@ -3,6 +3,15 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def no_live_carriers(monkeypatch):
+    monkeypatch.delenv("SHIPPO_API_TOKEN", raising=False)
+    monkeypatch.delenv("SHIPPO_SECRET_ARN", raising=False)
+    monkeypatch.delenv("UPS_ENABLED", raising=False)
+
 ROOT = Path(__file__).resolve().parents[1]
 PAY_DIR = ROOT / "lambda_functions" / "payment_processor"
 MODULE_PATH = PAY_DIR / "index.py"
@@ -99,7 +108,18 @@ def test_unknown_product_is_rejected():
         assert "catalog" in str(error).lower()
 
 
-def test_refill_uses_server_wax_and_ups():
+def test_expedited_wax_and_postage_are_higher():
+    from refill_shipping import quote_refill_shipping
+
+    standard = quote_refill_shipping(12, dest_zip="32250", shipping_method="ship_own", speed="standard")
+    expedited = quote_refill_shipping(12, dest_zip="32250", shipping_method="ship_own", speed="expedited")
+    assert standard["wax_cents"] == 12 * 175
+    assert expedited["wax_cents"] == 12 * 225
+    assert expedited["shipping_cents"] > standard["shipping_cents"]
+    assert expedited["speed"] == "expedited"
+
+
+def test_refill_uses_server_wax_and_shipping():
     processor = load_processor()
     from refill_shipping import quote_refill_shipping
 
@@ -123,6 +143,32 @@ def test_refill_uses_server_wax_and_ups():
     assert priced[0]["shippingMethod"] == "ship_own"
     assert total == expected["total_cents"]
     assert total > expected["wax_cents"]
+    assert priced[0]["speed"] == "standard"
+
+
+def test_refill_checkout_reads_speed():
+    processor = load_processor()
+    from refill_shipping import quote_refill_shipping
+
+    expected = quote_refill_shipping(
+        12, quantity=1, box_key="ups_medium", dest_zip="32250", shipping_method="ship_own", speed="expedited"
+    )
+    total, priced = processor.amount_from_catalog(
+        [
+            {
+                "type": "refill",
+                "ounces": 12,
+                "quantity": 1,
+                "boxKey": "ups_medium",
+                "destZip": "32250",
+                "shippingMethod": "ship_own",
+                "speed": "expedited",
+                "unitPrice": 1,
+            }
+        ]
+    )
+    assert priced[0]["speed"] == "expedited"
+    assert total == expected["total_cents"]
 
 
 def test_refill_requires_zip():
@@ -202,7 +248,7 @@ def test_empty_cart_is_rejected():
         assert "empty" in str(error).lower()
 
 
-def test_guest_payment_sheet_does_not_require_signin():
+def test_guest_payment_sheet_does_not_require_signin(monkeypatch):
     import json
 
     processor = load_processor()
@@ -213,6 +259,7 @@ def test_guest_payment_sheet_does_not_require_signin():
         return {"client_secret": "pi_test_secret", "id": "pi_test"}
 
     processor._stripe_request = fake_stripe
+    monkeypatch.setattr(processor, "_put_checkout_order", lambda order: None)
     result = processor.handler(
         {
             "httpMethod": "POST",
@@ -236,7 +283,7 @@ def test_guest_payment_sheet_does_not_require_signin():
     assert captured["values"]["receipt_email"] == "guest@example.com"
 
 
-def test_signed_in_jwt_is_still_tagged_without_api_authorizer():
+def test_signed_in_jwt_is_still_tagged_without_api_authorizer(monkeypatch):
     import base64
     import json
 
@@ -248,6 +295,7 @@ def test_signed_in_jwt_is_still_tagged_without_api_authorizer():
         return {"client_secret": "pi_test_secret", "id": "pi_test"}
 
     processor._stripe_request = fake_stripe
+    monkeypatch.setattr(processor, "_put_checkout_order", lambda order: None)
     payload = base64.urlsafe_b64encode(json.dumps({"sub": "user-123"}).encode()).decode().rstrip("=")
     token = f"header.{payload}.sig"
     result = processor.handler(
@@ -262,3 +310,39 @@ def test_signed_in_jwt_is_still_tagged_without_api_authorizer():
     assert result["statusCode"] == 200
     assert captured["values"]["metadata[guest]"] == "false"
     assert captured["values"]["metadata[customer_id]"] == "user-123"
+
+
+def test_label_purchase_plan_splits_customer_and_staff_legs():
+    from refill_shipping import label_purchase_plan
+
+    prepaid = label_purchase_plan("prepaid_labels")
+    assert prepaid["now"] == ["empties_in"]
+    assert prepaid["queued"] == ["refills_out"]
+    kit = label_purchase_plan("kit_roundtrip")
+    assert kit["now"] == ["empties_in"]
+    assert kit["queued"] == ["kit_out", "refills_out"]
+    own = label_purchase_plan("ship_own")
+    assert own["now"] == []
+    assert own["queued"] == ["refills_out"]
+
+
+def test_paid_prepaid_labels_buy_only_empties_in(monkeypatch):
+    processor = load_processor()
+    printed = []
+
+    def fake_print(quote, dest, key):
+        printed.append(key)
+        return {"key": key, "status": "purchased", "trackingNumber": f"trk-{key}", "labelUrl": f"https://labels.test/{key}.png"}
+
+    monkeypatch.setattr(processor, "_print_one_leg", fake_print)
+    monkeypatch.setattr(processor, "_quote_for_item", lambda item, dest: {"method": "prepaid_labels", "box": {"l": 12, "w": 10, "h": 8}, "weights": {"empties_billed": 3, "refills_billed": 4, "kit_billed": 1}, "speed": "standard"})
+    labels, tracking, status, purchased = processor._apply_paid_labels({
+        "shipping": {"name": "Pat", "address": "1 Main", "city": "Atlantic Beach", "state": "FL", "zip": "32233"},
+        "items": [{"type": "refill", "ounces": 10, "quantity": 1, "shippingMethod": "prepaid_labels", "boxKey": "ups_medium"}],
+        "shipping_labels": [],
+    })
+    assert printed == ["empties_in"]
+    assert [row["key"] for row in purchased] == ["empties_in"]
+    assert status == "partial"
+    assert "refills_out" in [row["key"] for row in labels]
+    assert next(row for row in labels if row["key"] == "refills_out")["status"] == "queued"

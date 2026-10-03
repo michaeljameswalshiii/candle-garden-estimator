@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { MobileOrder } from "@/lib/mobileadmin/data";
 import { customerLabel } from "@/lib/mobileadmin/labels";
 import { pirateshipCsv, pirateshipReady, trackingUrl } from "@/lib/mobileadmin/pirateship";
+import { LEG_TITLES, stubLabelsForItems, type ShippingLabel } from "@/lib/shipping-labels";
 
 function orderChannel(order: MobileOrder) {
   if (String(order.customer_id || "").startsWith("guest:")) return "Guest checkout";
@@ -62,7 +63,18 @@ export function OrderExplorer({ orders }: { orders: MobileOrder[] }) {
     if (skipped) window.alert(`Exported ${count} order${count === 1 ? "" : "s"}. Skipped ${skipped} without a complete address.`);
   }
 
-  async function update(order: MobileOrder, action: "price" | "refund" | "labels" | "tracking", statusValue?: string) {
+  function downloadLabelFiles(orderId: string, labels: Array<{ imageBase64?: string; format?: string; key?: string }>) {
+    labels.forEach((label, index) => {
+      if (!label.imageBase64) return;
+      const link = document.createElement("a");
+      const format = label.format || "png";
+      link.href = `data:${format === "pdf" ? "application/pdf" : `image/${format}`};base64,${label.imageBase64}`;
+      link.download = `${orderId.slice(0, 8)}-${label.key || index + 1}.${format}`;
+      link.click();
+    });
+  }
+
+  async function update(order: MobileOrder, action: "price" | "refund" | "labels" | "tracking", statusValue?: string, leg?: string) {
     let body: Record<string, unknown> = {};
     if (statusValue) {
       body = { status: statusValue };
@@ -80,23 +92,16 @@ export function OrderExplorer({ orders }: { orders: MobileOrder[] }) {
       if (value == null) return;
       body = { action: "set_tracking", tracking: value };
     } else {
-      if (!window.confirm("Purchase the lowest-cost available UPS label(s) for this paid refill order?")) return;
-      body = { action: "create_labels" };
+      const title = LEG_TITLES[leg || ""] || "this label";
+      if (!window.confirm(`Print ${title}? Test mode prints a fake Shippo label.`)) return;
+      body = { action: "print_leg", leg };
     }
     setBusy(order.id);
     try {
       const response = await fetch(`/api/mobileadmin/orders/${encodeURIComponent(order.id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Could not update order");
-      if (Array.isArray(data.labels)) {
-        data.labels.forEach((label: { imageBase64?: string; format?: string; key?: string }, index: number) => {
-          if (!label.imageBase64) return;
-          const link = document.createElement("a");
-          link.href = `data:image/${label.format || "gif"};base64,${label.imageBase64}`;
-          link.download = `${order.id.slice(0, 8)}-${label.key || index + 1}.gif`;
-          link.click();
-        });
-      }
+      if (Array.isArray(data.labels)) downloadLabelFiles(order.id, data.labels);
       window.alert(data.message || "Order updated");
       router.refresh();
     } catch (error) { window.alert(error instanceof Error ? error.message : "Could not update order"); }
@@ -114,7 +119,16 @@ export function OrderExplorer({ orders }: { orders: MobileOrder[] }) {
     <div className="mobileadmin-order-list">{filtered.length ? filtered.map((order) => { const details = customerDetails(order); return <article key={order.id}>
       <div><small>{order.created_at ? new Date(order.created_at).toLocaleString() : "Date unavailable"}</small><strong>{details.name}</strong>{details.phone ? <a href={`tel:${details.phone}`}>{details.phone}</a> : null}{details.location ? <span>{details.location}</span> : null}<span>#{order.id.slice(0, 8)} · {(order.items || []).reduce((sum, item) => sum + Number(item.quantity || 1), 0)} items</span><b className="mobileadmin-channel">{orderChannel(order)}</b></div>
       <div className="mobileadmin-order-items">{(order.items || []).slice(0, 3).map((item, index) => <span key={`${item.name}-${index}`}>{item.quantity || 1}× {item.name || "Item"}{item.size ? ` · ${item.size}` : ""}</span>)}</div>
-      <div className="mobileadmin-order-total"><label><span>Status</span><select aria-label={`Status for order ${order.id}`} value={order.status || "payment_pending"} disabled={busy === order.id} onChange={(event) => void update(order, "price", event.target.value)}>{order.status && !ORDER_STATUSES.some(([value]) => value === order.status) ? <option value={order.status}>{order.status.replaceAll("_", " ")}</option> : null}{ORDER_STATUSES.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><strong>${Number(order.total_amount || 0).toFixed(2)}</strong>{order.tracking_numbers?.map((tracking) => <a key={tracking} href={trackingUrl(tracking)} target="_blank" rel="noreferrer">Track {tracking}</a>)}<div className="mobileadmin-order-actions"><button disabled={busy === order.id} onClick={() => void update(order, "price")}>Adjust total</button><button disabled={!pirateshipReady(order)} title={pirateshipReady(order) ? "Download a CSV and open Pirate Ship" : "Needs a complete U.S. shipping address"} onClick={() => downloadPirateShip([order])}>Pirate Ship</button><button disabled={busy === order.id} onClick={() => void update(order, "tracking")}>Paste tracking</button><button disabled={busy === order.id || !String(order.status || "").startsWith("paid") || order.label_status === "created" || !(order.items || []).some((item) => item.type === "refill")} onClick={() => void update(order, "labels")}>{order.label_status === "created" ? "Labels created" : "Create UPS labels"}</button><button className="is-danger" disabled={busy === order.id || !order.payment_intent_id} title={!order.payment_intent_id ? "No Stripe payment reference on this order" : "Issue refund"} onClick={() => void update(order, "refund")}>Refund</button></div></div>
+      <div className="mobileadmin-order-total"><label><span>Status</span><select aria-label={`Status for order ${order.id}`} value={order.status || "payment_pending"} disabled={busy === order.id} onChange={(event) => void update(order, "price", event.target.value)}>{order.status && !ORDER_STATUSES.some(([value]) => value === order.status) ? <option value={order.status}>{order.status.replaceAll("_", " ")}</option> : null}{ORDER_STATUSES.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><strong>${Number(order.total_amount || 0).toFixed(2)}</strong>{order.tracking_numbers?.map((tracking) => <a key={tracking} href={trackingUrl(tracking)} target="_blank" rel="noreferrer">Track {tracking}</a>)}<div className="mobileadmin-order-actions"><button disabled={busy === order.id} onClick={() => void update(order, "price")}>Adjust total</button><button disabled={!pirateshipReady(order)} title={pirateshipReady(order) ? "Download a CSV and open Pirate Ship" : "Needs a complete U.S. shipping address"} onClick={() => downloadPirateShip([order])}>Pirate Ship</button><button disabled={busy === order.id} onClick={() => void update(order, "tracking")}>Paste tracking</button><button className="is-danger" disabled={busy === order.id || !order.payment_intent_id} title={!order.payment_intent_id ? "No Stripe payment reference on this order" : "Issue refund"} onClick={() => void update(order, "refund")}>Refund</button></div>{(() => {
+        const legs = (order.shipping_labels && order.shipping_labels.length ? order.shipping_labels : stubLabelsForItems(order.items || [])) as ShippingLabel[];
+        if (!legs.length) return null;
+        const paid = String(order.status || "").startsWith("paid");
+        return <div className="mobileadmin-legs">{legs.map((leg) => {
+          const ready = leg.status === "purchased";
+          const printLabel = leg.key === "kit_out" ? "Print kit label" : leg.key === "refills_out" ? "Print return label" : ready ? "Reprint empties label" : "Print empties label";
+          return <div key={leg.key}><small>{leg.title || LEG_TITLES[leg.key || ""] || leg.key}</small><em className={ready ? "is-ready" : undefined}>{ready ? "Purchased" : "Queued"}</em>{leg.trackingNumber ? <a href={trackingUrl(leg.trackingNumber)} target="_blank" rel="noreferrer">{leg.trackingNumber}</a> : null}<button disabled={busy === order.id || !paid} onClick={() => void update(order, "labels", undefined, leg.key)}>{printLabel}</button></div>;
+        })}</div>;
+      })()}</div>
     </article> }) : <div className="mobileadmin-empty">No orders match this search.</div>}</div>
   </>;
 }

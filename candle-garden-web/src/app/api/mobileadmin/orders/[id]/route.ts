@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin/auth";
 import { getMobileOrder, updateMobileOrder } from "@/lib/mobileadmin/data";
-import { checkoutParty, priceRefillShipping } from "@/lib/refill-pricing";
-import { createLabel } from "@/lib/ups";
+import { purchaseOrderLegs } from "@/lib/purchase-refill-labels";
+import { labelStatusFrom } from "@/lib/shipping-labels";
 
 export const dynamic = "force-dynamic";
 
@@ -27,23 +27,27 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   const order = await getMobileOrder(id);
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
   try {
-    if (body.action === "create_labels") {
+    if (body.action === "create_labels" || body.action === "print_leg") {
       if (!String(order.status || "").startsWith("paid")) throw new Error("Verify payment before purchasing shipping labels.");
-      if (order.label_status === "created") throw new Error("Labels were already created for this order.");
       const refills = (order.items || []).filter((item) => item.type === "refill");
       if (!refills.length) throw new Error("This order does not contain refill shipping.");
-      const destination = checkoutParty(order.shipping || {});
-      const labels = [];
-      for (const item of refills) {
-        const quote = await priceRefillShipping(item, destination);
-        for (const leg of quote.legs) {
-          const label = await createLabel(leg.from, leg.to, leg.weight, leg.dims, leg.rate.code, leg.description, leg.key === "empties_in");
-          labels.push({ key: leg.key, service: leg.rate.service, ...label });
-        }
-      }
-      const tracking = labels.map((label) => label.trackingNumber).filter(Boolean) as string[];
-      await updateMobileOrder(id, { label_status: "created", tracking_numbers: tracking, status: "ready_for_fulfillment" });
-      return NextResponse.json({ ok: true, message: `${labels.length} UPS label${labels.length === 1 ? "" : "s"} created.`, labels });
+      const keys = body.leg ? [String(body.leg)] : Array.isArray(body.legs) ? body.legs.map(String) : undefined;
+      const result = await purchaseOrderLegs(order, keys);
+      const tracking = result.labels.map((label) => label.trackingNumber).filter(Boolean) as string[];
+      const patch: { label_status: string; tracking_numbers: string[]; shipping_labels: typeof result.labels; status?: string } = {
+        shipping_labels: result.labels,
+        label_status: labelStatusFrom(result.labels),
+        tracking_numbers: tracking,
+      };
+      if (result.labels.some((row) => row.key === "refills_out" && row.status === "purchased")) patch.status = "ready_for_fulfillment";
+      await updateMobileOrder(id, patch);
+      const printed = result.printed;
+      return NextResponse.json({
+        ok: true,
+        message: printed.length ? `${printed.length} shipping label${printed.length === 1 ? "" : "s"} ready.` : "No new labels were purchased.",
+        labels: printed,
+        shipping_labels: result.labels,
+      });
     }
     if (body.action === "refund") {
       if (!order.payment_intent_id) throw new Error("This order does not have a Stripe payment reference and cannot be refunded automatically.");

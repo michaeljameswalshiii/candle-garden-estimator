@@ -10,11 +10,22 @@ import hmac
 import json
 import os
 import time
+import uuid
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
+from decimal import Decimal
 
-from refill_shipping import quote_refill_shipping, METHODS
+from refill_shipping import (
+    quote_refill_shipping,
+    METHODS,
+    ORIGIN_PARTY,
+    LEG_TITLES,
+    label_purchase_plan,
+    normalize_speed,
+)
+import shippo_client
 import ups_client
 
 _secret_cache = {"value": None, "expires": 0}
@@ -216,6 +227,11 @@ def _price_refill(item):
     )
     method = str(item.get("shippingMethod") or item.get("shipping_method") or "ship_own")
     box_key = item.get("boxKey") or item.get("box_key")
+    size_hint = str(item.get("size") or "").strip().lower()
+    speed = item.get("speed") or item.get("refillSpeed")
+    if size_hint in ("standard", "expedited"):
+        speed = size_hint
+    speed = normalize_speed(speed)
     try:
         quote = quote_refill_shipping(
             ounces,
@@ -225,6 +241,7 @@ def _price_refill(item):
             shipping_method=method,
             vessel_count=item.get("vesselCount") or item.get("vessel_count") or qty,
             dest=item.get("dest") or item.get("shipping"),
+            speed=speed,
         )
     except ValueError as error:
         raise ValueError(str(error)) from error
@@ -241,6 +258,8 @@ def _price_refill(item):
         "boxKey": quote["box_key"],
         "destZip": _zip_or_none(dest_zip),
         "shippingMethod": quote["method"],
+        "speed": quote.get("speed") or speed,
+        "vesselCount": int(item.get("vesselCount") or item.get("vessel_count") or qty),
     }
 
 
@@ -383,6 +402,270 @@ def _looks_like_email(value):
     return bool(local) and "." in domain
 
 
+ORDERS_TABLE = os.environ.get("ORDERS_TABLE", "candle-garden-orders")
+_orders_table = None
+
+
+def _now_iso():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+
+def _ddb_value(value):
+    if value is None:
+        return None
+    if isinstance(value, float):
+        return Decimal(str(round(value, 4)))
+    if isinstance(value, dict):
+        return {key: _ddb_value(val) for key, val in value.items() if val is not None}
+    if isinstance(value, list):
+        return [_ddb_value(item) for item in value]
+    return value
+
+
+def _orders():
+    global _orders_table
+    if _orders_table is None:
+        import boto3
+        _orders_table = boto3.resource("dynamodb").Table(ORDERS_TABLE)
+    return _orders_table
+
+
+def _public_label(row):
+    if not isinstance(row, dict):
+        return row
+    return {
+        "key": row.get("key"),
+        "title": row.get("title") or LEG_TITLES.get(row.get("key"), row.get("key")),
+        "status": row.get("status") or "queued",
+        "trackingNumber": row.get("trackingNumber"),
+        "trackingUrl": row.get("trackingUrl"),
+        "labelUrl": row.get("labelUrl"),
+        "service": row.get("service"),
+        "format": row.get("format") or "png",
+        "purchasedAt": row.get("purchasedAt"),
+        "error": row.get("error"),
+        "imageBase64": row.get("imageBase64") or row.get("labelGifBase64"),
+    }
+
+
+def _stub_labels(method):
+    plan = label_purchase_plan(method)
+    return [
+        {
+            "key": key,
+            "title": LEG_TITLES.get(key, key),
+            "status": "queued",
+        }
+        for key in plan["legs"]
+    ]
+
+
+def _planned_labels_for_items(items):
+    labels = []
+    seen = set()
+    for item in items or []:
+        if str(item.get("type") or "").lower() != "refill":
+            continue
+        method = item.get("shippingMethod") or item.get("shipping_method") or "ship_own"
+        for row in _stub_labels(method):
+            if row["key"] in seen:
+                continue
+            seen.add(row["key"])
+            labels.append(row)
+    return labels
+
+
+def _order_items_for_store(priced, amount):
+    rows = []
+    for row in priced or []:
+        qty = int(row.get("quantity") or 1)
+        unit = int(row.get("unitCents") or 0)
+        stored = {
+            "type": row.get("type"),
+            "productId": row.get("productId"),
+            "name": row.get("name"),
+            "size": row.get("size"),
+            "quantity": qty,
+            "price": round(unit / 100.0, 2),
+            "ounces": row.get("ounces"),
+            "boxKey": row.get("boxKey"),
+            "shippingMethod": row.get("shippingMethod"),
+            "speed": row.get("speed"),
+            "vesselCount": row.get("vesselCount"),
+        }
+        rows.append({key: value for key, value in stored.items() if value is not None})
+    return rows
+
+
+def _put_checkout_order(order):
+    _orders().put_item(Item=_ddb_value(order))
+
+
+def _get_order(order_id):
+    if not order_id:
+        return None
+    resp = _orders().get_item(Key={"id": order_id})
+    return resp.get("Item")
+
+
+def _find_order_by_payment_intent(payment_intent_id):
+    if not payment_intent_id:
+        return None
+    resp = _orders().scan(
+        FilterExpression="payment_intent_id = :pi",
+        ExpressionAttributeValues={":pi": payment_intent_id},
+        Limit=1,
+    )
+    items = resp.get("Items") or []
+    return items[0] if items else None
+
+
+def _update_order(order_id, patch):
+    names = {"#updated": "updated_at"}
+    values = {":updated": _now_iso()}
+    sets = ["#updated = :updated"]
+    for key, value in patch.items():
+        if value is None:
+            continue
+        names[f"#{key}"] = key
+        values[f":{key}"] = _ddb_value(value)
+        sets.append(f"#{key} = :{key}")
+    _orders().update_item(
+        Key={"id": order_id},
+        UpdateExpression="SET " + ", ".join(sets),
+        ExpressionAttributeNames=names,
+        ExpressionAttributeValues=values,
+    )
+
+
+def _customer_party(dest):
+    dest = dest if isinstance(dest, dict) else {}
+    return {
+        "name": dest.get("name") or "Customer",
+        "attention": dest.get("name") or "Customer",
+        "phone": dest.get("phone") or "9043167608",
+        "email": dest.get("email") or "jordan@thecandlegarden.co",
+        "address": dest.get("address"),
+        "address2": dest.get("address2") or dest.get("street2") or "",
+        "city": dest.get("city") or "City",
+        "state": str(dest.get("state") or "FL")[:2].upper(),
+        "zip": "".join(ch for ch in str(dest.get("zip")) if ch.isdigit())[:5],
+        "country": "US",
+        "residential": True,
+    }
+
+
+def _quote_for_item(item, dest):
+    ounces = float(item.get("ounces") or 0)
+    return quote_refill_shipping(
+        ounces,
+        quantity=int(item.get("quantity") or 1),
+        box_key=item.get("boxKey") or item.get("box_key"),
+        dest_zip=(dest or {}).get("zip") or item.get("destZip"),
+        shipping_method=item.get("shippingMethod") or item.get("shipping_method") or "ship_own",
+        vessel_count=item.get("vesselCount") or item.get("vessel_count"),
+        dest=dest,
+        speed=item.get("speed"),
+    )
+
+
+def _print_one_leg(quote, dest, key):
+    box = quote["box"]
+    weights = quote["weights"]
+    customer = _customer_party(dest)
+    origin = dict(ORIGIN_PARTY)
+    speed = quote.get("speed")
+    if key == "kit_out":
+        printed = _print_label(
+            origin, customer, weights["kit_billed"], 12, 10, 2,
+            description="Candle Garden packing kit", speed=speed,
+        )
+    elif key == "empties_in":
+        printed = _print_label(
+            customer, origin, weights["empties_billed"], box["l"], box["w"], box["h"],
+            description="Empty vessels to Candle Garden", return_label=True, speed=speed,
+        )
+    elif key == "refills_out":
+        printed = _print_label(
+            origin, customer, weights["refills_billed"], box["l"], box["w"], box["h"],
+            description="Candle Garden refill return", speed=speed,
+        )
+    else:
+        raise ValueError(f"Unknown shipping leg: {key}")
+    return {
+        "key": key,
+        "title": LEG_TITLES.get(key, key),
+        "status": "purchased",
+        "trackingNumber": printed.get("trackingNumber"),
+        "trackingUrl": printed.get("trackingUrl"),
+        "labelUrl": printed.get("labelUrl"),
+        "service": printed.get("service"),
+        "format": printed.get("format") or "png",
+        "imageBase64": printed.get("imageBase64") or printed.get("labelGifBase64"),
+        "purchasedAt": _now_iso(),
+    }
+
+
+def _merge_labels(existing, updates):
+    by_key = {}
+    for row in existing or []:
+        if isinstance(row, dict) and row.get("key"):
+            by_key[row["key"]] = dict(row)
+    for row in updates or []:
+        if isinstance(row, dict) and row.get("key"):
+            by_key[row["key"]] = {**by_key.get(row["key"], {}), **row}
+    return list(by_key.values())
+
+
+def _purchase_item_legs(item, dest, keys, existing):
+    purchased = []
+    errors = []
+    already = {
+        row.get("key"): row
+        for row in (existing or [])
+        if isinstance(row, dict) and row.get("status") == "purchased"
+    }
+    quote = None
+    for key in keys:
+        if key in already and already[key].get("labelUrl"):
+            purchased.append(already[key])
+            continue
+        try:
+            if quote is None:
+                quote = _quote_for_item(item, dest)
+            purchased.append(_print_one_leg(quote, dest, key))
+        except Exception as error:
+            errors.append({"key": key, "title": LEG_TITLES.get(key, key), "status": "queued", "error": str(error)})
+    return purchased, errors
+
+
+def _apply_paid_labels(order):
+    dest = order.get("shipping") if isinstance(order.get("shipping"), dict) else {}
+    existing = list(order.get("shipping_labels") or [])
+    purchased = []
+    queued = list(existing)
+    for item in order.get("items") or []:
+        if str(item.get("type") or "").lower() != "refill":
+            continue
+        method = item.get("shippingMethod") or item.get("shipping_method") or "ship_own"
+        plan = label_purchase_plan(method)
+        stubs = _stub_labels(method)
+        queued = _merge_labels(queued, stubs)
+        now_rows, errors = _purchase_item_legs(item, dest, plan["now"], queued)
+        purchased.extend(now_rows)
+        queued = _merge_labels(queued, now_rows + errors)
+    tracking = [row.get("trackingNumber") for row in queued if row.get("trackingNumber")]
+    has_purchased = any(row.get("status") == "purchased" for row in queued)
+    has_queued = any(row.get("status") != "purchased" for row in queued)
+    if has_purchased and has_queued:
+        label_status = "partial"
+    elif has_purchased:
+        label_status = "created"
+    else:
+        label_status = "queued"
+    return queued, tracking, label_status, purchased
+
+
 def _create_payment_sheet(event):
     claims = _claims(event)
     headers = event.get("headers") or {}
@@ -408,11 +691,13 @@ def _create_payment_sheet(event):
                 patched.append(row)
             items = patched
         amount, priced = amount_from_catalog(items)
+        order_id = str(uuid.uuid4())
         payload = {
             "amount": amount,
             "currency": "usd",
             "automatic_payment_methods[enabled]": "true",
             "metadata[candle_garden_mode]": "test",
+            "metadata[candle_garden_order_id]": order_id,
             "metadata[customer_id]": str(customer_id)[:80],
             "metadata[guest]": "false" if claims.get("sub") else "true",
             "metadata[item_count]": str(len(priced)),
@@ -423,9 +708,34 @@ def _create_payment_sheet(event):
         if name:
             payload["metadata[name]"] = str(name).strip()[:80]
         intent = _stripe_request("payment_intents", payload)
+        shipping = dest if isinstance(dest, dict) else {}
+        if checkout_zip and not shipping.get("zip"):
+            shipping = {**shipping, "zip": checkout_zip}
+        now = _now_iso()
+        stored_items = _order_items_for_store(priced, amount)
+        try:
+            _put_checkout_order({
+                "id": order_id,
+                "customer_id": customer_id,
+                "customer_email": email or "",
+                "total_amount": round(amount / 100.0, 2),
+                "status": "payment_pending",
+                "source": "mobile",
+                "payment_provider": "stripe",
+                "payment_intent_id": intent["id"],
+                "items": stored_items,
+                "shipping": shipping,
+                "label_status": "queued" if _planned_labels_for_items(stored_items) else "none",
+                "shipping_labels": _planned_labels_for_items(stored_items),
+                "created_at": now,
+                "updated_at": now,
+            })
+        except Exception as error:
+            print(f"checkout order persist failed: {error}")
         return _response(200, {
             "paymentIntentClientSecret": intent["client_secret"],
             "paymentIntentId": intent["id"],
+            "orderId": order_id,
             "amount": amount,
             "currency": "usd",
             "items": priced,
@@ -475,109 +785,108 @@ def _shipping_quote(event):
                 shipping_method=method,
                 vessel_count=body.get("vesselCount"),
                 dest=dest,
+                speed=body.get("speed"),
             )
             quotes.append(q)
         return _response(200, {
             "ok": True,
+            "shippoConfigured": shippo_client.configured(),
             "upsConfigured": ups_client.configured(),
+            "upsEnabled": ups_client.enabled(),
             "quotes": quotes,
         })
     except (ValueError, RuntimeError) as error:
         return _response(400, {"error": str(error)})
     except Exception:
-        return _response(502, {"error": "Could not quote UPS shipping"})
+        return _response(502, {"error": "Could not quote shipping"})
+
+
+def _print_label(ship_from, ship_to, weight_lb, length, width, height, description, return_label=False, speed="standard"):
+    expedited = normalize_speed(speed) == "expedited"
+    if expedited and ups_client.configured():
+        return ups_client.create_label(
+            ship_from, ship_to, weight_lb, length, width, height,
+            description=description, return_label=return_label,
+            service_code=ups_client.SERVICE_2ND_DAY_AIR,
+        )
+    if shippo_client.configured():
+        try:
+            return shippo_client.create_label(
+                ship_from, ship_to, weight_lb, length, width, height,
+                description=description, return_label=return_label,
+                prefer_2nd_day=expedited,
+            )
+        except Exception:
+            if not expedited:
+                raise
+            return shippo_client.create_label(
+                ship_from, ship_to, weight_lb, length, width, height,
+                description=description, return_label=return_label,
+            )
+    if ups_client.configured():
+        return ups_client.create_ground_saver_label(
+            ship_from, ship_to, weight_lb, length, width, height,
+            description=description, return_label=return_label,
+        )
+    raise RuntimeError("Shipping labels are not configured yet")
 
 
 def _refill_labels(event):
-    if not ups_client.configured():
-        return _response(503, {"error": "UPS Shipping API is not configured yet"})
+    if not shippo_client.configured() and not ups_client.configured():
+        return _response(503, {"error": "Shipping labels are not configured yet"})
     body = _body(event)
     try:
-        dest = body.get("dest") or body.get("shipping")
+        order = None
+        order_id = str(body.get("orderId") or body.get("order_id") or "").strip()
+        if order_id:
+            order = _get_order(order_id)
+        dest = body.get("dest") or body.get("shipping") or (order.get("shipping") if order else None)
         if not isinstance(dest, dict) or not dest.get("zip") or not dest.get("address"):
             raise ValueError("A full ship-to address is required to print labels")
-        ounces = float(body.get("ounces") or 0)
-        quote = quote_refill_shipping(
-            ounces,
-            quantity=int(body.get("quantity") or 1),
-            box_key=body.get("boxKey"),
-            dest_zip=dest.get("zip"),
-            shipping_method=body.get("shippingMethod") or "ship_own",
-            vessel_count=body.get("vesselCount"),
-            dest=dest,
-        )
-        method = quote["method"]
-        if method == "ship_own":
-            return _response(200, {
-                "ok": True,
-                "labels": [],
-                "note": "Ship on your own does not include prepaid labels.",
-            })
-        box = quote["box"]
-        weights = quote["weights"]
-        customer = {
-            "name": dest.get("name") or "Customer",
-            "attention": dest.get("name") or "Customer",
-            "phone": dest.get("phone") or "9043167608",
-            "address": dest.get("address"),
-            "city": dest.get("city") or "City",
-            "state": str(dest.get("state") or "FL")[:2].upper(),
-            "zip": "".join(ch for ch in str(dest.get("zip")) if ch.isdigit())[:5],
-            "country": "US",
-            "residential": True,
-        }
-        origin = dict(ups_client.ORIGIN)
-        labels = []
-        if method == "kit_roundtrip":
-            labels.append(
-                {
-                    "key": "kit_out",
-                    **ups_client.create_ground_saver_label(
-                        origin,
-                        customer,
-                        weights["kit_billed"],
-                        12,
-                        10,
-                        2,
-                        description="Candle Garden packing kit",
-                    ),
-                }
-            )
-        if method in ("kit_roundtrip", "prepaid_labels"):
-            labels.append(
-                {
-                    "key": "empties_in",
-                    **ups_client.create_ground_saver_label(
-                        customer,
-                        origin,
-                        weights["empties_billed"],
-                        box["l"],
-                        box["w"],
-                        box["h"],
-                        description="Empty vessels to Candle Garden",
-                        return_label=True,
-                    ),
-                }
-            )
-        labels.append(
-            {
-                "key": "refills_out",
-                **ups_client.create_ground_saver_label(
-                    origin,
-                    customer,
-                    weights["refills_billed"],
-                    box["l"],
-                    box["w"],
-                    box["h"],
-                    description="Candle Garden refill return",
-                ),
-            }
-        )
-        return _response(200, {"ok": True, "method": method, "labels": labels})
+        requested = body.get("legs") or body.get("leg")
+        if isinstance(requested, str):
+            requested = [requested]
+        items = body.get("items") or (order.get("items") if order else None)
+        if not items:
+            items = [{
+                "type": "refill",
+                "ounces": body.get("ounces"),
+                "quantity": body.get("quantity") or 1,
+                "boxKey": body.get("boxKey"),
+                "shippingMethod": body.get("shippingMethod") or "ship_own",
+                "vesselCount": body.get("vesselCount"),
+                "speed": body.get("speed"),
+            }]
+        existing = list((order or {}).get("shipping_labels") or [])
+        printed = []
+        for item in items:
+            if str(item.get("type") or "refill").lower() != "refill":
+                continue
+            method = item.get("shippingMethod") or item.get("shipping_method") or "ship_own"
+            plan = label_purchase_plan(method)
+            keys = list(requested) if requested else plan["queued"]
+            keys = [key for key in keys if key in plan["legs"]]
+            rows, errors = _purchase_item_legs(item, dest, keys, existing)
+            printed.extend(rows)
+            existing = _merge_labels(existing, _stub_labels(method) + rows + errors)
+        tracking = [row.get("trackingNumber") for row in existing if row.get("trackingNumber")]
+        if order_id:
+            has_purchased = any(row.get("status") == "purchased" for row in existing)
+            has_queued = any(row.get("status") != "purchased" for row in existing)
+            label_status = "partial" if has_purchased and has_queued else "created" if has_purchased else "queued"
+            patch = {"shipping_labels": existing, "label_status": label_status, "tracking_numbers": tracking}
+            if any(row.get("key") == "refills_out" and row.get("status") == "purchased" for row in existing):
+                patch["status"] = "ready_for_fulfillment"
+            _update_order(order_id, patch)
+        return _response(200, {
+            "ok": True,
+            "labels": [_public_label(row) for row in printed],
+            "shipping_labels": [_public_label({**row, "imageBase64": None}) for row in existing],
+        })
     except (ValueError, RuntimeError) as error:
         return _response(400, {"error": str(error)})
     except Exception:
-        return _response(502, {"error": "Could not create UPS labels"})
+        return _response(502, {"error": "Could not create shipping labels"})
 
 
 def _finalize_payment(event):
@@ -589,11 +898,37 @@ def _finalize_payment(event):
         intent = _stripe_get(f"payment_intents/{urllib.parse.quote(payment_intent_id)}")
         paid = intent.get("status") == "succeeded"
         status = "paid" if paid and intent.get("livemode") else "paid_test" if paid else f"payment_{intent.get('status')}"
+        metadata = intent.get("metadata") or {}
+        order = _get_order(metadata.get("candle_garden_order_id")) or _find_order_by_payment_intent(payment_intent_id)
+        customer_labels = []
+        shipping_labels = []
+        if order:
+            patch = {"status": status}
+            if paid:
+                try:
+                    shipping_labels, tracking, label_status, purchased = _apply_paid_labels(order)
+                    patch["shipping_labels"] = [{k: v for k, v in row.items() if k != "imageBase64"} for row in shipping_labels]
+                    patch["label_status"] = label_status
+                    if tracking:
+                        patch["tracking_numbers"] = tracking
+                    customer_labels = [
+                        _public_label(row) for row in purchased if row.get("key") == "empties_in"
+                    ]
+                except Exception as error:
+                    print(f"paid label purchase failed: {error}")
+                    patch["label_status"] = "queued"
+            try:
+                _update_order(order["id"], patch)
+            except Exception as error:
+                print(f"finalize order update failed: {error}")
         return _response(200, {
             "ok": True,
             "paid": paid,
             "status": status,
             "paymentIntentId": payment_intent_id,
+            "orderId": order.get("id") if order else metadata.get("candle_garden_order_id"),
+            "labels": customer_labels,
+            "shipping_labels": [_public_label({**row, "imageBase64": None}) for row in shipping_labels],
         })
     except (ValueError, RuntimeError) as error:
         return _response(400, {"error": str(error)})
