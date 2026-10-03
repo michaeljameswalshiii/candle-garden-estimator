@@ -20,7 +20,7 @@ export function queuedOnPayKeys(method?: string) {
 }
 
 export type ShippingLabel = {
-  key: string;
+  key?: string;
   title?: string;
   status?: string;
   trackingNumber?: string;
