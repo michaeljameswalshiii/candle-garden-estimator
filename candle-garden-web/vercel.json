@@ -1,5 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "ignoreCommand": "git diff HEAD^ HEAD --quiet -- . ../packages/catalog"
+  "ignoreCommand": "git diff HEAD^ HEAD --quiet -- . ../packages/catalog",
+  "crons": [
+    {
+      "path": "/api/cron/mobile-alerts",
+      "schedule": "0 15 * * *"
+    }
+  ]
 }

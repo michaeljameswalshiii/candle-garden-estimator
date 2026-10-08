@@ -31,6 +31,8 @@ export type ShippingLabel = {
   imageBase64?: string;
   purchasedAt?: string;
   error?: string;
+  recipient?: string;
+  recipientAddress?: string;
 };
 
 export function stubLabelsForItems(items: Array<{ type?: string; shippingMethod?: string }> = []) {
@@ -41,7 +43,14 @@ export function stubLabelsForItems(items: Array<{ type?: string; shippingMethod?
     for (const key of methodLegs(item.shippingMethod || "ship_own")) {
       if (seen.has(key)) continue;
       seen.add(key);
-      labels.push({ key, title: LEG_TITLES[key] || key, status: "queued" });
+      labels.push({
+        key,
+        title: LEG_TITLES[key] || key,
+        status: "queued",
+        ...(key === "empties_in"
+          ? { recipient: "The Candle Garden", recipientAddress: "363 Atlantic Boulevard, Suite 8, Atlantic Beach, FL 32233" }
+          : {}),
+      });
     }
   }
   return labels;

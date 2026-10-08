@@ -18,3 +18,12 @@ export async function mobileIdentity(request: NextRequest): Promise<MobileIdenti
     return null;
   }
 }
+
+export async function mobileCustomerId(request: NextRequest) {
+  const identity = await mobileIdentity(request);
+  if (identity) return identity.sub;
+  if (request.headers.get("authorization")) throw new Error("Please sign in again.");
+  const device = request.headers.get("x-device-id") || "";
+  if (!/^(dev|tmp)_[a-z0-9_]{10,80}$/i.test(device)) throw new Error("A valid device identity is required.");
+  return `guest:${device}`;
+}

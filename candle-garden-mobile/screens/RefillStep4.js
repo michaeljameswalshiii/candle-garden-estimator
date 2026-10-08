@@ -4,14 +4,15 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import {
   calculateCost,
   recommendBox,
-  WAX_PRICE_PER_OZ,
   UPS_BOXES,
   SHIPPING_POLICY,
   quoteAllMethods,
   SHIPPING_METHODS,
   DEFAULT_SHIPPING_METHOD,
+  REFILL_SPEEDS,
+  normalizeSpeed,
 } from '../lib/pricing';
-import { BOX_FIT_ORDER, resolveBoxKey } from '../lib/shippingConfig';
+import { BOX_FIT_ORDER, resolveBoxKey, shippingMethodSummary } from '../lib/shippingConfig';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 import { useCart } from '../lib/cart';
 
@@ -53,6 +54,7 @@ export default function RefillStep4() {
   const [selectedBox, setSelectedBox] = useState(recommendedBox);
   const [destZip, setDestZip] = useState('');
   const [shippingMethod, setShippingMethod] = useState(DEFAULT_SHIPPING_METHOD);
+  const [refillSpeed, setRefillSpeed] = useState(null);
 
   const cost = useMemo(
     () =>
@@ -62,8 +64,9 @@ export default function RefillStep4() {
         vesselCount: Math.max(vesselCount, quantity),
         destZip,
         shippingMethod,
+        speed: refillSpeed,
       }),
-    [ounces, quantity, selectedBox, vesselCount, destZip, shippingMethod]
+    [ounces, quantity, selectedBox, vesselCount, destZip, shippingMethod, refillSpeed]
   );
 
   const methodQuotes = useMemo(
@@ -73,8 +76,9 @@ export default function RefillStep4() {
         boxKey: selectedBox,
         vesselCount: Math.max(vesselCount, quantity),
         destZip,
+        speed: refillSpeed,
       }),
-    [ounces, quantity, selectedBox, vesselCount, destZip]
+    [ounces, quantity, selectedBox, vesselCount, destZip, refillSpeed]
   );
 
   const increaseQuantity = () => {
@@ -86,11 +90,17 @@ export default function RefillStep4() {
   };
 
   const handleAddToCart = () => {
+    if (!refillSpeed) {
+      Alert.alert('Choose a speed', 'Pick Standard or Expedited before adding to cart.');
+      return;
+    }
     if (!cost.quote_ok) {
-      Alert.alert('ZIP needed', cost.quote_reason || 'Enter your ZIP to estimate UPS shipping.');
+      Alert.alert('ZIP needed', cost.quote_reason || 'Enter your ZIP to estimate shipping.');
       return;
     }
     const method = SHIPPING_METHODS[shippingMethod];
+    const speed = normalizeSpeed(refillSpeed);
+    const speedMeta = REFILL_SPEEDS[speed];
     Alert.alert(
       'Add to Cart',
       `Adding ${quantity} refill${quantity === 1 ? '' : 's'} for $${cost.total_cost}?`,
@@ -114,11 +124,15 @@ export default function RefillStep4() {
                 boxKey: selectedBox,
                 destZip: cost.dest_zip,
                 shippingMethod,
+                speed,
                 vesselCount: Math.max(vesselCount, quantity),
                 detail:
-                  shippingMethod === 'ship_own'
-                    ? `Ship empties on your own \u00b7 UPS return shipping to you \u00b7 $${cost.shipping_cost}`
-                    : `${method?.title || 'UPS shipping'} \u00b7 ${cost.shipping_label}`,
+                  `${speedMeta.title} \u00b7 ${speedMeta.timing}` +
+                  (shippingMethod === 'ship_own'
+                    ? (speed === 'expedited'
+                      ? ' \u00b7 you ship empties UPS 2nd Day Air'
+                      : ' \u00b7 ship empties on your own')
+                    : ` \u00b7 ${method?.title || 'Shipping'}`),
                 unitPrice: cost.total_cost_num / quantity,
                 waxUnitPrice: cost.wax_cost_num / quantity,
                 returnShippingUnitPrice: cost.shipping_cost_num / quantity,
@@ -143,8 +157,20 @@ export default function RefillStep4() {
         <Text style={styles.sectionTitle}>Order Summary</Text>
         <Text style={styles.infoText}>Container: {containerType}</Text>
         <Text style={styles.infoText}>Volume: {ounces} oz per candle</Text>
-        <Text style={styles.infoText}>Rate: ${WAX_PRICE_PER_OZ.toFixed(2)}/oz</Text>
-        <Text style={styles.totalText}>Wax Needed: {(ounces * quantity).toFixed(1)} oz (${cost.wax_cost})</Text>
+        <Text style={styles.totalText}>Wax needed: {(ounces * quantity).toFixed(1)} oz</Text>
+      </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>How fast should we turn this around?</Text>
+        <Text style={styles.hintText}>Choose a speed before postage or a total. The clock starts when your empties arrive.</Text>
+        {Object.values(REFILL_SPEEDS).map((speed) => (
+          <TouchableOpacity key={speed.key} style={[styles.boxOption, refillSpeed === speed.key && styles.boxOptionSelected]} onPress={() => setRefillSpeed(speed.key)}>
+            <View style={styles.boxInfo}>
+              <Text style={styles.boxName}>{speed.title}</Text>
+              <Text style={styles.boxDetails}>{speed.timing}</Text>
+              <Text style={styles.boxDetails} numberOfLines={5}>{speed.body}</Text>
+            </View>
+          </TouchableOpacity>
+        ))}
       </View>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Quantity</Text>
@@ -159,9 +185,11 @@ export default function RefillStep4() {
         </View>
         <Text style={styles.hintText}>Max 10 candles per order</Text>
       </View>
+      {refillSpeed ? (
+        <>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Your ZIP</Text>
-        <Text style={styles.hintText}>Estimated UPS shipping from Atlantic Beach, FL (32233). Checkout confirms the lowest live UPS rate available.</Text>
+        <Text style={styles.hintText}>Estimated shipping from Atlantic Beach, FL (32233). Checkout confirms the lowest live carrier rate.</Text>
         <TextInput style={styles.zipInput} value={destZip} onChangeText={(t) => setDestZip(t.replace(/[^\d]/g, '').slice(0, 10))} keyboardType="number-pad" placeholder="32250" placeholderTextColor={colors.textFaint} maxLength={10} />
       </View>
       <View style={styles.section}>
@@ -171,7 +199,7 @@ export default function RefillStep4() {
             <View style={styles.boxInfo}>
               <Text style={styles.boxName}>{method.title}</Text>
               <Text style={styles.boxDetails}>{methodKey === 'ship_own' ? '1 UPS return trip to you' : `${method.chargeCount} UPS trips`}</Text>
-              <Text style={styles.boxDetails} numberOfLines={4}>{method.summary}</Text>
+              <Text style={styles.boxDetails} numberOfLines={8}>{shippingMethodSummary(methodKey, refillSpeed)}</Text>
             </View>
             <Text style={styles.boxPrice}>{methodCost.quote_ok ? `$${methodCost.shipping_cost}` : 'ZIP'}</Text>
           </TouchableOpacity>
@@ -199,7 +227,6 @@ export default function RefillStep4() {
       <View style={styles.totalSection}>
         <Text style={styles.totalLabel}>Estimate total</Text>
         <Text style={styles.totalAmount}>{cost.quote_ok ? `$${cost.total_cost}` : '\u2014'}</Text>
-        <Text style={styles.totalBreakdown}>Wax ${cost.wax_cost}{cost.quote_ok ? ` + return shipping to you ${cost.shipping_cost}` : ''}</Text>
         {cost.packed_weight ? (
           <>
             <Text style={styles.weightLine}>Packed weight (refills): {cost.packed_weight.refillsOutboundLabel}</Text>
@@ -209,8 +236,10 @@ export default function RefillStep4() {
         ) : null}
         <Text style={styles.totalNote}>{cost.customer_note || SHIPPING_POLICY.summary}</Text>
       </View>
+        </>
+      ) : null}
       <View style={styles.buttonContainer}>
-        <CustomButton title="Add to Cart" onPress={handleAddToCart} disabled={!cost.quote_ok} />
+        <CustomButton title="Add to Cart" onPress={handleAddToCart} disabled={!cost.quote_ok || !refillSpeed} />
         <CustomButton title="Back" onPress={() => navigation.goBack()} color={colors.textMuted} />
       </View>
     </ScrollView>

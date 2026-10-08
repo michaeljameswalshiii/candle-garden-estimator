@@ -15,7 +15,9 @@ import {
   clearPushToken,
   getStoredPushToken,
   registerForPushNotificationsAsync,
+  pushAvailable,
 } from '../lib/notifications';
+import { AppleAuthentication, appleSignInAvailable } from '../lib/appleSignIn';
 
 function CustomSwitch({ value, onValueChange }) {
   const isOn = Boolean(value);
@@ -48,6 +50,7 @@ export default function ProfileScreen() {
     booting,
     busy,
     signIn,
+    signInWithApple,
     signUp,
     updateProfile,
     confirmSignUp,
@@ -59,6 +62,8 @@ export default function ProfileScreen() {
     changePassword,
   } = useAuth();
 
+  const [appleAvailable,setAppleAvailable] = useState(false);
+  React.useEffect(()=>{appleSignInAvailable().then(setAppleAvailable).catch(()=>{});},[]);
   const [mode, setMode] = useState('signin');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -275,6 +280,7 @@ export default function ProfileScreen() {
         <Text style={styles.lead}>
           Sign in to save orders and attach refill quotes to your profile. You can still browse Shop and Classes as a guest.
         </Text>
+        {appleAvailable && AppleAuthentication ? <View style={styles.section}><AppleAuthentication.AppleAuthenticationButton buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN} buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK} cornerRadius={8} style={{width:'100%',height:48}} onPress={async()=>{try{await signInWithApple();}catch(error){if(error.code!=='ERR_REQUEST_CANCELED')Alert.alert('Sign-in unavailable',error.message);}}}/><Text style={styles.hint}>Create an account or sign in without a password. Apple can keep your email private.</Text></View>:null}
         <View style={styles.section}>
           <View style={styles.modeRow}>
             {[{ id: 'signin', label: 'Sign in' }, { id: 'signup', label: 'Create' }, { id: 'confirm', label: 'Confirm' }, { id: 'forgot', label: 'Forgot' }].map((m) => (
@@ -364,6 +370,7 @@ export default function ProfileScreen() {
           <Text style={styles.consentText}>Receive Candle Garden news, product updates, classes, and occasional offers.</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.button, busy && styles.buttonDisabled]} onPress={onSaveProfile} disabled={busy || !phone.trim() || !address.trim()}><Text style={styles.buttonText}>Save profile</Text></TouchableOpacity>
+        {pushAvailable ? (
         <View style={styles.settingRow}>
           <View style={{ flex: 1, paddingRight: 8 }}>
             <Text style={styles.settingLabel}>Push Notifications</Text>
@@ -371,6 +378,7 @@ export default function ProfileScreen() {
           </View>
           <CustomSwitch value={notificationsEnabled} onValueChange={onToggleNotifications} />
         </View>
+        ) : null}
         {pushToken ? <Text style={styles.hint} numberOfLines={2}>Push linked{isAuthenticated ? ' to your account' : ' on this device only'}</Text> : null}
       </View>
       <View style={styles.section}>

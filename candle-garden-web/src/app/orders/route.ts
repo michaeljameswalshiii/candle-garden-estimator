@@ -1,16 +1,17 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { mobileIdentity } from "@/lib/mobile-auth";
+import { mobileIdentity, mobileCustomerId } from "@/lib/mobile-auth";
 import { listCustomerOrders, putMobileOrder } from "@/lib/mobileadmin/data";
 
 export const dynamic = "force-dynamic";
 
+export function OPTIONS() {
+  return new NextResponse(null, { status: 204 });
+}
+
 export async function GET(request: NextRequest) {
-  const identity = await mobileIdentity(request);
-  if (identity) return NextResponse.json(await listCustomerOrders(identity.sub));
-  const deviceId = request.headers.get("x-device-id") || "";
-  if (!/^(dev|tmp)_[a-z0-9_]{10,80}$/i.test(deviceId)) return NextResponse.json({ error: "A valid device ID is required" }, { status: 401 });
-  return NextResponse.json(await listCustomerOrders(`guest:${deviceId}`));
+  try { return NextResponse.json(await listCustomerOrders(await mobileCustomerId(request)), {headers:{"Cache-Control":"no-store"}}); }
+  catch { return NextResponse.json({error:"Please sign in or use the device that placed this order."},{status:401}); }
 }
 
 export async function POST(request: NextRequest) {

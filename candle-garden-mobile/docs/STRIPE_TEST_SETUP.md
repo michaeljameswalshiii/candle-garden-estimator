@@ -40,14 +40,19 @@ npx cdk deploy CandleSaasAPIStack -c stripeSecretArn="arn:aws:secretsmanager:us-
 Keep `stripeLiveEnabled` unset. The Lambda refuses `sk_live_` keys unless that
 setting is explicitly enabled.
 
-## 3. Optional Apple Pay setup
+## 3. Apple Pay setup
 
-Apple Pay is not enabled in the current release; standard card checkout works
-without it. To add Apple Pay later, create the Merchant ID
-`merchant.com.michaeljameswalshiii.candlegarden`, enable Apple Pay for the app
-identifier `com.michaeljameswalshiii.candlegarden`, and add the Merchant ID in
-Stripe's Apple Pay settings. Then make an iOS development build. Apple Pay does
-not work in Expo Go or in an iOS simulator.
+The PaymentSheet already requests Apple Pay (`merchantCountryCode: US`) and the
+Expo Stripe plugin plus `app.json` iOS entitlements use merchant ID
+`merchant.com.michaeljameswalshiii.candlegarden`. Standard card checkout still
+works without Apple Pay.
+
+Complete these Apple / Stripe steps so the Apple Pay button appears on a device:
+
+1. Create Merchant ID `merchant.com.michaeljameswalshiii.candlegarden` in Apple Developer.
+2. Enable Apple Pay on App ID `com.michaeljameswalshiii.candlegarden`.
+3. Add that Merchant ID in Stripe Dashboard → Settings → Payment methods → Apple Pay.
+4. Make an iOS EAS build (Apple Pay does not work in Expo Go or the iOS simulator).
 
 ```powershell
 cd candle-garden-mobile

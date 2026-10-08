@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { findOrderByPaymentIntent, updateMobileOrder } from "@/lib/mobileadmin/data";
 import { purchaseOrderLegs } from "@/lib/purchase-refill-labels";
+import { mobileCustomerId } from "@/lib/mobile-auth";
 import { labelStatusFrom } from "@/lib/shipping-labels";
 
 export const dynamic = "force-dynamic";
@@ -15,9 +16,10 @@ export async function POST(request: NextRequest) {
     const intent = await response.json() as any;
     if (!response.ok) throw new Error(intent?.error?.message || "Stripe verification failed");
     const order = await findOrderByPaymentIntent(paymentIntentId);
-    if (!order) throw new Error("Order record not found");
+    if (!order || order.customer_id !== await mobileCustomerId(request)) throw new Error("Order record not found");
+    if (Number(intent.amount) !== Math.round(Number(order.total_amount)*100) || intent.currency !== "usd")throw new Error("Payment amount does not match the order.");
     const paid = intent.status === "succeeded";
-    const status = paid ? (intent.livemode ? "paid" : "paid_test") : `payment_${intent.status}`;
+    const status = paid && ["processing","shipped","completed","ready_for_pickup","refill_returning"].includes(String(order.status)) ? order.status : paid ? (intent.livemode ? "paid" : "paid_test") : `payment_${intent.status}`;
     const patch: Record<string, unknown> = { status };
     let printed: Awaited<ReturnType<typeof purchaseOrderLegs>>["printed"] = [];
     let labels = order.shipping_labels || [];

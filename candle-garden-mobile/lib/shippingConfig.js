@@ -18,9 +18,10 @@ import {
 export { RATES_AS_OF, ORIGIN_ZIP, ORIGIN_CITY, SERVICE_NAME, isValidDestZip, normalizeZip };
 
 export const SHIPPING_CHARGE_MODEL = 'ups_ground_saver_methods';
-export const CARRIER = 'UPS';
+export const CARRIER = 'Shippo';
 
 export const SHIPPING_METHODS = {
+  local_dropoff: {key:'local_dropoff',title:'Local drop-off & pickup',shortTitle:'Atlantic Beach shop',chargeCount:0,legs:[],summary:'Bring your empty vessels to 363 Atlantic Boulevard, Suite 8, Atlantic Beach. Collect your refills at the shop when ready. No shipping charge.'},
   ship_own: {
     key: 'ship_own',
     title: 'Ship on your own',
@@ -29,7 +30,7 @@ export const SHIPPING_METHODS = {
     legs: ['refills_out'],
     summary:
       'You pack and ship empties to The Candle Garden (postage on you). ' +
-      'We ship refills back using the lowest-cost available UPS service — that one trip is included.',
+      'We ship refills back using the lowest-cost available carrier — that one trip is included.',
   },
   kit_roundtrip: {
     key: 'kit_roundtrip',
@@ -38,8 +39,8 @@ export const SHIPPING_METHODS = {
     chargeCount: 3,
     legs: ['kit_out', 'empties_in', 'refills_out'],
     summary:
-      'We mail you a packing kit (box + wrap) and prepaid UPS labels. ' +
-      'You send empties in; we refill and ship them back. Three UPS trips.',
+      'We mail you a packing kit (box + wrap) and prepaid labels. ' +
+      'You send empties in; we refill and ship them back. Three shipping trips.',
   },
   prepaid_labels: {
     key: 'prepaid_labels',
@@ -48,12 +49,25 @@ export const SHIPPING_METHODS = {
     chargeCount: 2,
     legs: ['empties_in', 'refills_out'],
     summary:
-      'We’ll provide packing instructions and a prepaid UPS label for empties. ' +
-      'After we refill, we ship them back. Two UPS trips. You provide a sturdy box that matches the size below.',
+      'We’ll provide packing instructions and a prepaid label for empties. ' +
+      'After we refill, we ship them back. Two shipping trips. You provide a sturdy box that matches the size below.',
   },
 };
 
-export const METHOD_ORDER = ['ship_own', 'kit_roundtrip', 'prepaid_labels'];
+export const METHOD_ORDER = ['local_dropoff', 'ship_own', 'kit_roundtrip', 'prepaid_labels'];
+
+export function shippingMethodSummary(methodKey, speed = 'standard') {
+  const method = SHIPPING_METHODS[methodKey] || SHIPPING_METHODS.ship_own;
+  const expedited = String(speed || '').toLowerCase() === 'expedited';
+  if (method.key === 'ship_own' && expedited) {
+    return (
+      'You pack and ship empties to The Candle Garden (postage on you). ' +
+      'Expedited requires UPS 2nd Day Air on that inbound shipment so we can start the 7-day clock when they arrive. ' +
+      'We ship refills back UPS 2nd Day Air — that return trip is included.'
+    );
+  }
+  return method.summary;
+}
 
 export const SHIPPING_POLICY = {
   carrier: CARRIER,
@@ -64,7 +78,7 @@ export const SHIPPING_POLICY = {
   cgReturnToCustomer: 'included_in_quote',
   sameBoxBothDirections: true,
   summary:
-    'Shipping uses the lowest-cost available UPS service from Atlantic Beach, FL. ' +
+    'Shipping uses the lowest-cost available carrier from Atlantic Beach, FL. ' +
     'Price depends on your ZIP, packed weight (vessels + box + packing), and how you send empties. ' +
     'Pick one of three methods below.',
 };
@@ -178,8 +192,8 @@ export const PACKING_INSTRUCTIONS = [
   'Wrap each glass vessel on its own (bubble wrap or several layers of kraft).',
   'Fill every gap so nothing can rattle. Glass should not touch glass or the carton wall.',
   'Do not stack jars without a cardboard divider.',
-  'Tape all seams. Put the prepaid UPS label on the largest face.',
-  'Drop off at a UPS location or schedule a pickup. Keep the tracking number.',
+  'Tape all seams. Put the prepaid shipping label on the largest face.',
+  'Drop off at a post office or carrier location, or schedule a pickup. Keep the tracking number.',
 ];
 
 export function boxInnerVolumeCuIn(box) {
@@ -324,7 +338,7 @@ export function estimatePackedWeight({
     summary:
       `Packed weight est. ${formatLbOz(refillsOutboundOz)} outbound ` +
       `(vessels + wax + ${box.shortName} + packing). ` +
-      `Empties: about ${formatLbOz(emptiesInboundOz)}. UPS bills the greater of scale and dim weight.`,
+      `Empties: about ${formatLbOz(emptiesInboundOz)}. Carriers bill the greater of scale and dim weight.`,
   };
 }
 
@@ -406,6 +420,7 @@ export function quoteShippingMethod({
   vesselCount = 1,
   perVesselOz,
   boxKey,
+  speed = 'standard',
 } = {}) {
   const method = SHIPPING_METHODS[methodKey] || SHIPPING_METHODS.ship_own;
   const recommendation = recommendShippingBox({
@@ -422,6 +437,7 @@ export function quoteShippingMethod({
     boxKey: box.key,
   });
 
+  if (method.key === 'local_dropoff') return {ok:true,needsZip:false,method,box,packedWeight,recommendation,shippingCostUsd:0,legs:[],shippingLabel:'Local drop-off & pickup',customerNote:method.summary};
   const zipOk = isValidDestZip(destZip);
   if (!zipOk) {
     return {
@@ -431,7 +447,7 @@ export function quoteShippingMethod({
       box,
       packedWeight,
       recommendation,
-      reason: 'Enter your 5-digit ZIP to estimate UPS shipping.',
+      reason: 'Enter your 5-digit ZIP to estimate shipping.',
       shippingCostUsd: 0,
       legs: [],
     };
@@ -455,7 +471,7 @@ export function quoteShippingMethod({
 
   const legs = [];
   const addLeg = (key, title, billedLb, residential) => {
-    const q = quoteGroundSaverLeg({ destZip, billedLb, residential });
+    const q = quoteGroundSaverLeg({ destZip, billedLb, residential, speed });
     if (!q.ok) {
       return q;
     }
@@ -526,7 +542,9 @@ export function quoteShippingMethod({
         : `${SERVICE_NAME} · ${method.chargeCount} ${chargeWord} · ${formatUsd(shippingCostUsd)}`,
     customerNote:
       method.key === 'ship_own'
-        ? 'Does not include postage for empties you ship to us.'
+        ? (String(speed || '').toLowerCase() === 'expedited'
+          ? 'Does not include postage for empties you ship to us. For Expedited, send those empties UPS 2nd Day Air.'
+          : 'Does not include postage for empties you ship to us.')
         : method.key === 'prepaid_labels'
           ? 'You supply the box. Follow the packing instructions we email with your label.'
           : 'Kit is packing supplies and a carton — not your glass. Glass travels on the later two trips.',

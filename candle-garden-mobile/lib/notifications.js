@@ -5,6 +5,8 @@
  */
 import * as SecureStore from 'expo-secure-store';
 
+export const pushAvailable = false;
+
 const TOKEN_KEY = 'cg_expo_push_token_v1';
 
 export async function getStoredPushToken() {

@@ -54,7 +54,7 @@ export async function GET() {
         return {
           id: String(item?.id || ""), title: "Candle Making Class", scheduleLabel: label, date,
           dateDisplay: label.split(/\s+at\s+/i)[0], time: classTime(label), duration: "About 1 hour",
-          price, available: available ?? 0, soldOut: available !== null && available < 1,
+          price, available, soldOut: available !== null && available < 1,
           description: clean(item?.excerpt || item?.body).slice(0, 240), fullDescription: clean(item?.body),
           image: String(item?.assetUrl || "").replace(/^http:/, "https:"), sku: String(variant?.sku || ""),
           url: new URL(String(item?.fullUrl || "/candle-garden-events"), "https://www.thecandlegarden.co").toString(),
@@ -63,8 +63,7 @@ export async function GET() {
       })
       .filter((item: any) => item.id && item.date >= today && !/^test\b/i.test(item.scheduleLabel) && !/\bprivate\b/i.test(item.scheduleLabel) && !seen.has(item.id) && seen.add(item.id))
       .sort((a: any, b: any) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
-    if (!classes.length) throw new Error("No upcoming public classes found");
-    return NextResponse.json({ classes, refreshedAt: new Date().toISOString() }, { headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=300", "Access-Control-Allow-Origin": "*" } });
+    return NextResponse.json({ classes, refreshedAt: new Date().toISOString() }, { headers: { "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" } });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Class refresh failed" }, { status: 502 });
   }

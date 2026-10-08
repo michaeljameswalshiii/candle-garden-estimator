@@ -9,7 +9,7 @@ export const ORIGIN_ZIP = '32233';
 export const ORIGIN_CITY = 'Atlantic Beach, FL';
 // The local table is an estimate. Checkout requests live UPS rates and selects
 // the lowest service available to the Candle Garden account.
-export const SERVICE_NAME = 'Estimated UPS shipping';
+export const SERVICE_NAME = 'Estimated shipping';
 
 /** Residential delivery add-on per package (home addresses only). */
 export const RESIDENTIAL_SURCHARGE_USD = 4.65;
@@ -123,7 +123,10 @@ export function groundSaverBaseUsd(zone, billedLb) {
  * One Ground Saver package: list rate + residential surcharge.
  * @returns {{ ok: boolean, zone?: number, billedLb?: number, baseUsd?: number, residentialUsd?: number, totalUsd?: number, label?: string, reason?: string }}
  */
-export function quoteGroundSaverLeg({ destZip, billedLb, residential = true } = {}) {
+/** Table estimate for UPS 2nd Day Air when live rating is unavailable. */
+export const EXPEDITED_AIR_MULTIPLIER = 2.2;
+
+export function quoteGroundSaverLeg({ destZip, billedLb, residential = true, speed = 'standard' } = {}) {
   if (billedLb > MAX_TABLE_LB) {
     return {
       ok: false,
@@ -140,7 +143,12 @@ export function quoteGroundSaverLeg({ destZip, billedLb, residential = true } = 
   }
   const fuelUsd = Math.round(rated.baseUsd * FUEL_SURCHARGE_PCT * 100) / 100;
   const residentialUsd = residential ? RESIDENTIAL_SURCHARGE_USD : 0;
-  const totalUsd = rated.baseUsd + fuelUsd + residentialUsd;
+  const groundUsd = rated.baseUsd + fuelUsd + residentialUsd;
+  const expedited = String(speed || '').toLowerCase() === 'expedited';
+  const totalUsd = expedited
+    ? Math.round(groundUsd * EXPEDITED_AIR_MULTIPLIER * 100) / 100
+    : groundUsd;
+  const serviceName = expedited ? 'UPS 2nd Day Air' : SERVICE_NAME;
   return {
     ok: true,
     zone: rated.zone,
@@ -151,7 +159,8 @@ export function quoteGroundSaverLeg({ destZip, billedLb, residential = true } = 
     residentialUsd,
     totalUsd,
     destZip: zoned.zip,
-    label: `${SERVICE_NAME} zone ${rated.zone} · ${rated.billedLb} lb`,
+    service: serviceName,
+    label: `${serviceName} zone ${rated.zone} · ${rated.billedLb} lb`,
   };
 }
 

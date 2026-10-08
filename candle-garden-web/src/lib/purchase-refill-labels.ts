@@ -15,11 +15,14 @@ function persistable(row: ShippingLabel): ShippingLabel {
 }
 
 export async function purchaseOrderLegs(order: MobileOrder, keys?: string[]) {
+  const hasShippedRefills = (order.items || []).some(item => item.type === "refill" && item.shippingMethod !== "local_dropoff");
+  if (!hasShippedRefills) return {labels:[], printed:[]};
   const destination = checkoutParty(order.shipping || {});
   let labels = mergeLabels(order.shipping_labels || [], stubLabelsForItems(order.items || []));
   const printed: ShippingLabel[] = [];
   for (const item of order.items || []) {
     if (String(item.type || "").toLowerCase() !== "refill") continue;
+    if (item.shippingMethod === "local_dropoff") continue;
     const quote = await priceRefillShipping(item, destination);
     const wanted = keys?.length ? keys : purchaseOnPayKeys(item.shippingMethod);
     for (const leg of quote.legs) {
@@ -39,7 +42,8 @@ export async function purchaseOrderLegs(order: MobileOrder, keys?: string[]) {
         continue;
       }
       try {
-        const created = await createLabel(leg.from, leg.to, leg.weight, leg.dims, leg.description, leg.returnLabel || leg.key === "empties_in");
+        // Explicit customer-to-shop shipment; do not reverse the addresses again.
+        const created = await createLabel(leg.from, leg.to, leg.weight, leg.dims, leg.description, false);
         const row: ShippingLabel = {
           key: leg.key,
           title: LEG_TITLES[leg.key] || leg.key,
@@ -51,6 +55,8 @@ export async function purchaseOrderLegs(order: MobileOrder, keys?: string[]) {
           format: created.format,
           imageBase64: created.imageBase64,
           purchasedAt: new Date().toISOString(),
+          recipient: leg.key === "empties_in" ? "The Candle Garden" : (leg.to.name || "Customer"),
+          recipientAddress: [leg.to.address, leg.to.city, `${leg.to.state} ${leg.to.zip}`].filter(Boolean).join(", "),
         };
         printed.push(row);
         labels = mergeLabels(labels, [persistable(row)]);

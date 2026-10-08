@@ -20,12 +20,14 @@ test("EAS production submit is pointed at the App Store listing", () => {
   assert.ok(Number(app.expo.ios.buildNumber) >= 1);
 });
 
-test("Apple Pay is still disabled in this release", () => {
-  assert.equal(app.expo.ios.merchantIdentifier, undefined);
-  assert.equal(app.expo.ios.entitlements?.["com.apple.developer.in-app-payments"], undefined);
+test("Apple Pay merchant ID is configured for Stripe and iOS", () => {
+  assert.deepEqual(
+    app.expo.ios.entitlements?.["com.apple.developer.in-app-payments"],
+    ["merchant.com.michaeljameswalshiii.candlegarden"],
+  );
   assert.ok(stripePlugin, "Stripe native plugin missing");
   assert.equal(stripePlugin[1].enableGooglePay, true);
-  assert.equal(stripePlugin[1].merchantIdentifier, undefined);
+  assert.equal(stripePlugin[1].merchantIdentifier, "merchant.com.michaeljameswalshiii.candlegarden");
 });
 
 test("App Store listing is public when REQUIRE_APP_STORE_RELEASE is enabled", async () => {

@@ -2,6 +2,7 @@
  * Candle classes mirrored from https://www.thecandlegarden.co/candle-garden-events
  */
 import catalog from '../../packages/catalog/classes.json';
+import { fetchJson } from './liveFeed';
 
 export const CLASSES_PAGE_URL = 'https://www.thecandlegarden.co/candle-garden-events';
 export const CLASSES_API_URL = 'https://candle-garden-web.vercel.app/api/mobile/classes';
@@ -9,9 +10,7 @@ export const CLASSES_API_URL = 'https://candle-garden-web.vercel.app/api/mobile/
 export const classes = Array.isArray(catalog) ? catalog : [];
 
 export async function fetchLatestClasses() {
-  const response = await fetch(CLASSES_API_URL, { headers: { Accept: 'application/json' } });
-  if (!response.ok) throw new Error(`Class schedule request failed (${response.status})`);
-  const payload = await response.json();
+  const payload = await fetchJson(CLASSES_API_URL);
   if (!Array.isArray(payload?.classes)) throw new Error('The live class schedule is invalid');
   return { classes: payload.classes, refreshedAt: payload.refreshedAt || null };
 }

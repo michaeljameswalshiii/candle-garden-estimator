@@ -21,6 +21,7 @@ import {
   signUp as cognitoSignUp,
   updateUserAttributes as cognitoUpdateUserAttributes,
 } from './cognitoClient';
+import { appleSignIn } from './appleSignIn';
 import { purgeAccountData } from './apiClient';
 import {
   clearTokens,
@@ -318,6 +319,13 @@ export function AuthProvider({ children }) {
     return session.idToken;
   }, [tokens]);
 
+  const signInWithApple = useCallback(async () => {
+    setBusy(true); setError(null);
+    try { return await applySession(await appleSignIn()); }
+    catch(error) { setError(error.message); throw error; }
+    finally { setBusy(false); }
+  },[applySession]);
+
   const value = useMemo(
     () => ({
       user,
@@ -331,6 +339,7 @@ export function AuthProvider({ children }) {
       confirmSignUp,
       resendCode,
       signIn,
+      signInWithApple,
       signOut,
       deleteAccount,
       forgotPassword,
@@ -351,6 +360,7 @@ export function AuthProvider({ children }) {
       confirmSignUp,
       resendCode,
       signIn,
+      signInWithApple,
       signOut,
       deleteAccount,
       forgotPassword,

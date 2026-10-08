@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { listMobileOrders } from "@/lib/mobileadmin/data";
 
 export const dynamic = "force-dynamic";
 
@@ -93,6 +94,11 @@ export async function GET() {
           priceMax: prices.length ? Math.max(...prices) : 0,
           soldOut: variants.length > 0 && variants.every((variant: any) => variant.soldOut),
           description: clean(item?.excerpt || item?.body),
+          scentNotes: clean(item?.excerpt || item?.body)
+            .split(/[.;•\n]/)
+            .map((note) => note.trim())
+            .filter((note) => note.length > 8 && note.length < 90)
+            .slice(0, 6),
           image: images[0] || "",
           images,
           url: new URL(String(item?.fullUrl || "/shop"), STORE).toString(),
@@ -110,9 +116,15 @@ export async function GET() {
       .sort((a: any, b: any) => a.name.localeCompare(b.name));
 
     if (!products.length) throw new Error("No Squarespace products found");
+    const popularity = new Map<string,number>();
+    for(const order of await listMobileOrders()) {
+      if(!["paid","processing","shipped","completed"].includes(order.status||""))continue;
+      for(const item of order.items||[])if(item.productId)popularity.set(item.productId,(popularity.get(item.productId)||0)+Number(item.quantity||1));
+    }
+    const ranked=products.map((product:any)=>({...product,popularity:popularity.get(product.id)||0}));
     return NextResponse.json(
-      { products, categories, count: products.length, variantCount: products.reduce((sum: number, item: any) => sum + item.variants.length, 0), refreshedAt: new Date().toISOString() },
-      { headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=300", "Access-Control-Allow-Origin": "*" } },
+      { products:ranked, categories, count: products.length, variantCount: products.reduce((sum: number, item: any) => sum + item.variants.length, 0), refreshedAt: new Date().toISOString() },
+      { headers: { "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" } },
     );
   } catch (error) {
     return NextResponse.json(

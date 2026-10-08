@@ -26,12 +26,13 @@ export async function priceRefillShipping(item: any, destination: Party) {
   if (!Number.isFinite(ounces) || ounces <= 0 || ounces > 80 || !Number.isInteger(quantity) || quantity < 1 || quantity > 20) throw new Error("Refill quantity or ounces are invalid");
   const shipment = plan(ounces, quantity, Number(item.vesselCount || quantity), item.boxKey);
   const origin = candleGardenOrigin();
+  if (item.shippingMethod === "local_dropoff") return {shippingCents:0, serviceSummary:"Local drop-off & pickup at Atlantic Beach", legs:[]};
   const outbound = await lowestRate(origin, destination, shipment.refills, shipment.dims);
   const method = String(item.shippingMethod || "ship_own");
   const legs = [{ key: "refills_out", from: origin, to: destination, weight: shipment.refills, dims: shipment.dims, rate: outbound, description: "Candle Garden refill return", returnLabel: false }];
   if (method === "prepaid_labels" || method === "kit_roundtrip") {
-    const rate = await lowestRate(destination, origin, shipment.empties, shipment.dims, true);
-    legs.unshift({ key: "empties_in", from: destination, to: origin, weight: shipment.empties, dims: shipment.dims, rate, description: "Empty vessels to Candle Garden", returnLabel: true });
+    const rate = await lowestRate(destination, origin, shipment.empties, shipment.dims, false);
+    legs.unshift({ key: "empties_in", from: destination, to: origin, weight: shipment.empties, dims: shipment.dims, rate, description: "Empty vessels to Candle Garden", returnLabel: false });
   }
   if (method === "kit_roundtrip") {
     const dims: [number, number, number] = [12, 10, 2];

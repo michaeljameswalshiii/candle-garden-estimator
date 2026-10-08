@@ -18,9 +18,35 @@ import {
   isValidDestZip,
 } from './shippingConfig';
 
-export const WAX_PRICE_PER_OZ = 1.75;
+export const WAX_PRICE_STANDARD = 1.75;
+export const WAX_PRICE_EXPEDITED = 2.25;
+export const WAX_PRICE_PER_OZ = WAX_PRICE_STANDARD;
 export const MIN_CONFIDENCE = 0.5;
 export const DEFAULT_SHIPPING_METHOD = 'ship_own';
+
+export const REFILL_SPEEDS = {
+  standard: {
+    key: 'standard',
+    title: 'Standard',
+    timing: 'About 14 days',
+    body: 'We make the refill and ship it back with standard UPS after your empties arrive. The clock starts when the empties arrive.',
+  },
+  expedited: {
+    key: 'expedited',
+    title: 'Expedited',
+    timing: 'About 7 days',
+    body: 'We make the refill and ship it back UPS 2nd Day Air after your empties arrive. Ready to ship in about 7 days, then UPS 2nd Day Air — not a two-day job. The clock starts when the empties arrive.',
+  },
+};
+
+export function normalizeSpeed(speed) {
+  const raw = String(speed || '').trim().toLowerCase();
+  return raw === 'expedited' || raw === 'express' ? 'expedited' : 'standard';
+}
+
+export function waxPriceForSpeed(speed) {
+  return normalizeSpeed(speed) === 'expedited' ? WAX_PRICE_EXPEDITED : WAX_PRICE_STANDARD;
+}
 
 /**
  * @deprecated Postage is no longer flat by box. Kept so older screens don't crash.
@@ -57,12 +83,14 @@ export function isValidOunces(ounces) {
  * @param {number[]} [options.perVesselOz]
  * @param {string} [options.destZip]
  * @param {string} [options.shippingMethod]
+ * @param {string} [options.speed]
  */
 export function calculateCost(ounces, options = {}) {
   const quantity = Math.max(1, Number(options.quantity) || 1);
   const totalWaxOz = Number(ounces) * quantity;
   const vesselCount = options.vesselCount || quantity;
   const methodKey = options.shippingMethod || DEFAULT_SHIPPING_METHOD;
+  const speed = normalizeSpeed(options.speed);
 
   const recommendation = recommendShippingBox({
     totalWaxOz,
@@ -77,10 +105,11 @@ export function calculateCost(ounces, options = {}) {
     vesselCount,
     perVesselOz: options.perVesselOz,
     boxKey: options.boxKey || recommendation.boxKey,
+    speed,
   });
 
   const box = quote.box || UPS_BOXES.ups_medium;
-  const waxCost = Number(ounces) * WAX_PRICE_PER_OZ * quantity;
+  const waxCost = Number(ounces) * waxPriceForSpeed(speed) * quantity;
   const shippingCost = quote.ok ? quote.shippingCostUsd : 0;
   const total = waxCost + shippingCost;
   const packedWeight = quote.packedWeight;
@@ -95,6 +124,7 @@ export function calculateCost(ounces, options = {}) {
     shipping_policy: quote.method?.summary || SHIPPING_POLICY.summary,
     shipping_method: quote.method?.key || methodKey,
     shipping_method_title: quote.method?.title,
+    speed,
     dest_zip: quote.destZip || '',
     zone: quote.zone,
     quote_ok: !!quote.ok,

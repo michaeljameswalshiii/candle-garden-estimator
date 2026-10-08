@@ -18,6 +18,10 @@ const ORDER_STATUSES = [
   ["paid", "Paid"],
   ["ready_for_fulfillment", "Ready for fulfillment"],
   ["processing", "Processing"],
+  ["refill_received", "Vessels received"],
+  ["refilling", "Refilling"],
+  ["refill_returning", "Refills returning"],
+  ["ready_for_pickup", "Ready for pickup"],
   ["shipped", "Shipped"],
   ["completed", "Completed"],
   ["cancelled", "Cancelled"],
@@ -110,15 +114,15 @@ export function OrderExplorer({ orders }: { orders: MobileOrder[] }) {
 
   return <>
     <div className="mobileadmin-filters">
-      <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search order, customer, email, or product…" />
+      <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search order, customer, email, or productâ€¦" />
       <select value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">All statuses</option>{statuses.map((value) => <option key={value}>{value}</option>)}</select>
       <select value={channel} onChange={(event) => setChannel(event.target.value)}><option value="all">All order channels</option>{channels.map((value) => <option key={value}>{value}</option>)}</select>
       <span>{filtered.length} result{filtered.length === 1 ? "" : "s"}</span>
       <button type="button" onClick={() => downloadPirateShip(filtered)}>Download Pirate Ship CSV</button>
     </div>
     <div className="mobileadmin-order-list">{filtered.length ? filtered.map((order) => { const details = customerDetails(order); return <article key={order.id}>
-      <div><small>{order.created_at ? new Date(order.created_at).toLocaleString() : "Date unavailable"}</small><strong>{details.name}</strong>{details.phone ? <a href={`tel:${details.phone}`}>{details.phone}</a> : null}{details.location ? <span>{details.location}</span> : null}<span>#{order.id.slice(0, 8)} · {(order.items || []).reduce((sum, item) => sum + Number(item.quantity || 1), 0)} items</span><b className="mobileadmin-channel">{orderChannel(order)}</b></div>
-      <div className="mobileadmin-order-items">{(order.items || []).slice(0, 3).map((item, index) => <span key={`${item.name}-${index}`}>{item.quantity || 1}× {item.name || "Item"}{item.size ? ` · ${item.size}` : ""}</span>)}</div>
+      <div><small>{order.created_at ? new Date(order.created_at).toLocaleString() : "Date unavailable"}</small><strong>{details.name}</strong>{details.phone ? <a href={`tel:${details.phone}`}>{details.phone}</a> : null}{details.location ? <span>{details.location}</span> : null}<span>#{order.id.slice(0, 8)} Â· {(order.items || []).reduce((sum, item) => sum + Number(item.quantity || 1), 0)} items</span><b className="mobileadmin-channel">{orderChannel(order)}</b></div>
+      <div className="mobileadmin-order-items">{(order.items || []).slice(0, 3).map((item, index) => <span key={`${item.name}-${index}`}>{item.quantity || 1}Ã— {item.name || "Item"}{item.size ? ` Â· ${item.size}` : ""}</span>)}</div>
       <div className="mobileadmin-order-total"><label><span>Status</span><select aria-label={`Status for order ${order.id}`} value={order.status || "payment_pending"} disabled={busy === order.id} onChange={(event) => void update(order, "price", event.target.value)}>{order.status && !ORDER_STATUSES.some(([value]) => value === order.status) ? <option value={order.status}>{order.status.replaceAll("_", " ")}</option> : null}{ORDER_STATUSES.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><strong>${Number(order.total_amount || 0).toFixed(2)}</strong>{order.tracking_numbers?.map((tracking) => <a key={tracking} href={trackingUrl(tracking)} target="_blank" rel="noreferrer">Track {tracking}</a>)}<div className="mobileadmin-order-actions"><button disabled={busy === order.id} onClick={() => void update(order, "price")}>Adjust total</button><button disabled={!pirateshipReady(order)} title={pirateshipReady(order) ? "Download a CSV and open Pirate Ship" : "Needs a complete U.S. shipping address"} onClick={() => downloadPirateShip([order])}>Pirate Ship</button><button disabled={busy === order.id} onClick={() => void update(order, "tracking")}>Paste tracking</button><button className="is-danger" disabled={busy === order.id || !order.payment_intent_id} title={!order.payment_intent_id ? "No Stripe payment reference on this order" : "Issue refund"} onClick={() => void update(order, "refund")}>Refund</button></div>{(() => {
         const legs = (order.shipping_labels && order.shipping_labels.length ? order.shipping_labels : stubLabelsForItems(order.items || [])) as ShippingLabel[];
         if (!legs.length) return null;
@@ -126,7 +130,7 @@ export function OrderExplorer({ orders }: { orders: MobileOrder[] }) {
         return <div className="mobileadmin-legs">{legs.map((leg) => {
           const ready = leg.status === "purchased";
           const printLabel = leg.key === "kit_out" ? "Print kit label" : leg.key === "refills_out" ? "Print return label" : ready ? "Reprint empties label" : "Print empties label";
-          return <div key={leg.key}><small>{leg.title || LEG_TITLES[leg.key || ""] || leg.key}</small><em className={ready ? "is-ready" : undefined}>{ready ? "Purchased" : "Queued"}</em>{leg.trackingNumber ? <a href={trackingUrl(leg.trackingNumber)} target="_blank" rel="noreferrer">{leg.trackingNumber}</a> : null}<button disabled={busy === order.id || !paid} onClick={() => void update(order, "labels", undefined, leg.key)}>{printLabel}</button></div>;
+          return <div key={leg.key}><small>{leg.title || LEG_TITLES[leg.key || ""] || leg.key}</small>{leg.key === "empties_in" ? <small>Recipient: The Candle Garden, Atlantic Beach</small> : null}<em className={ready ? "is-ready" : undefined}>{ready ? "Purchased" : "Queued"}</em>{leg.trackingNumber ? <a href={trackingUrl(leg.trackingNumber)} target="_blank" rel="noreferrer">{leg.trackingNumber}</a> : null}<button disabled={busy === order.id || !paid} onClick={() => void update(order, "labels", undefined, leg.key)}>{printLabel}</button></div>;
         })}</div>;
       })()}</div>
     </article> }) : <div className="mobileadmin-empty">No orders match this search.</div>}</div>

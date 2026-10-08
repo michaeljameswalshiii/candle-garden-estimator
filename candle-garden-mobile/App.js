@@ -17,7 +17,7 @@ import { colors, navigationTheme, fonts } from './lib/theme';
 import { CartProvider, useCart } from './lib/cart';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import { setAuthTokenGetter, setAccessTokenGetter, trackEvent } from './lib/apiClient';
-import { STRIPE_PUBLISHABLE_KEY } from './lib/stripeConfig';
+import { STRIPE_PUBLISHABLE_KEY, APPLE_MERCHANT_IDENTIFIER } from './lib/stripeConfig';
 
 const EstimatorScreen = lazy(() => import('./screens/EstimatorScreen'));
 
@@ -159,7 +159,7 @@ function AppTree() {
 }
 
 export default function App() {
-  const [ready, setReady] = React.useState(false);
+  const [ready] = React.useState(true);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -170,14 +170,13 @@ export default function App() {
           const result = await Updates.checkForUpdateAsync();
           if (result.isAvailable) {
             await Updates.fetchUpdateAsync();
-            await Updates.reloadAsync();
+            // Download in the background; the next launch uses the new bundle.
             return;
           }
         }
       } catch {
         // Use the bundle already on the device.
       }
-      if (!cancelled) setReady(true);
     })();
 
     return () => {
@@ -198,7 +197,7 @@ export default function App() {
     return <AppTree />;
   }
   return (
-    <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
+    <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY} merchantIdentifier={APPLE_MERCHANT_IDENTIFIER} urlScheme="candlegarden">
       <AppTree />
     </StripeProvider>
   );

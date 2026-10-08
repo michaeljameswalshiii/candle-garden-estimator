@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Alert, Image, ScrollView, TextInput } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, Alert, Image, ScrollView, TextInput, useWindowDimensions, ActivityIndicator } from 'react-native';
+import { useRoute, useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import {
   calculateCost,
@@ -10,13 +10,31 @@ import {
   SHIPPING_METHODS,
   UPS_BOXES,
   DEFAULT_SHIPPING_METHOD,
+  REFILL_SPEEDS,
+  normalizeSpeed,
 } from '../lib/pricing';
-import { BOX_FIT_ORDER, PACKING_INSTRUCTIONS } from '../lib/shippingConfig';
+import { BOX_FIT_ORDER, PACKING_INSTRUCTIONS, shippingMethodSummary } from '../lib/shippingConfig';
+import { STORE } from '../lib/storeInfo';
 import { prepareImageForDetect, isImageManipulatorAvailable } from '../lib/prepareImage';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 import { postDetect, postShippingQuote } from '../lib/apiClient';
 import { useAuth } from '../lib/AuthContext';
 import { useCart } from '../lib/cart';
+
+const PHOTO_STEPS = [
+  {
+    title: 'Gather vessels',
+    body: 'Line up every jar, mug, or glass you want refilled. Include the small ones. Empty glass with the wick showing works best.',
+  },
+  {
+    title: 'Add a scale can',
+    body: 'Place a 12 oz drink can beside them. We use it for size only and will not count it as a vessel.',
+  },
+  {
+    title: 'Photograph the group',
+    body: 'Hold the phone upright and capture the whole group in one frame, then tap Get Estimate.',
+  },
+];
 
 function CustomButton({ title, onPress, disabled, color }) {
   return (
@@ -39,6 +57,7 @@ function CustomButton({ title, onPress, disabled, color }) {
 
 export default function EstimatorScreen() {
   const navigation = useNavigation();
+  const route = useRoute();
   const { isAuthenticated } = useAuth();
   const { addItem } = useCart();
   const [image, setImage] = useState(null);
@@ -48,9 +67,21 @@ export default function EstimatorScreen() {
   const [manualOunces, setManualOunces] = useState('');
   const [destZip, setDestZip] = useState('');
   const [shippingMethod, setShippingMethod] = useState(DEFAULT_SHIPPING_METHOD);
+  const [refillSpeed, setRefillSpeed] = useState(null);
   const [selectedBox, setSelectedBox] = useState(null);
   const [liveQuotes, setLiveQuotes] = useState([]);
+  const [photoSize, setPhotoSize] = useState(null);
+  const [loadingPhase, setLoadingPhase] = useState('');
+  const preparedRef = useRef(null);
+  const prepGen = useRef(0);
   const manipulatorOk = isImageManipulatorAvailable();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const photoFrameWidth = Math.max(240, windowWidth - (spacing.md + 4) * 2);
+  const photoAspect = photoSize && photoSize.h > 0 ? photoSize.w / photoSize.h : 3 / 4;
+  const previewHeight = Math.min(
+    windowHeight * 0.62,
+    Math.max(220, photoFrameWidth / Math.max(photoAspect, 0.45))
+  );
 
   const vesselCount = Array.isArray(result?.vessels) && result.vessels.length
     ? result.vessels.length
@@ -61,6 +92,15 @@ export default function EstimatorScreen() {
         .filter((n) => Number.isFinite(n) && n > 0)
     : undefined;
 
+  useEffect(() => {
+    const previous=route.params?.reorder;
+    if (!previous || !Number(previous.ounces)) return;
+    const count=Math.max(1,Number(previous.vesselCount)||1);
+    setResult({estimated_ounces:Number(previous.ounces),vessels:Array.from({length:count},()=>({wax_needed_oz:Number(previous.ounces)/count}))});
+    setShippingMethod(previous.shippingMethod || DEFAULT_SHIPPING_METHOD);
+    setDestZip(previous.destZip || '');setSelectedBox(previous.boxKey || null);
+    setRefillSpeed(previous.speed || 'standard');
+  },[route.params?.reorder?.requestId]);
   const cost = useMemo(() => {
     if (!result?.estimated_ounces) return null;
     return calculateCost(result.estimated_ounces, {
@@ -69,12 +109,50 @@ export default function EstimatorScreen() {
       destZip,
       shippingMethod,
       boxKey: selectedBox,
+      speed: refillSpeed,
     });
-  }, [result, vesselCount, perVesselOz, destZip, shippingMethod, selectedBox]);
+  }, [result, vesselCount, perVesselOz, destZip, shippingMethod, selectedBox, refillSpeed]);
+
+  useEffect(() => {
+    if (!image) {
+      setPhotoSize(null);
+      return undefined;
+    }
+    let cancelled = false;
+    Image.getSize(
+      image,
+      (w, h) => {
+        if (!cancelled && w > 0 && h > 0) setPhotoSize({ w, h });
+      },
+      () => {
+        if (!cancelled) setPhotoSize(null);
+      }
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [image]);
+
+  const applyPickedPhoto = async (uri) => {
+    const gen = prepGen.current + 1;
+    prepGen.current = gen;
+    preparedRef.current = null;
+    setImage(uri);
+    setResult(null);
+    try {
+      const prepared = await prepareImageForDetect(uri);
+      if (prepGen.current !== gen) return;
+      preparedRef.current = prepared;
+      if (prepared.uri) setImage(prepared.uri);
+      if (prepared.width && prepared.height) setPhotoSize({ w: prepared.width, h: prepared.height });
+    } catch {
+      /* Estimate will convert again if this background pass fails. */
+    }
+  };
 
   useEffect(() => {
     const zip = String(destZip || '').replace(/\D/g, '');
-    if (!result?.estimated_ounces || zip.length < 5) {
+    if (!result?.estimated_ounces || zip.length < 5 || !refillSpeed) {
       setLiveQuotes([]);
       return undefined;
     }
@@ -84,6 +162,7 @@ export default function EstimatorScreen() {
       destZip: zip,
       boxKey: selectedBox,
       vesselCount,
+      speed: refillSpeed,
       methods: ['ship_own', 'kit_roundtrip', 'prepaid_labels'],
     })
       .then((data) => {
@@ -95,7 +174,7 @@ export default function EstimatorScreen() {
     return () => {
       cancelled = true;
     };
-  }, [result, destZip, selectedBox, vesselCount]);
+  }, [result, destZip, selectedBox, vesselCount, refillSpeed]);
 
   const methodQuotes = useMemo(() => {
     if (!result?.estimated_ounces) return [];
@@ -104,19 +183,22 @@ export default function EstimatorScreen() {
       perVesselOz,
       destZip,
       boxKey: selectedBox,
+      speed: refillSpeed,
     });
-  }, [result, vesselCount, perVesselOz, destZip, selectedBox]);
+  }, [result, vesselCount, perVesselOz, destZip, selectedBox, refillSpeed]);
 
   const addEstimateToCart = () => {
-    if (!result?.estimated_ounces || !cost) return;
+    if (!result?.estimated_ounces || !cost || !refillSpeed) return;
     if (!cost.quote_ok) {
       Alert.alert(
         'ZIP needed',
-        cost.quote_reason || 'Enter your 5-digit ZIP so we can estimate UPS shipping.'
+        cost.quote_reason || 'Enter your 5-digit ZIP so we can estimate shipping.'
       );
       return;
     }
     const method = SHIPPING_METHODS[shippingMethod];
+    const speed = normalizeSpeed(refillSpeed);
+    const speedMeta = REFILL_SPEEDS[speed];
     addItem(
       {
         id: 'refill',
@@ -132,11 +214,17 @@ export default function EstimatorScreen() {
         boxKey: cost.box_key,
         destZip: cost.dest_zip,
         shippingMethod,
+        speed,
         vesselCount,
         detail:
-          shippingMethod === 'ship_own'
-            ? `Ship empties on your own \u00b7 UPS return shipping to you \u00b7 $${cost.shipping_cost}`
-            : `${method?.title || 'UPS shipping'} \u00b7 ${cost.shipping_label}`,
+          `${speedMeta.title} \u00b7 ${speedMeta.timing}` +
+          (shippingMethod === 'local_dropoff'
+            ? ' · drop off and pick up in Atlantic Beach'
+            : shippingMethod === 'ship_own'
+            ? (speed === 'expedited'
+              ? ' · you ship empties UPS 2nd Day Air'
+              : ' · ship empties on your own')
+            : ` · ${method?.title || 'Shipping'}`),
         unitPrice: Number(cost.total_cost),
         waxUnitPrice: cost.wax_cost_num,
         returnShippingUnitPrice: cost.shipping_cost_num,
@@ -166,8 +254,7 @@ export default function EstimatorScreen() {
     try {
       const pickerResult = await ImagePicker.launchImageLibraryAsync(pickerOptions);
       if (!pickerResult.canceled) {
-        setImage(pickerResult.assets[0].uri);
-        setResult(null);
+        await applyPickedPhoto(pickerResult.assets[0].uri);
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to pick image: ' + error.message);
@@ -183,8 +270,7 @@ export default function EstimatorScreen() {
       }
       const cameraResult = await ImagePicker.launchCameraAsync(pickerOptions);
       if (!cameraResult.canceled) {
-        setImage(cameraResult.assets[0].uri);
-        setResult(null);
+        await applyPickedPhoto(cameraResult.assets[0].uri);
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to take photo: ' + error.message);
@@ -211,10 +297,14 @@ export default function EstimatorScreen() {
       return;
     }
     setLoading(true);
+    setLoadingPhase('Preparing photo');
     try {
-      let prepared;
+      let prepared = preparedRef.current;
       try {
-        prepared = await prepareImageForDetect(image);
+        if (!prepared?.base64) {
+          prepared = await prepareImageForDetect(image);
+          preparedRef.current = prepared;
+        }
       } catch (convErr) {
         promptManualFallback([
           convErr.message || 'Could not convert photo to JPEG',
@@ -223,6 +313,7 @@ export default function EstimatorScreen() {
         ]);
         return;
       }
+      setLoadingPhase('Reading your vessels');
       let detectData;
       try {
         detectData = await postDetect({ image: prepared.base64 });
@@ -284,6 +375,7 @@ export default function EstimatorScreen() {
       Alert.alert('Error', 'Failed to process image: ' + (error.message || String(error)));
     } finally {
       setLoading(false);
+      setLoadingPhase('');
     }
   };
 
@@ -310,9 +402,20 @@ export default function EstimatorScreen() {
       <Text style={styles.buildTag}>
         build: ups-ground-saver-v1 {'·'} {isAuthenticated ? 'signed in' : 'guest'}
       </Text>
-      <Text style={styles.instruction}>
-        Put every vessel you want refilled in the foreground (include small jars). Place a 12 oz drink can beside them for scale only {'—'} we will not count the can. Empty glass with wick visible works best.
-      </Text>
+      <View style={styles.stepsCard}>
+        <Text style={styles.stepsHeading}>How to photograph</Text>
+        {PHOTO_STEPS.map((step, index) => (
+          <View key={step.title} style={styles.stepRow}>
+            <View style={styles.stepNum}>
+              <Text style={styles.stepNumText}>{index + 1}</Text>
+            </View>
+            <View style={styles.stepCopy}>
+              <Text style={styles.stepTitle}>{step.title}</Text>
+              <Text style={styles.stepBody}>{step.body}</Text>
+            </View>
+          </View>
+        ))}
+      </View>
       {!manipulatorOk ? (
         <View style={styles.warnBanner}>
           <Text style={styles.warnTitle}>Limited photo conversion in this client</Text>
@@ -323,11 +426,18 @@ export default function EstimatorScreen() {
         </View>
       ) : null}
       {image ? (
-        <Image source={{ uri: image }} style={styles.image} />
+        <View style={[styles.imageFrame, { width: photoFrameWidth, height: previewHeight }]}>
+          <Image
+            source={{ uri: image }}
+            style={styles.image}
+            resizeMode="contain"
+            accessibilityLabel="Estimate photo, shown full width"
+          />
+        </View>
       ) : (
-        <View style={styles.placeholderContainer}>
+        <View style={[styles.placeholderContainer, { width: photoFrameWidth, height: Math.min(windowHeight * 0.42, photoFrameWidth * (4 / 3)) }]}>
           <Text style={styles.placeholderText}>{'📷'}</Text>
-          <Text style={styles.placeholderHint}>No photo selected</Text>
+          <Text style={styles.placeholderHint}>Photo fills this frame on iPhone</Text>
         </View>
       )}
       <View style={styles.buttonContainer}>
@@ -335,8 +445,14 @@ export default function EstimatorScreen() {
         <CustomButton title="Pick from Gallery" onPress={pickImage} />
         {image && (
           <>
-            <CustomButton title="Clear Photo" onPress={() => { setImage(null); setResult(null); }} color={colors.danger} />
-            <CustomButton title={loading ? 'Estimating...' : 'Get Estimate'} onPress={estimateCandle} disabled={loading} />
+            <CustomButton title="Clear Photo" onPress={() => { setImage(null); setResult(null); setRefillSpeed(null); preparedRef.current = null; }} color={colors.danger} />
+            <CustomButton title={loading ? (loadingPhase || 'Estimating...') : 'Get Estimate'} onPress={estimateCandle} disabled={loading} />
+            {loading ? (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator color={colors.primary} />
+                <Text style={styles.loadingHint}>{loadingPhase || 'Estimating...'}</Text>
+              </View>
+            ) : null}
           </>
         )}
       </View>
@@ -376,24 +492,58 @@ export default function EstimatorScreen() {
           {result.confidence != null && result.confidence < 1 && (
             <Text style={styles.resultText}>Confidence: {Math.round(result.confidence * 100)}%</Text>
           )}
-          <Text style={styles.resultText}>Wax: ${cost.wax_cost}</Text>
-          <Text style={styles.sectionLabel}>Your ZIP</Text>
-          <Text style={styles.shipNote}>Estimated UPS shipping is based on ZIP and packed weight. Checkout confirms the lowest live UPS rate available.</Text>
-          <TextInput style={styles.zipInput} value={destZip} onChangeText={(t) => setDestZip(t.replace(/[^\d]/g, '').slice(0, 10))} keyboardType="number-pad" placeholder="32250" placeholderTextColor={colors.textFaint} maxLength={10} />
-          <Text style={styles.sectionLabel}>How we’ll ship</Text>
+          <Text style={styles.sectionLabel}>How fast should we turn this around?</Text>
+          <Text style={styles.shipNote}>Choose a speed before we show postage or a total. The clock starts when your empties arrive.</Text>
+          {Object.values(REFILL_SPEEDS).map((speed) => {
+            const selected = refillSpeed === speed.key;
+            return (
+              <TouchableOpacity
+                key={speed.key}
+                style={[styles.methodCard, selected && styles.methodCardSelected]}
+                onPress={() => setRefillSpeed(speed.key)}
+                activeOpacity={0.8}
+              >
+                <View style={styles.methodHeader}>
+                  <Text style={styles.methodTitle}>{speed.title}</Text>
+                  <Text style={styles.methodPrice}>{speed.timing}</Text>
+                </View>
+                <Text style={styles.methodBody}>{speed.body}</Text>
+              </TouchableOpacity>
+            );
+          })}
+          {refillSpeed ? <Text style={styles.sectionLabel}>How the empties get to us</Text> : null}
+          {refillSpeed ? (
+            <>
           {methodQuotes.map(({ methodKey, method, cost: methodCost }) => {
             const selected = shippingMethod === methodKey;
             const live = liveQuotes.find((q) => q.method === methodKey);
             const liveShip = live && live.shipping_cents != null ? (live.shipping_cents / 100).toFixed(2) : null;
-            const priceLabel = liveShip ? `$${liveShip}` : methodCost.quote_ok ? `$${methodCost.shipping_cost}` : methodCost.needs_zip ? 'Enter ZIP' : 'See note';
+            const priceLabel = methodKey === 'local_dropoff'
+              ? '$0.00'
+              : liveShip
+                ? `$${liveShip}`
+                : methodCost.quote_ok
+                  ? `$${methodCost.shipping_cost}`
+                  : methodCost.needs_zip
+                    ? 'Enter ZIP'
+                    : 'See note';
             return (
               <TouchableOpacity key={methodKey} style={[styles.methodCard, selected && styles.methodCardSelected]} onPress={() => setShippingMethod(methodKey)} activeOpacity={0.8}>
                 <View style={styles.methodHeader}>
                   <Text style={styles.methodTitle}>{method.title}</Text>
                   <Text style={styles.methodPrice}>{priceLabel}</Text>
                 </View>
-                <Text style={styles.methodMeta}>{methodKey === 'ship_own' ? '1 UPS return trip to you' : `${method.chargeCount} UPS trips`}</Text>
-                <Text style={styles.methodBody}>{method.summary}</Text>
+                <Text style={styles.methodMeta}>
+                  {methodKey === 'local_dropoff'
+                    ? 'Drop off and pick up in Atlantic Beach'
+                    : methodKey === 'ship_own'
+                      ? '1 return trip to you'
+                      : `${method.chargeCount} shipping trips`}
+                </Text>
+                <Text style={styles.methodBody}>{shippingMethodSummary(methodKey, refillSpeed)}</Text>
+                {methodKey === 'ship_own' && refillSpeed === 'expedited' ? (
+                  <Text style={styles.methodWarn}>Send empties UPS 2nd Day Air so Expedited timing can start when they arrive.</Text>
+                ) : null}
                 {methodCost.quote_ok && methodCost.legs?.length ? methodCost.legs.map((leg) => (
                   <Text key={leg.key} style={styles.legLine}>{'•'} {leg.title}: ${leg.totalUsd.toFixed(2)} ({leg.billedLb} lb, zone {leg.zone})</Text>
                 )) : null}
@@ -403,8 +553,18 @@ export default function EstimatorScreen() {
               </TouchableOpacity>
             );
           })}
+          {shippingMethod === 'local_dropoff' ? (
+            <View style={styles.instructBox}>
+              <Text style={styles.sectionLabel}>The Candle Garden shop</Text>
+              <Text style={styles.shipNote}>{STORE.address}{'\n'}{STORE.city}, {STORE.state} {STORE.zip}{'\n'}{STORE.hours}</Text>
+            </View>
+          ) : (
+            <>
+          <Text style={styles.sectionLabel}>Your ZIP</Text>
+          <Text style={styles.shipNote}>Estimated shipping is based on ZIP and packed weight. Checkout confirms the lowest live carrier rate (USPS in Shippo test mode).</Text>
+          <TextInput style={styles.zipInput} value={destZip} onChangeText={(t) => setDestZip(t.replace(/[^\d]/g, '').slice(0, 10))} keyboardType="number-pad" placeholder="32250" placeholderTextColor={colors.textFaint} maxLength={10} />
           <Text style={styles.sectionLabel}>Carton</Text>
-          <Text style={styles.shipNote}>Packed weight includes vessels, cardboard, and packing. UPS bills the greater of scale weight and dimensional weight.</Text>
+          <Text style={styles.shipNote}>Packed weight includes vessels, cardboard, and packing. Carriers bill the greater of scale weight and dimensional weight.</Text>
           {BOX_FIT_ORDER.map((key) => {
             const box = UPS_BOXES[key];
             if (!box) return null;
@@ -435,10 +595,13 @@ export default function EstimatorScreen() {
               ))}
             </View>
           ) : null}
+            </>
+          )}
           {cost.customer_note ? <Text style={styles.shipNote}>{cost.customer_note}</Text> : null}
           <Text style={styles.total}>Total: {cost.quote_ok ? `$${cost.total_cost}` : '\u2014'}</Text>
-          <Text style={styles.weightBreakdown}>Wax ${cost.wax_cost}{cost.quote_ok ? ` + return shipping to you ${cost.shipping_cost}` : ''}</Text>
-          <CustomButton title="Add refill to cart" onPress={addEstimateToCart} disabled={!cost.quote_ok} />
+          <CustomButton title="Add refill to cart" onPress={addEstimateToCart} disabled={!cost.quote_ok || !refillSpeed} />
+            </>
+          ) : null}
         </View>
       )}
     </ScrollView>
@@ -449,9 +612,19 @@ const styles = StyleSheet.create({
   container: { flexGrow: 1, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', padding: spacing.md + 4 },
   title: { fontFamily: fonts.heading, fontSize: 26, fontWeight: '400', marginBottom: 4, color: colors.primary },
   buildTag: { fontFamily: fonts.body, fontSize: 11, color: colors.textFaint, marginBottom: 10 },
-  instruction: { fontFamily: fonts.body, fontSize: 14, textAlign: 'center', marginBottom: 20, color: colors.textMuted, paddingHorizontal: 20, lineHeight: 20 },
-  image: { width: 280, height: 280, marginBottom: 20, borderRadius: radii.md },
-  placeholderContainer: { width: 280, height: 280, backgroundColor: colors.surface, borderRadius: radii.md, justifyContent: 'center', alignItems: 'center', marginBottom: 20, borderWidth: 2, borderColor: colors.borderStrong, borderStyle: 'dashed' },
+  stepsCard: { width: '100%', backgroundColor: colors.surface, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 16 },
+  stepsHeading: { fontFamily: fonts.heading, fontSize: 16, color: colors.primary, marginBottom: 10 },
+  stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 10 },
+  stepNum: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  stepNumText: { color: colors.white, fontSize: 13, fontWeight: '700' },
+  stepCopy: { flex: 1 },
+  stepTitle: { fontFamily: fonts.body, fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 2 },
+  stepBody: { fontFamily: fonts.body, fontSize: 13, color: colors.textSecondary, lineHeight: 18 },
+  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+  loadingHint: { fontFamily: fonts.body, fontSize: 13, color: colors.textMuted },
+  imageFrame: { marginBottom: 20, borderRadius: radii.md, overflow: 'hidden', backgroundColor: colors.surface, alignSelf: 'center' },
+  image: { width: '100%', height: '100%' },
+  placeholderContainer: { backgroundColor: colors.surface, borderRadius: radii.md, justifyContent: 'center', alignItems: 'center', marginBottom: 20, borderWidth: 2, borderColor: colors.borderStrong, borderStyle: 'dashed', alignSelf: 'center' },
   placeholderText: { fontSize: 60, marginBottom: 10 },
   placeholderHint: { fontFamily: fonts.body, fontSize: 16, color: colors.textFaint },
   buttonContainer: { alignItems: 'center', gap: 12, width: '100%' },

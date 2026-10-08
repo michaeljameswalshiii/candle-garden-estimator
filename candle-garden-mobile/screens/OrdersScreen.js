@@ -19,7 +19,11 @@ import { useCart } from '../lib/cart';
 import { useAuth } from '../lib/AuthContext';
 import { createStripePaymentSheet, finalizeStripePayment, listOrders, trackEvent } from '../lib/apiClient';
 import { useStripe } from '../lib/stripeBridge';
-import { stripeConfigured } from '../lib/stripeConfig';
+import { stripeTestMode, stripeConfigured } from '../lib/stripeConfig';
+import { useNavigation } from '@react-navigation/native';
+import OrderHistoryCard from '../components/OrderHistoryCard';
+import { fetchLatestProducts } from '../lib/shopCatalog';
+import { STORE } from '../lib/storeInfo';
 
 const ORDER_PROGRESS = ['paid', 'processing', 'shipped', 'completed'];
 const STATUS_COPY = {
@@ -77,7 +81,10 @@ function OrdersScreenCheckout() {
 }
 
 function OrdersScreenBody({ stripe }) {
-  const { lines, itemCount, subtotal, setQuantity, removeItem, clearCart } = useCart();
+  const navigation = useNavigation();
+  const [fulfillment, setFulfillment] = useState("shipping");
+  const [promoCode, setPromoCode] = useState("");
+  const { lines, itemCount, subtotal, addItem, setQuantity, removeItem, clearCart } = useCart();
   const { isAuthenticated, signIn, busy: authBusy, user } = useAuth();
   const initPaymentSheet = stripe?.initPaymentSheet;
   const presentPaymentSheet = stripe?.presentPaymentSheet;
@@ -100,7 +107,7 @@ function OrdersScreenBody({ stripe }) {
   });
   const asGuest = checkoutStep === 'guest' || (!isAuthenticated && checkoutStep !== 'account');
 
-  const needsShipping = lines.some((line) => line.type !== 'class');
+  const needsShipping = fulfillment !== 'pickup' && lines.some((line) => line.type !== 'class' && !(line.type === 'refill' && line.shippingMethod === 'local_dropoff')); 
 
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true);
@@ -225,16 +232,18 @@ function OrdersScreenBody({ stripe }) {
           ounces: line.ounces,
           boxKey: line.boxKey,
           destZip: line.destZip || shipping.zip,
-          shippingMethod: line.shippingMethod || 'ship_own',
+          shippingMethod: fulfillment === 'pickup' && line.type === 'refill' ? 'local_dropoff' : line.shippingMethod || 'ship_own',
           speed: line.speed || 'standard',
           vesselCount: line.vesselCount,
         })),
-        { email: shipping.email, name: shipping.name, zip: shipping.zip, shipping }
+        { email: shipping.email, name: shipping.name, zip: shipping.zip, shipping, fulfillment, promoCode }
       );
       const { error: initError } = await initPaymentSheet({
         merchantDisplayName: 'The Candle Garden',
         paymentIntentClientSecret: sheet.paymentIntentClientSecret,
-        googlePay: { merchantCountryCode: 'US', testEnv: true },
+        applePay: { merchantCountryCode: 'US' },
+        googlePay: { merchantCountryCode: 'US', testEnv: stripeTestMode },
+        returnURL: 'candlegarden://stripe-redirect',
         allowsDelayedPaymentMethods: false,
       });
       if (initError) throw initError;
@@ -245,11 +254,13 @@ function OrdersScreenBody({ stripe }) {
       }
       const paidTotal = Number(sheet.amount || 0) / 100;
       const finalized = await finalizeStripePayment(sheet.paymentIntentId);
+      if (!finalized.paid) throw new Error('Payment is still pending. Refresh your order history before paying again.');
       trackEvent('payment_success');
       const printLabels = customerPrintLabels(finalized);
       const refillLines = lines.filter((line) => line.type === 'refill');
-      const methods = refillLines.map((line) => line.shippingMethod);
+      const methods = refillLines.map((line) => fulfillment === 'pickup' ? 'local_dropoff' : line.shippingMethod);
       let labelNote = '';
+      if (methods.includes('local_dropoff')) labelNote = `Drop off and collect your vessels at ${STORE.name}, ${STORE.address}, ${STORE.city}. We will notify you when they are ready.`;
       if (printLabels.length) {
         labelNote = 'Your prepaid empties label is ready. Print it and tape it to the box.';
       } else if (methods.includes('kit_roundtrip')) {
@@ -341,62 +352,24 @@ function OrdersScreenBody({ stripe }) {
     </View>
   );
 
-  const renderHistory = ({ item }) => {
-    const total =
-      item.total_amount != null
-        ? Number(item.total_amount)
-        : item.total != null
-          ? Number(item.total)
-          : null;
-    const [label, description] = customerStatus(item.status);
-    const step = progressIndex(item.status);
-    const stopped = ['cancelled', 'partially_refunded', 'refunded'].includes(item.status);
-    return (
-      <View style={styles.historyCard}>
-        <View style={styles.historyRow}>
-          <Text style={styles.historyId} numberOfLines={1}>
-            Order #{String(item.id || '').slice(0, 8) || '—'}
-          </Text>
-          <Text style={[styles.historyStatus, stopped && styles.historyStatusStopped]}>{label}</Text>
-        </View>
-        <Text style={styles.historyMeta}>
-          {item.created_at
-            ? new Date(item.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-            : 'Date unknown'}
-        </Text>
-        {!stopped ? (
-          <View style={styles.progressRow} accessibilityLabel={`Order progress: ${label}`}>
-            {ORDER_PROGRESS.map((progressStatus, index) => <View key={progressStatus} style={[styles.progressSegment, index <= step && styles.progressSegmentOn]} />)}
-          </View>
-        ) : null}
-        <Text style={styles.historyDescription}>{description}</Text>
-        {(item.items || []).slice(0, 3).map((orderItem, index) => (
-          <Text key={`${orderItem.name || 'item'}-${index}`} style={styles.historyItem}>
-            {orderItem.quantity || 1}× {orderItem.name || 'Candle Garden item'}{orderItem.size ? ` · ${orderItem.size}` : ''}
-          </Text>
-        ))}
-        {customerPrintLabels(item).map((label) => (
-          <TouchableOpacity key={label.trackingNumber || label.labelUrl} onPress={() => void openLabel(label)}>
-            <Text style={styles.historyLink}>Print empties label</Text>
-          </TouchableOpacity>
-        ))}
-        {total != null && !Number.isNaN(total) ? (
-          <Text style={styles.historyTotal}>${total.toFixed(2)}</Text>
-        ) : null}
-        {(item.tracking_numbers || []).map((tracking) => (
-          <TouchableOpacity key={tracking} style={styles.trackingButton} onPress={() => Linking.openURL(`https://www.ups.com/track?tracknum=${encodeURIComponent(tracking)}`)} accessibilityRole="link">
-            <Text style={styles.trackingButtonText}>Track UPS package {tracking}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    );
+  const reorderProduct = async (item) => {
+    try {
+      const latest = await fetchLatestProducts();
+      const product = latest.products.find(p => p.id === (item.productId || item.product_id)) || latest.products.find(p => p.name === item.name);
+      if (!product || product.soldOut) throw new Error('This scent is not currently available. Browse Shop for another scent.');
+      const variant = product.variants?.find(v => v.id === item.variantId || v.size === item.size);
+      if (product.variants?.length && (!variant || variant.soldOut)) throw new Error('This size is unavailable. Open Shop to choose another size.');
+      addItem(product, {quantity:Number(item.quantity)||1, size:variant?.size || item.size, variantId:variant?.id, unitPrice:variant?.price ?? product.price});
+      Alert.alert('Added to cart', `${product.name} was added at today’s price. Review your cart before checkout.`);
+    } catch(error) { Alert.alert('Could not reorder',error.message); }
   };
+  const renderHistory = ({ item }) => <OrderHistoryCard order={item} onPrintLabel={openLabel} onReorderProduct={reorderProduct} onReorderRefill={item => navigation.navigate('Estimator', {reorder: {...item, requestId:Date.now()}})} />;
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Cart & orders</Text>
       <Text style={styles.subtitle}>
-        Checkout as a guest, or sign in if you already have an account. Test cards only.
+        Checkout as a guest, or sign in if you already have an account. {stripeTestMode ? 'Test checkout: no real charge is made.' : ''}
       </Text>
 
       <FlatList
@@ -418,13 +391,13 @@ function OrdersScreenBody({ stripe }) {
                 Thank you{lastCompletedOrder.customerName ? `, ${lastCompletedOrder.customerName}` : ''}!
               </Text>
               <Text style={styles.successMessage}>
-                Your test order is complete. No real charge was made.
+                {stripeTestMode ? 'Your test order is complete. No real charge was made.' : 'Your payment is confirmed. Thank you for your order!'}
               </Text>
 
               <View style={styles.successSummary}>
                 <View style={styles.successSummaryHeader}>
                   <Text style={styles.successSummaryTitle}>Order summary</Text>
-                  <Text style={styles.testBadge}>TEST ORDER</Text>
+                  <Text style={styles.testBadge}>{stripeTestMode ? "TEST ORDER" : "ORDER CONFIRMED"}</Text>
                 </View>
                 {lastCompletedOrder.items.map((item) => (
                   <View key={item.key} style={styles.successItemRow}>
@@ -472,7 +445,7 @@ function OrdersScreenBody({ stripe }) {
                     style={[styles.checkoutBtn, styles.successPrintBtn]}
                     onPress={() => void openLabel(label)}
                   >
-                    <Text style={styles.checkoutText}>Print empties label</Text>
+                    <Text style={styles.checkoutText}>Print empties label to The Candle Garden</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -499,6 +472,43 @@ function OrdersScreenBody({ stripe }) {
                     Subtotal ({itemCount} item{itemCount === 1 ? '' : 's'})
                   </Text>
                   <Text style={styles.subtotalValue}>${subtotal.toFixed(2)}</Text>
+                </View>
+                <View style={styles.fulfillmentBox}>
+                  <Text style={styles.shippingTitle}>Delivery or local pickup</Text>
+                  <View style={styles.fulfillmentRow}>
+                    <TouchableOpacity
+                      style={[styles.fulfillmentChoice, fulfillment === 'shipping' && styles.fulfillmentChoiceOn]}
+                      onPress={() => setFulfillment('shipping')}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: fulfillment === 'shipping' }}
+                    >
+                      <Text style={[styles.fulfillmentChoiceText, fulfillment === 'shipping' && styles.fulfillmentChoiceTextOn]}>
+                        {fulfillment === 'shipping' ? '✓  ' : ''}Ship to me
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.fulfillmentChoice, fulfillment === 'pickup' && styles.fulfillmentChoiceOn]}
+                      onPress={() => setFulfillment('pickup')}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: fulfillment === 'pickup' }}
+                    >
+                      <Text style={[styles.fulfillmentChoiceText, fulfillment === 'pickup' && styles.fulfillmentChoiceTextOn]}>
+                        {fulfillment === 'pickup' ? '✓  ' : ''}Atlantic Beach pickup
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  {fulfillment === 'pickup' ? (
+                    <Text style={styles.historyMeta}>{STORE.address}, {STORE.city}. No shipping charge.</Text>
+                  ) : null}
+                  <TextInput
+                    style={styles.shippingInput}
+                    placeholder="Promo code (optional)"
+                    value={promoCode}
+                    onChangeText={setPromoCode}
+                    autoCapitalize="characters"
+                    accessibilityLabel="Promo code"
+                  />
+                  <Text style={styles.historyMeta}>Valid promotions are applied securely at payment.</Text>
                 </View>
                 {checkoutStep === 'account' && !isAuthenticated ? (
                   <View style={styles.shippingBox}>
@@ -989,6 +999,38 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textMuted,
     fontWeight: '600',
+  },
+  fulfillmentBox: {
+    marginBottom: 16,
+  },
+  fulfillmentRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  fulfillmentChoice: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    backgroundColor: colors.white,
+  },
+  fulfillmentChoiceOn: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft,
+  },
+  fulfillmentChoiceText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  fulfillmentChoiceTextOn: {
+    color: colors.primary,
   },
   historySection: {
     marginTop: 28,

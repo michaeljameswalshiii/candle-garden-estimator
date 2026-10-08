@@ -10,7 +10,7 @@ async function post(url, body, headers = {}) {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "x-device-id": "regression-suite",
+      "x-device-id": "dev_regression0123456789",
       ...headers,
     },
     body: JSON.stringify(body),
@@ -30,14 +30,14 @@ export async function runMobileApi(base = apiBase()) {
   const report = collect();
 
   const orders = await fetch(`${base}/orders`, {
-    headers: { "x-device-id": "regression-suite" },
+    headers: { "x-device-id": "dev_regression0123456789" },
     signal: AbortSignal.timeout(20_000),
   }).catch((error) => ({ ok: false, status: 0, error }));
   const orderStatus = orders.status || 0;
   report.check(
-    "GET /orders without JWT",
-    orderStatus === 401 || orderStatus === 403,
-    `expected 401/403, got ${orderStatus}`,
+    "GET /orders with guest device id",
+    orderStatus === 200,
+    `expected guest order history, got ${orderStatus}`,
   );
 
   const sheet = await post(`${base}/payments/payment-sheet`, {

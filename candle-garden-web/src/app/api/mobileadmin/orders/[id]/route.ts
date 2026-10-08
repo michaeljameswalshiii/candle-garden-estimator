@@ -6,7 +6,7 @@ import { labelStatusFrom } from "@/lib/shipping-labels";
 
 export const dynamic = "force-dynamic";
 
-const allowedStatuses = new Set(["payment_pending", "paid", "ready_for_fulfillment", "processing", "shipped", "completed", "cancelled", "partially_refunded", "refunded"]);
+const allowedStatuses = new Set(["payment_pending", "paid", "ready_for_fulfillment", "processing", "refill_received", "refilling", "refill_returning", "ready_for_pickup", "shipped", "completed", "cancelled", "partially_refunded", "refunded"]);
 
 async function stripeRefund(paymentIntent: string, amount?: number) {
   const key = process.env.STRIPE_SECRET_KEY;

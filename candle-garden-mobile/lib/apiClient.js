@@ -1,9 +1,12 @@
 /**
- * API helpers — attach Cognito JWT when the user is signed in.
+ * API helpers â€” attach Cognito JWT when the user is signed in.
  * Orders API requires ID token. Detect uses optional access token for verified attribution.
  */
 import { API_BASE } from './cognitoConfig';
 import * as SecureStore from 'expo-secure-store';
+import * as Crypto from 'expo-crypto';
+export const COMMERCE_BASE = 'https://candle-garden-web.vercel.app';
+let fallbackDeviceId;
 
 let idTokenGetter = async () => null;
 let accessTokenGetter = async () => null;
@@ -14,11 +17,12 @@ async function getOrCreateDeviceId() {
   try {
     let id = await SecureStore.getItemAsync(DEVICE_ID_KEY);
     if (id && id.length >= 8) return id;
-    id = `dev_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
+    id = `dev_${Crypto.randomUUID().replace(/-/g,'')}`;
     await SecureStore.setItemAsync(DEVICE_ID_KEY, id);
     return id;
   } catch {
-    return `tmp_${Date.now()}`;
+    if (!fallbackDeviceId) fallbackDeviceId = `tmp_${Crypto.randomUUID().replace(/-/g,'')}`;
+    return fallbackDeviceId;
   }
 }
 
@@ -72,7 +76,7 @@ function friendlyNetworkError(err) {
     || lower.includes('namelookup')
     || lower.includes('getaddrinfo')
   ) {
-    return 'Cannot reach the estimate server. Check Wi-Fi or cellular, then try again — or enter ounces manually.';
+    return 'Cannot reach the estimate server. Check Wi-Fi or cellular, then try again â€” or enter ounces manually.';
   }
   return raw || 'Network error';
 }
@@ -95,7 +99,8 @@ export async function apiFetch(path, options = {}) {
 
   let res;
   try {
-    res = await fetch(`${API_BASE}${path}`, {
+    const base = /^\/(orders(?:\/|$)|payments\/(?:payment-sheet|finalize|shipping-quote)$|account\/push-token$|auth\/)/.test(path) ? COMMERCE_BASE : API_BASE;
+    res = await fetch(`${base}${path}`, {
       method,
       headers,
       body: body != null ? JSON.stringify(body) : undefined,
@@ -149,6 +154,8 @@ export async function createStripePaymentSheet(items, contact = {}) {
   if (contact.name) body.name = String(contact.name).trim();
   if (contact.zip) body.destZip = String(contact.zip).replace(/\D/g, '').slice(0, 5);
   if (contact.shipping) body.shipping = contact.shipping;
+  body.fulfillment = contact.fulfillment || "shipping";
+  if (contact.promoCode) body.promoCode = contact.promoCode.trim();
   return apiFetch('/payments/payment-sheet', {
     method: 'POST',
     body,
@@ -189,17 +196,17 @@ export async function createRefillLabels(payload) {
 }
 
 export async function getOrder(id) {
-  return apiFetch(`/orders/${id}`, { method: 'GET', requireAuth: true });
+  return apiFetch(`/orders/${id}`, { method: 'GET', requireAuth: false });
 }
 
 export async function purgeAccountData() {
   return apiFetch('/account/purge', { method: 'POST', body: {}, requireAuth: true });
 }
 
-export async function registerPushToken(token, platform = 'unknown') {
+export async function registerPushToken(token, platform = 'unknown', preferences = {orders:true,newScents:true,classSeats:true}) {
   return apiFetch('/account/push-token', {
     method: 'POST',
-    body: { token, platform },
+    body: { token, platform, preferences },
     requireAuth: true,
   });
 }

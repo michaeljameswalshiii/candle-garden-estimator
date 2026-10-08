@@ -8,8 +8,9 @@ import {
   Text,
   TouchableOpacity,
   View,
+  RefreshControl,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { classes as bundledClasses, fetchLatestClasses, getUpcomingClasses } from '../lib/classesCatalog';
 import { useCart } from '../lib/cart';
 import { colors, fonts, radii, spacing } from '../lib/theme';
@@ -19,26 +20,33 @@ export default function ClassScheduleScreen() {
   const { addItem } = useCart();
   const [classCatalog, setClassCatalog] = useState(bundledClasses);
   const [status, setStatus] = useState('Loading schedule…');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const upcoming = useMemo(
     () => getUpcomingClasses(new Date(), classCatalog),
     [classCatalog]
   );
 
   const refreshClasses = useCallback(async () => {
+    setLoading(true);
+    setError('');
     try {
       const latest = await fetchLatestClasses();
       setClassCatalog(latest.classes);
       setStatus('Live class schedule');
-    } catch {
+    } catch (err) {
       setStatus('Showing saved schedule');
+      setError(err.message || 'Could not refresh classes.');
+    } finally {
+      setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     void refreshClasses();
     const timer = setInterval(() => void refreshClasses(), 60 * 60 * 1000);
     return () => clearInterval(timer);
-  }, [refreshClasses]);
+  }, [refreshClasses]));
 
   const bookClass = (course) => {
     if (course.soldOut || Number(course.available) === 0) {
@@ -77,11 +85,13 @@ export default function ClassScheduleScreen() {
         </Text>
         <Text style={styles.liveStatus}>{status}</Text>
       </View>
-      <ScrollView contentContainerStyle={styles.list}>
+      <ScrollView contentContainerStyle={styles.list} refreshControl={<RefreshControl refreshing={loading} onRefresh={refreshClasses} />}>
+        {error ? <Text style={styles.emptyText}>{error} Pull down or tap Retry to refresh.</Text> : null}
         {!upcoming.length ? (
           <View style={styles.empty}>
-            <ActivityIndicator color={colors.primary} />
-            <Text style={styles.emptyText}>Looking up upcoming classes…</Text>
+            {loading ? <ActivityIndicator color={colors.primary} /> : null}
+            <Text style={styles.emptyText}>{loading ? 'Looking up upcoming classes…' : error ? 'The schedule is unavailable right now.' : 'No upcoming classes are currently listed. Check back soon.'}</Text>
+            <TouchableOpacity style={styles.addBtn} onPress={refreshClasses} disabled={loading}><Text style={styles.addBtnText}>Retry</Text></TouchableOpacity>
           </View>
         ) : (
           upcoming.map((course) => {

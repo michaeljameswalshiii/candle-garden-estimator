@@ -4,6 +4,7 @@
  * Data snapshot embedded for reliable Expo Go display; "View on site" opens live product.
  */
 import catalog from '../../packages/catalog/products.json';
+import { fetchJson } from './liveFeed';
 
 export const SHOP_CATEGORIES = [
   { id: 'all', label: 'All', sitePath: '/shop' },
@@ -21,9 +22,7 @@ export const CATALOG_API_URL = 'https://candle-garden-web.vercel.app/api/mobile/
 export const products = Array.isArray(catalog) ? catalog : [];
 
 export async function fetchLatestProducts() {
-  const response = await fetch(CATALOG_API_URL, { headers: { Accept: 'application/json' } });
-  if (!response.ok) throw new Error(`Product catalog request failed (${response.status})`);
-  const payload = await response.json();
+  const payload = await fetchJson(CATALOG_API_URL);
   if (!Array.isArray(payload?.products)) throw new Error('The live product catalog is invalid');
   return { products: payload.products, refreshedAt: payload.refreshedAt || null };
 }

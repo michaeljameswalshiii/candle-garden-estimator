@@ -87,6 +87,36 @@ async function readUriAsBase64(uri) {
 }
 
 /**
+ * Bake EXIF orientation into pixels so iPhone portraits display upright
+ * and use the full preview frame (not a cropped 280px square).
+ *
+ * @param {string} uri
+ * @returns {Promise<{ uri: string, width?: number, height?: number }>}
+ */
+export async function bakePhotoOrientation(uri) {
+  if (!uri) return { uri };
+  const ImageManipulator = loadImageManipulator();
+  if (!ImageManipulator) return { uri };
+  try {
+    const baked = await ImageManipulator.manipulateAsync(
+      uri,
+      [],
+      {
+        compress: 0.9,
+        format: ImageManipulator.SaveFormat.JPEG,
+      }
+    );
+    return {
+      uri: baked.uri || uri,
+      width: baked.width,
+      height: baked.height,
+    };
+  } catch {
+    return { uri };
+  }
+}
+
+/**
  * Convert any phone photo (including iPhone HEIC) to resized JPEG base64.
  * Bedrock rejects HEIC; we must re-encode before upload when possible.
  *
@@ -115,22 +145,12 @@ export async function prepareImageForDetect(uri) {
   }
 
   try {
-    // Step 1: force decode + JPEG encode (critical for HEIC)
-    const jpegOnly = await ImageManipulator.manipulateAsync(
-      uri,
-      [], // no ops — still re-encodes when format is JPEG
-      {
-        compress: 0.85,
-        format: ImageManipulator.SaveFormat.JPEG,
-      }
-    );
-
-    // Step 2: resize for API size limits
+    // One pass: HEIC → JPEG, bake EXIF, shrink for a faster /detect upload.
     const resized = await ImageManipulator.manipulateAsync(
-      jpegOnly.uri,
-      [{ resize: { width: 1600 } }],
+      uri,
+      [{ resize: { width: 1024 } }],
       {
-        compress: 0.72,
+        compress: 0.7,
         format: ImageManipulator.SaveFormat.JPEG,
         base64: true,
       }
@@ -142,8 +162,8 @@ export async function prepareImageForDetect(uri) {
 
     if (!isJpegBase64(resized.base64)) {
       const retry = await ImageManipulator.manipulateAsync(
-        resized.uri || jpegOnly.uri,
-        [{ resize: { width: 1280 } }],
+        resized.uri || uri,
+        [{ resize: { width: 960 } }],
         {
           compress: 0.65,
           format: ImageManipulator.SaveFormat.JPEG,

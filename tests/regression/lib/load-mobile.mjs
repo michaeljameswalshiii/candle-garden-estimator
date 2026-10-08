@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 import { ROOT } from "../helpers.mjs";
 
 const LIB = path.join(ROOT, "candle-garden-mobile/lib");
-const FILES = ["upsRates.js", "shippingConfig.js", "pricing.js", "shopCatalog.js", "classesCatalog.js"];
+const FILES = ["upsRates.js", "shippingConfig.js", "pricing.js", "shopCatalog.js", "classesCatalog.js", "liveFeed.js"];
 
 let cache;
 
@@ -15,6 +15,8 @@ function rewrite(source) {
     .replaceAll('from "./upsRates"', 'from "./upsRates.mjs"')
     .replaceAll("from './shippingConfig'", "from './shippingConfig.mjs'")
     .replaceAll('from "./shippingConfig"', 'from "./shippingConfig.mjs"')
+    .replaceAll("from './liveFeed'", "from './liveFeed.mjs'")
+    .replaceAll('from "./liveFeed"', 'from "./liveFeed.mjs"')
     .replace(
       /from ['"]\.\.\/\.\.\/packages\/catalog\/([^'"]+)['"]/g,
       (_match, file) =>

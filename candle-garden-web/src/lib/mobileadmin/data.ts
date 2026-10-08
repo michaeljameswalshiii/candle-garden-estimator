@@ -1,5 +1,6 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, PutCommand, ScanCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { notifyOrderStatus } from "@/lib/mobile-push";
 
 export type MobileOrder = {
   id: string;
@@ -16,9 +17,13 @@ export type MobileOrder = {
   created_at?: string;
   updated_at?: string;
   shipping?: Record<string, string>;
+  fulfillment_method?: string;
+  subtotal_amount?: number;
+  discount_amount?: number;
+  promotion_code?: string;
   label_status?: string;
   tracking_numbers?: string[];
-  shipping_labels?: Array<{ key?: string; title?: string; status?: string; trackingNumber?: string; trackingUrl?: string; labelUrl?: string; service?: string; format?: string; purchasedAt?: string; error?: string }>;
+  shipping_labels?: Array<{ key?: string; title?: string; status?: string; trackingNumber?: string; trackingUrl?: string; labelUrl?: string; service?: string; format?: string; purchasedAt?: string; error?: string; recipient?: string; recipientAddress?: string }>;
 };
 
 const client = DynamoDBDocumentClient.from(
@@ -48,6 +53,7 @@ export function orderChannel(order: MobileOrder) {
 }
 
 export async function updateMobileOrder(id: string, patch: { status?: string; total_amount?: number; refund_id?: string; refunded_amount?: number; label_status?: string; tracking_numbers?: string[]; shipping_labels?: MobileOrder["shipping_labels"] }) {
+  const prior = patch.status ? await getMobileOrder(id) : undefined;
   const names: Record<string, string> = { "#updated": "updated_at" };
   const values: Record<string, unknown> = { ":updated": new Date().toISOString() };
   const sets = ["#updated = :updated"];
@@ -58,6 +64,9 @@ export async function updateMobileOrder(id: string, patch: { status?: string; to
     sets.push(`#${key} = :${key}`);
   }
   await client.send(new UpdateCommand({ TableName: ordersTable, Key: { id }, UpdateExpression: `SET ${sets.join(", ")}`, ExpressionAttributeNames: names, ExpressionAttributeValues: values }));
+  if(patch.status && prior?.customer_id && prior.status!==patch.status) {
+    try { await notifyOrderStatus(prior.customer_id,id,patch.status); } catch { /* Delivery failures do not undo fulfillment updates. */ }
+  }
 }
 
 export async function getMobileOrder(id: string) {
@@ -70,23 +79,30 @@ export async function putMobileOrder(order: MobileOrder) {
 }
 
 export async function listCustomerOrders(customerId: string) {
-  const response = await client.send(new ScanCommand({
+  let cursor:Record<string,any>|undefined;
+  const items:MobileOrder[]=[];
+  do {const response = await client.send(new ScanCommand({
     TableName: ordersTable,
     FilterExpression: "customer_id = :customer",
     ExpressionAttributeValues: { ":customer": customerId },
     Limit: 100,
+    ExclusiveStartKey:cursor,
   }));
-  return ((response.Items || []) as MobileOrder[]).sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+  items.push(...((response.Items||[]) as MobileOrder[]));cursor=response.LastEvaluatedKey;}while(cursor);
+  return items.filter(item=>item.status!=="deleted").sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
 }
 
 export async function findOrderByPaymentIntent(paymentIntentId: string) {
-  const response = await client.send(new ScanCommand({
+  let cursor:Record<string,any>|undefined;
+  do {const response = await client.send(new ScanCommand({
     TableName: ordersTable,
     FilterExpression: "payment_intent_id = :intent",
     ExpressionAttributeValues: { ":intent": paymentIntentId },
-    Limit: 1,
+    ExclusiveStartKey:cursor,
   }));
-  return response.Items?.[0] as MobileOrder | undefined;
+  if(response.Items?.[0])return response.Items[0] as MobileOrder;
+  cursor=response.LastEvaluatedKey;}while(cursor);
+  return undefined;
 }
 
 export function mobileSnapshot(orders: MobileOrder[]) {

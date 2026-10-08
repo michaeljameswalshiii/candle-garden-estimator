@@ -67,8 +67,16 @@ test("kit roundtrip costs more than prepaid labels, which cost more than ship-ow
   assert.equal(own.legs.length, 1);
 });
 
-test("the three refill shipping methods and cartons are still the product set", () => {
-  assert.deepEqual(pricing.METHOD_ORDER, ["ship_own", "kit_roundtrip", "prepaid_labels"]);
+test("local drop-off is free and does not need a ZIP", () => {
+  const local = pricing.calculateCost(10, { shippingMethod: "local_dropoff" });
+  assert.equal(local.quote_ok, true);
+  assert.equal(local.shipping_cost_num, 0);
+  assert.equal(local.needs_zip, false);
+  assert.equal(local.legs.length, 0);
+});
+
+test("the refill shipping methods and cartons are still the product set", () => {
+  assert.deepEqual(pricing.METHOD_ORDER, ["local_dropoff", "ship_own", "kit_roundtrip", "prepaid_labels"]);
   assert.ok(shipping.UPS_BOXES.ups_small);
   assert.ok(shipping.UPS_BOXES.ups_medium);
   assert.ok(shipping.UPS_BOXES.ups_large);

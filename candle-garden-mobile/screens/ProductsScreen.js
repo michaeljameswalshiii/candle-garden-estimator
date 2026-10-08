@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,7 +9,13 @@ import {
   ScrollView,
   Dimensions,
   Alert,
+  TextInput,
+  RefreshControl,
+  Linking,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import ProductDetails from '../components/ProductDetails';
+import { STORE } from '../lib/storeInfo';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 import { lifestyle } from '../lib/images';
 import {
@@ -28,34 +34,31 @@ const CARD_W = (SCREEN_W - H_PAD * 2 - CARD_GAP) / 2;
 
 export default function ProductsScreen() {
   const [category, setCategory] = useState('all');
+  const [query,setQuery] = useState('');
+  const [selectedProduct,setSelectedProduct] = useState(null);
+  const [refreshing,setRefreshing] = useState(false);
   const [productCatalog, setProductCatalog] = useState(bundledProducts);
   const [catalogStatus, setCatalogStatus] = useState('Loading live inventory…');
   const { addItem, itemCount } = useCart();
 
-  const items = useMemo(() => filterProducts(category, productCatalog), [category, productCatalog]);
+  const items = useMemo(() => filterProducts(category, productCatalog).filter(p => `${p.name} ${p.description||''} ${(p.sizes||[]).join(' ')}`.toLowerCase().includes(query.trim().toLowerCase())), [category, productCatalog, query]);
   const activeMeta = SHOP_CATEGORIES.find((c) => c.id === category) || SHOP_CATEGORIES[0];
 
-  useEffect(() => {
-    let cancelled = false;
-    const refresh = () => {
-      fetchLatestProducts()
-        .then((latest) => {
-          if (!cancelled) {
-            setProductCatalog(latest.products);
-            setCatalogStatus('Live Squarespace inventory');
-          }
-        })
-        .catch(() => {
-          if (!cancelled) setCatalogStatus('Showing saved inventory');
-        });
-    };
-    refresh();
-    const timer = setInterval(refresh, 60 * 60 * 1000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, []);
+  const refreshProducts = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const latest = await fetchLatestProducts();
+      setProductCatalog(latest.products);
+      setCatalogStatus('Live inventory updated just now');
+    } catch(error) { setCatalogStatus('Offline catalog: ' + error.message); }
+    finally { setRefreshing(false); }
+  },[]);
+  useFocusEffect(useCallback(() => {
+    void refreshProducts();
+    const timer = setInterval(() => void refreshProducts(), 60 * 60 * 1000);
+    return () => clearInterval(timer);
+  },[refreshProducts]));
+  const popular = [...productCatalog].filter(p => !p.soldOut && Number(p.popularity)>0).sort((a,b)=>Number(b.popularity)-Number(a.popularity)).slice(0,6);
 
   const handleAddToCart = (product) => {
     if (product.soldOut) {
@@ -120,11 +123,11 @@ export default function ProductsScreen() {
         {priceLabel ? <Text style={styles.productPrice}>{priceLabel}</Text> : null}
         <TouchableOpacity
           style={[styles.addBtn, item.soldOut && styles.addBtnDisabled]}
-          onPress={() => handleAddToCart(item)}
+          onPress={() => setSelectedProduct(item)}
           disabled={Boolean(item.soldOut)}
           activeOpacity={0.85}
         >
-          <Text style={styles.addBtnText}>{item.soldOut ? 'Sold out' : 'Add to cart'}</Text>
+          <Text style={styles.addBtnText}>{item.soldOut ? 'Sold out' : 'View scent & sizes'}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -134,6 +137,7 @@ export default function ProductsScreen() {
     <View style={styles.container}>
       <Text style={styles.inventoryStatus}>{catalogStatus}</Text>
       <FlatList
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshProducts} />}
         data={items}
         keyExtractor={(item) => item.id || item.name}
         renderItem={renderProduct}
@@ -157,6 +161,9 @@ export default function ProductsScreen() {
                 <Text style={styles.cartBannerHint}>Review in Cart tab</Text>
               </View>
             ) : null}
+            <TextInput accessibilityLabel="Search candles" placeholder="Search scents, notes or sizes" value={query} onChangeText={setQuery} style={{borderWidth:1,borderColor:colors.border,padding:14,borderRadius:8,marginBottom:12,color:colors.text}} />
+            {!query && category==='all' ? <View style={{marginBottom:18}}><Text style={{fontFamily:fonts.heading,fontSize:23,color:colors.primary}}>Most popular</Text><Text style={styles.countText}>{popular.length?'Based on completed Candle Garden app orders':'Your favorites will appear here as orders are completed.'}</Text><ScrollView horizontal showsHorizontalScrollIndicator={false}>{popular.map(p=><TouchableOpacity key={p.id} onPress={()=>setSelectedProduct(p)} style={{width:140,margin:8}}><Image source={{uri:p.image}} style={{width:140,height:130,borderRadius:8}}/><Text style={styles.productName}>{p.name}</Text><Text style={styles.productPrice}>{formatPrice(p)}</Text></TouchableOpacity>)}</ScrollView></View>:null}
+            <TouchableOpacity style={styles.cartBanner} onPress={()=>Linking.openURL(STORE.giftCardUrl)}><View><Text style={styles.cartBannerText}>Give a Candle Garden gift card</Text><Text style={styles.countText}>Choose your amount on our secure gift-card page</Text></View></TouchableOpacity>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
               {SHOP_CATEGORIES.map((cat) => {
                 const active = cat.id === category;
@@ -186,6 +193,7 @@ export default function ProductsScreen() {
           </View>
         }
       />
+      <ProductDetails product={selectedProduct} onClose={()=>setSelectedProduct(null)} onAdd={(product,options)=>{addItem(product,{...options,quantity:1});setSelectedProduct(null);Alert.alert('Added to cart','Review your scent and size in Cart.');}} />
     </View>
   );
 }
