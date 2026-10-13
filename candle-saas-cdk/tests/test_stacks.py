@@ -21,6 +21,9 @@ def test_network_stack_creates_vpc():
     # Verify security groups are created
     template.resource_count_is("AWS::EC2::SecurityGroup", 2)
 
+    # No NAT until RDS is actually provisioned
+    template.resource_count_is("AWS::EC2::NatGateway", 0)
+
 
 def test_storage_stack_creates_buckets():
     """Test that StorageStack creates S3 buckets."""

@@ -88,6 +88,7 @@ ALIASES = {
 }
 FIT_ORDER = ["ups_small", "ups_medium", "ups_large"]
 METHODS = {
+    "store_dropoff": {"title": "Drop off in the store", "charges": 0, "legs": []},
     "ship_own": {"title": "Ship on your own", "charges": 1, "legs": ["refills_out"]},
     "kit_roundtrip": {"title": "We send packing", "charges": 3, "legs": ["kit_out", "empties_in", "refills_out"]},
     "prepaid_labels": {"title": "Prepaid labels", "charges": 2, "legs": ["empties_in", "refills_out"]},
@@ -104,16 +105,22 @@ LEG_TITLES = {
 PAY_NOW_LEGS = ("empties_in",)
 
 
+def canonical_method(shipping_method):
+    if shipping_method == "local_dropoff":
+        return "store_dropoff"
+    return shipping_method if shipping_method in METHODS else "ship_own"
+
+
 def method_legs(shipping_method):
-    method = shipping_method if shipping_method in METHODS else "ship_own"
-    return list(METHODS[method]["legs"])
+    return list(METHODS[canonical_method(shipping_method)]["legs"])
 
 
 def label_purchase_plan(shipping_method):
-    legs = method_legs(shipping_method)
+    method = canonical_method(shipping_method)
+    legs = method_legs(method)
     now = [key for key in legs if key in PAY_NOW_LEGS]
     queued = [key for key in legs if key not in PAY_NOW_LEGS]
-    return {"method": shipping_method if shipping_method in METHODS else "ship_own", "now": now, "queued": queued, "legs": legs}
+    return {"method": method, "now": now, "queued": queued, "legs": legs}
 
 
 def _zip_digits(zip_code):
@@ -305,12 +312,30 @@ def quote_refill_shipping(
     qty = max(1, int(quantity or 1))
     total_wax = float(ounces) * qty
     count = max(1, int(vessel_count or qty))
-    method_key = shipping_method if shipping_method in METHODS else "ship_own"
+    method_key = canonical_method(shipping_method)
     method = METHODS[method_key]
     speed_key = normalize_speed(speed)
     rec = recommend_box(total_wax, count)
     box = _resolve_box(box_key) or rec
     weights = packed_weight(total_wax, count, box)
+    wax_cents = int(round(float(ounces) * wax_cents_per_oz(speed_key) * qty))
+    if method_key == "store_dropoff":
+        return {
+            "wax_cents": wax_cents,
+            "shipping_cents": 0,
+            "total_cents": wax_cents,
+            "box_key": box["key"],
+            "box_name": box["name"],
+            "method": method_key,
+            "method_title": method["title"],
+            "speed": speed_key,
+            "zone": None,
+            "rate_source": "store",
+            "service_summary": "In-store drop-off",
+            "legs": [],
+            "weights": weights,
+            "box": box,
+        }
     zone = _zone(dest_zip)
 
     if method_key == "prepaid_labels":
@@ -345,7 +370,6 @@ def quote_refill_shipping(
     add_leg("refills_out", weights["refills_billed"])
 
     shipping_cents = sum(row["cents"] for row in legs)
-    wax_cents = int(round(float(ounces) * wax_cents_per_oz(speed_key) * qty))
     unique_sources = set(sources)
     if unique_sources == {"shippo"}:
         rate_source = "shippo"

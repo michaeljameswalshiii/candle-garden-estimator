@@ -123,7 +123,7 @@ export async function GET() {
     }
     const ranked=products.map((product:any)=>({...product,popularity:popularity.get(product.id)||0}));
     return NextResponse.json(
-      { products:ranked, categories, count: products.length, variantCount: products.reduce((sum: number, item: any) => sum + item.variants.length, 0), refreshedAt: new Date().toISOString() },
+      { products: ranked, categories, count: products.length, variantCount: products.reduce((sum: number, item: any) => sum + item.variants.length, 0), refreshedAt: new Date().toISOString() },
       { headers: { "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" } },
     );
   } catch (error) {

@@ -1,5 +1,6 @@
 import os
 import shutil
+from typing import Optional
 from aws_cdk import (
     Stack,
     aws_apigateway as apigw,
@@ -27,6 +28,15 @@ def _get_db_endpoint(db):
         return db.db_instance_endpoint_address, 5432
 
 
+def _lambda_network_kwargs(vpc: Optional[ec2.Vpc], sg: Optional[ec2.SecurityGroup]):
+    if vpc is None:
+        return {}
+    kwargs = {"vpc": vpc}
+    if sg is not None:
+        kwargs["security_groups"] = [sg]
+    return kwargs
+
+
 class APIStack(Stack):
     """Stack for API Gateway and Lambda functions."""
     
@@ -34,8 +44,8 @@ class APIStack(Stack):
         self,
         scope: Construct,
         id: str,
-        vpc: ec2.Vpc,
-        lambda_sg: ec2.SecurityGroup,
+        vpc: Optional[ec2.Vpc] = None,
+        lambda_sg: Optional[ec2.SecurityGroup] = None,
         database = None,
         s3_bucket: s3.Bucket = None,
         **kwargs
@@ -53,9 +63,14 @@ class APIStack(Stack):
             description="Execution role for Candle SaaS Lambda functions"
         )
         
-        # Add basic Lambda execution policy
+        # Add basic Lambda execution policy. VPC access is only needed when
+        # functions are attached to private subnets (RDS).
         lambda_execution_role.add_managed_policy(
-            iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaVPCAccessExecutionRole")
+            iam.ManagedPolicy.from_aws_managed_policy_name(
+                "service-role/AWSLambdaVPCAccessExecutionRole"
+                if vpc is not None
+                else "service-role/AWSLambdaBasicExecutionRole"
+            )
         )
         
         # Add permissions for database access (only if database exists)
@@ -110,6 +125,15 @@ class APIStack(Stack):
             )
         )
         
+        lambda_execution_role.add_to_policy(
+            iam.PolicyStatement(
+                actions=["ses:SendEmail", "ses:SendRawEmail"],
+                resources=[
+                    f"arn:aws:ses:{self.region}:{self.account}:identity/tripleibusinesssolutions.com",
+                ],
+            )
+        )
+
         # Add permissions for Secrets Manager
         lambda_execution_role.add_to_policy(
             iam.PolicyStatement(
@@ -119,6 +143,37 @@ class APIStack(Stack):
                 resources=[
                     f"arn:aws:secretsmanager:{self.region}:{self.account}:secret:candlesaas/*"
                 ],
+            )
+        )
+
+        # Orders list/purge query a GSI. Table ARN alone is not enough — include /index/*.
+        orders_tables = [
+            "candle-garden-orders",
+            "candle-garden-push-tokens",
+            "candle-garden-detect-rate-limits",
+        ]
+        ddb_resources = []
+        for table in orders_tables:
+            ddb_resources.append(
+                f"arn:aws:dynamodb:{self.region}:{self.account}:table/{table}"
+            )
+            ddb_resources.append(
+                f"arn:aws:dynamodb:{self.region}:{self.account}:table/{table}/index/*"
+            )
+        lambda_execution_role.add_to_policy(
+            iam.PolicyStatement(
+                actions=[
+                    "dynamodb:GetItem",
+                    "dynamodb:PutItem",
+                    "dynamodb:UpdateItem",
+                    "dynamodb:DeleteItem",
+                    "dynamodb:Query",
+                    "dynamodb:Scan",
+                    "dynamodb:BatchGetItem",
+                    "dynamodb:BatchWriteItem",
+                    "dynamodb:DescribeTable",
+                ],
+                resources=ddb_resources,
             )
         )
         
@@ -189,7 +244,7 @@ class APIStack(Stack):
         CfnOutput(self, "ApiUrl", value=api.url)
     
     def _create_product_manager_function(
-        self, role: iam.Role, vpc: ec2.Vpc, sg: ec2.SecurityGroup, db
+        self, role: iam.Role, vpc: Optional[ec2.Vpc], sg: Optional[ec2.SecurityGroup], db
     ) -> lambda_.Function:
         """Create Lambda function for product management."""
         db_host, db_port = _get_db_endpoint(db)
@@ -202,8 +257,7 @@ class APIStack(Stack):
             handler="index.handler",
             runtime=lambda_.Runtime.PYTHON_3_10,
             role=role,
-            vpc=vpc,
-            security_groups=[sg],
+            **_lambda_network_kwargs(vpc, sg),
             environment={
                 "DB_HOST": db_host,
                 "DB_PORT": str(db_port),
@@ -216,7 +270,7 @@ class APIStack(Stack):
         return fn
     
     def _create_order_processor_function(
-        self, role: iam.Role, vpc: ec2.Vpc, sg: ec2.SecurityGroup, db
+        self, role: iam.Role, vpc: Optional[ec2.Vpc], sg: Optional[ec2.SecurityGroup], db
     ) -> lambda_.Function:
         """Create Lambda function for order processing."""
         db_host, db_port = _get_db_endpoint(db)
@@ -229,8 +283,7 @@ class APIStack(Stack):
             handler="index.handler",
             runtime=lambda_.Runtime.PYTHON_3_10,
             role=role,
-            vpc=vpc,
-            security_groups=[sg],
+            **_lambda_network_kwargs(vpc, sg),
             environment={
                 "DB_HOST": db_host,
                 "DB_PORT": str(db_port),
@@ -243,7 +296,7 @@ class APIStack(Stack):
         return fn
 
     def _create_payment_processor_function(
-        self, role: iam.Role, vpc: ec2.Vpc, sg: ec2.SecurityGroup
+        self, role: iam.Role, vpc: Optional[ec2.Vpc], sg: Optional[ec2.SecurityGroup]
     ) -> lambda_.Function:
         """Stripe PaymentIntent API. The key is injected after deployment."""
         asset_dir = os.path.join(
@@ -260,16 +313,18 @@ class APIStack(Stack):
             handler="index.handler",
             runtime=lambda_.Runtime.PYTHON_3_10,
             role=role,
-            vpc=vpc,
-            security_groups=[sg],
+            **_lambda_network_kwargs(vpc, sg),
             environment={
                 "STRIPE_SECRET_ARN": self.node.try_get_context("stripeSecretArn")
                 or "arn:aws:secretsmanager:us-east-1:635449373837:secret:candlesaas/stripe/test-QNXlxT",
                 "STRIPE_LIVE_ENABLED": "true" if self.node.try_get_context("stripeLiveEnabled") == "true" else "false",
                 "CLASS_CATALOG_URL": "https://candle-garden-web.vercel.app/api/mobile/classes",
                 "PRODUCT_CATALOG_URL": "https://candle-garden-web.vercel.app/api/mobile/catalog",
+                "SHIPPO_SECRET_ARN": self.node.try_get_context("shippoSecretArn")
+                or "arn:aws:secretsmanager:us-east-1:635449373837:secret:candlesaas/shippo-pYmbYV",
                 "UPS_SECRET_ARN": self.node.try_get_context("upsSecretArn")
                 or "arn:aws:secretsmanager:us-east-1:635449373837:secret:candlesaas/ups",
+                "UPS_ENABLED": "true" if self.node.try_get_context("upsEnabled") == "true" else "false",
             },
             timeout=Duration.seconds(30),
             memory_size=512,
@@ -277,7 +332,7 @@ class APIStack(Stack):
         )
     
     def _create_ai_recommendations_function(
-        self, role: iam.Role, vpc: ec2.Vpc, sg: ec2.SecurityGroup, db
+        self, role: iam.Role, vpc: Optional[ec2.Vpc], sg: Optional[ec2.SecurityGroup], db
     ) -> lambda_.Function:
         """Create Lambda function for AI recommendations using Bedrock."""
         db_host, db_port = _get_db_endpoint(db)
@@ -290,8 +345,7 @@ class APIStack(Stack):
             handler="index.handler",
             runtime=lambda_.Runtime.PYTHON_3_10,
             role=role,
-            vpc=vpc,
-            security_groups=[sg],
+            **_lambda_network_kwargs(vpc, sg),
             environment={
                 "DB_HOST": db_host,
                 "DB_PORT": str(db_port),
@@ -304,7 +358,7 @@ class APIStack(Stack):
         return fn
     
     def _create_image_processor_function(
-        self, role: iam.Role, vpc: ec2.Vpc, sg: ec2.SecurityGroup
+        self, role: iam.Role, vpc: Optional[ec2.Vpc], sg: Optional[ec2.SecurityGroup]
     ) -> lambda_.Function:
         """Create Lambda function for image processing."""
         fn = lambda_.Function(
@@ -315,8 +369,7 @@ class APIStack(Stack):
             handler="index.handler",
             runtime=lambda_.Runtime.PYTHON_3_10,
             role=role,
-            vpc=vpc,
-            security_groups=[sg],
+            **_lambda_network_kwargs(vpc, sg),
             timeout=Duration.seconds(120),
             memory_size=1024,
             ephemeral_storage_size=Size.mebibytes(512),
@@ -325,7 +378,7 @@ class APIStack(Stack):
         return fn
     
     def _create_container_detector_function(
-        self, role: iam.Role, vpc: ec2.Vpc, sg: ec2.SecurityGroup
+        self, role: iam.Role, vpc: Optional[ec2.Vpc], sg: Optional[ec2.SecurityGroup]
     ) -> lambda_.Function:
         """Create Lambda function for container detection using Bedrock Vision."""
         fn = lambda_.Function(
@@ -336,8 +389,7 @@ class APIStack(Stack):
             handler="index.handler",
             runtime=lambda_.Runtime.PYTHON_3_10,
             role=role,
-            vpc=vpc,
-            security_groups=[sg],
+            **_lambda_network_kwargs(vpc, sg),
             environment={
                 # Claude Sonnet 4.6 primary — Sonnet 5 is not enabled on this account
                 "CLAUDE_MODEL_ID": "us.anthropic.claude-sonnet-4-6",

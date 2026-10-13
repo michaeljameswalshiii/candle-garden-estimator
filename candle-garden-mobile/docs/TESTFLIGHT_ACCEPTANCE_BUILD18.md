@@ -1,17 +1,17 @@
-# TestFlight acceptance — build 19 (Stripe test mode)
+# TestFlight acceptance — build 21 (Shippo test + Stripe test)
 
-Use this checklist on a physical iPhone after build **1.1.0 (19)** appears in TestFlight.
+Use this checklist on a physical iPhone after build **1.1.0 (21)** appears in TestFlight.
 
-Stripe stays in **test mode** for this candidate. Do not enable live charges until every item below passes.
+Stripe stays in **test mode**. Shippo stays on the **test token** (fake labels, no live postage). Do not enable live charges or a live Shippo token until this candidate passes.
 
 EAS links for this candidate:
 
-- Build: https://expo.dev/accounts/michaeljameswalshiii/projects/candle-garden-estimator/builds/96f7ae44-c561-44bf-b3db-fda9f1c0a499
-- Submission: https://expo.dev/accounts/michaeljameswalshiii/projects/candle-garden-estimator/submissions/79d1c24c-33a7-4101-b53b-6ce131286ff2
+- Build: https://expo.dev/accounts/michaeljameswalshiii/projects/candle-garden-estimator/builds/610171dd-cf64-4905-b466-456be6e963d0
+- Submission: https://expo.dev/accounts/michaeljameswalshiii/projects/candle-garden-estimator/submissions/80807ba0-d5c2-48f5-bee6-d063374ef182
 
 ## Before you start
 
-1. Install TestFlight build **1.1.0 (19)** (or newer production build from this candidate).
+1. Install TestFlight build **1.1.0 (21)** (or newer production build from this candidate).
 2. Fully close and reopen the app once so any OTA update can load.
 3. Confirm Shop shows **Live Squarespace inventory** (or a clear saved-inventory fallback).
 4. Confirm Classes shows public class dates only (no private / invite-only events).
@@ -37,6 +37,8 @@ EAS links for this candidate:
 - [ ] Rate shows **$1.75/oz**.
 - [ ] Example: 10 oz → wax **$17.50** before shipping.
 - [ ] Enter a valid ZIP (e.g. `32250`); shipping quote succeeds.
+- [ ] Method prices come from live Shippo (USPS Ground Advantage in test), not the old UPS table.
+- [ ] Copy mentions lowest-cost carrier / Shippo test, not UPS Ground Saver.
 - [ ] Add the refill line to cart with the estimate photo attached.
 
 ## Checkout (Stripe test)

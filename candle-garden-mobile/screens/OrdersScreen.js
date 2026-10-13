@@ -12,36 +12,19 @@ import {
   TextInput,
   Linking,
   Share,
+  Modal,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 import { useCart } from '../lib/cart';
 import { useAuth } from '../lib/AuthContext';
 import { createStripePaymentSheet, finalizeStripePayment, listOrders, trackEvent } from '../lib/apiClient';
 import { useStripe } from '../lib/stripeBridge';
 import { stripeTestMode, stripeConfigured } from '../lib/stripeConfig';
-import { useNavigation } from '@react-navigation/native';
 import OrderHistoryCard from '../components/OrderHistoryCard';
 import { fetchLatestProducts } from '../lib/shopCatalog';
 import { STORE } from '../lib/storeInfo';
-
-const ORDER_PROGRESS = ['paid', 'processing', 'shipped', 'completed'];
-const STATUS_COPY = {
-  payment_pending: ['Payment pending', 'Your payment has not been confirmed yet.'],
-  payment_verification_pending: ['Verifying payment', 'We are confirming your payment.'],
-  paid: ['Order received', 'Payment is confirmed and your order is waiting for our team.'],
-  ready_for_fulfillment: ['Preparing order', 'Shipping details are ready and fulfillment can begin.'],
-  processing: ['In progress', 'The Candle Garden team is preparing your order.'],
-  shipped: ['Shipped', 'Your order is on its way.'],
-  completed: ['Completed', 'Your order has been completed.'],
-  cancelled: ['Cancelled', 'This order was cancelled. Contact us if you have questions.'],
-  partially_refunded: ['Partially refunded', 'Part of this order was refunded to the original payment method.'],
-  refunded: ['Refunded', 'This order was refunded to the original payment method.'],
-};
-
-function customerStatus(status) {
-  return STATUS_COPY[status] || [String(status || 'Order received').replaceAll('_', ' '), 'Pull down to refresh for the latest update.'];
-}
+import { PACKING_ACK_BODY, PACKING_ACK_TITLE } from '../lib/scents';
 
 function customerPrintLabels(source) {
   const rows = source?.labels || source?.shipping_labels || [];
@@ -60,12 +43,6 @@ async function openLabel(label) {
     return;
   }
   Alert.alert('Label not ready', 'Your prepaid label is still being prepared. Pull down to refresh, or check your email.');
-}
-
-function progressIndex(status) {
-  if (status === 'ready_for_fulfillment') return 1;
-  const index = ORDER_PROGRESS.indexOf(status);
-  return index;
 }
 
 export default function OrdersScreen() {
@@ -96,6 +73,10 @@ function OrdersScreenBody({ stripe }) {
   const [lastCompletedOrder, setLastCompletedOrder] = useState(null);
   const [accountEmail, setAccountEmail] = useState('');
   const [accountPassword, setAccountPassword] = useState('');
+  const [packingOpen, setPackingOpen] = useState(false);
+  const [packingChecked, setPackingChecked] = useState(false);
+  const [packingAccepted, setPackingAccepted] = useState(false);
+  const pendingSave = React.useRef(true);
   const [shipping, setShipping] = useState({
     name: '',
     email: '',
@@ -107,7 +88,18 @@ function OrdersScreenBody({ stripe }) {
   });
   const asGuest = checkoutStep === 'guest' || (!isAuthenticated && checkoutStep !== 'account');
 
-  const needsShipping = fulfillment !== 'pickup' && lines.some((line) => line.type !== 'class' && !(line.type === 'refill' && line.shippingMethod === 'local_dropoff')); 
+  const needsShipping = fulfillment !== 'pickup' && lines.some((line) => {
+    if (line.type === 'class') return false;
+    if (line.type === 'refill' && (line.shippingMethod === 'store_dropoff' || line.shippingMethod === 'local_dropoff')) return false;
+    return true;
+  });
+  const needsPackingAck = lines.some((line) => line.type === 'refill');
+  const refillKey = lines.filter((line) => line.type === 'refill').map((line) => line.key).join('|');
+
+  useEffect(() => {
+    setPackingAccepted(false);
+    setPackingChecked(false);
+  }, [refillKey]);
 
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true);
@@ -211,11 +203,26 @@ function OrdersScreenBody({ stripe }) {
       );
       return;
     }
+    if (guest && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(shipping.email || '').trim())) {
+      Alert.alert('Email needed', 'A guest checkout needs an email address.');
+      return;
+    }
+    if (guest && String(shipping.phone || '').replace(/\D/g, '').length < 10) {
+      Alert.alert('Phone needed', 'A guest checkout needs a phone number.');
+      return;
+    }
     void checkoutWithStripe({ saveOrder: checkoutStep !== 'guest' && (isAuthenticated || checkoutStep === 'shipping') });
   };
 
-  const checkoutWithStripe = async ({ saveOrder } = {}) => {
+  const checkoutWithStripe = async ({ saveOrder, packingOk } = {}) => {
     if (!lines.length || checkingOut) return;
+    const acknowledged = Boolean(packingOk || packingAccepted);
+    if (needsPackingAck && !acknowledged) {
+      pendingSave.current = Boolean(saveOrder);
+      setPackingChecked(false);
+      setPackingOpen(true);
+      return;
+    }
     if (!stripeConfigured || !initPaymentSheet || !presentPaymentSheet) {
       Alert.alert('Stripe test mode is not configured', 'Add the Stripe test publishable key to the app build, then try again.');
       return;
@@ -232,11 +239,20 @@ function OrdersScreenBody({ stripe }) {
           ounces: line.ounces,
           boxKey: line.boxKey,
           destZip: line.destZip || shipping.zip,
-          shippingMethod: fulfillment === 'pickup' && line.type === 'refill' ? 'local_dropoff' : line.shippingMethod || 'ship_own',
+          shippingMethod: fulfillment === 'pickup' && line.type === 'refill' ? 'store_dropoff' : line.shippingMethod || 'ship_own',
           speed: line.speed || 'standard',
           vesselCount: line.vesselCount,
+          scents: line.scents,
         })),
-        { email: shipping.email, name: shipping.name, zip: shipping.zip, shipping, fulfillment, promoCode }
+        {
+          email: shipping.email,
+          name: shipping.name,
+          zip: shipping.zip,
+          shipping,
+          fulfillment,
+          promoCode,
+          packingAcknowledged: needsPackingAck && acknowledged,
+        }
       );
       const { error: initError } = await initPaymentSheet({
         merchantDisplayName: 'The Candle Garden',
@@ -258,15 +274,16 @@ function OrdersScreenBody({ stripe }) {
       trackEvent('payment_success');
       const printLabels = customerPrintLabels(finalized);
       const refillLines = lines.filter((line) => line.type === 'refill');
-      const methods = refillLines.map((line) => fulfillment === 'pickup' ? 'local_dropoff' : line.shippingMethod);
+      const methods = refillLines.map((line) => fulfillment === 'pickup' ? 'store_dropoff' : line.shippingMethod);
       let labelNote = '';
-      if (methods.includes('local_dropoff')) labelNote = `Drop off and collect your vessels at ${STORE.name}, ${STORE.address}, ${STORE.city}. We will notify you when they are ready.`;
       if (printLabels.length) {
         labelNote = 'Your prepaid empties label is ready. Print it and tape it to the box.';
       } else if (methods.includes('kit_roundtrip')) {
         labelNote = 'We will mail a packing kit with a prepaid empties label inside. The refill return label stays queued for The Candle Garden.';
       } else if (methods.includes('ship_own')) {
         labelNote = 'Ship empties on your own. We will print the refill return label when your candles are ready.';
+      } else if (methods.length && methods.every((method) => method === 'store_dropoff' || method === 'local_dropoff')) {
+        labelNote = `Drop your empties off at ${STORE.name}, ${STORE.address}, ${STORE.city}. There is no shipping charge. Pick the refill up when it is ready.`;
       } else if (methods.some(Boolean)) {
         labelNote = 'Your refill return label is queued for The Candle Garden to print when the candles are ready.';
       }
@@ -317,8 +334,13 @@ function OrdersScreenBody({ stripe }) {
         {item.type === 'refill' && item.speed ? (
           <Text style={styles.lineMeta}>{item.speed === 'expedited' ? 'Expedited · about 7 days' : 'Standard · about 14 days'}</Text>
         ) : null}
-        {item.size ? <Text style={styles.lineMeta}>{item.type === 'class' ? item.size : item.type === 'refill' ? item.detail || item.size : `Size: ${item.size}`}</Text> : null}
+        {item.size && item.type !== 'refill' ? <Text style={styles.lineMeta}>{item.type === 'class' ? item.size : `Size: ${item.size}`}</Text> : null}
         {item.detail ? <Text style={styles.lineMeta}>{item.detail}</Text> : null}
+        {item.type === 'refill' && Array.isArray(item.scents) && item.scents.length ? (
+          <Text style={styles.lineMeta}>
+            {item.scents.map((row) => `${row.vessel ? `${row.vessel}: ` : ''}${row.scent}`).join(' · ')}
+          </Text>
+        ) : null}
         {item.type === 'refill' && Number.isFinite(item.waxUnitPrice) && Number.isFinite(item.returnShippingUnitPrice) ? (
           <Text style={styles.lineMeta}>
             ${item.waxUnitPrice.toFixed(2)} refill + ${item.returnShippingUnitPrice.toFixed(2)} return shipping
@@ -557,8 +579,10 @@ function OrdersScreenBody({ stripe }) {
                       {checkoutStep === 'guest'
                         ? needsShipping
                           ? 'Pay without creating an account. We need a way to reach you and where to send this order. Refill shipping uses the lowest-cost available carrier, priced for this address.'
-                          : 'Pay without creating an account. Add a way to reach you.'
-                        : 'One address for this whole order. Refill shipping uses the lowest-cost available carrier, priced for this address.'}
+                          : 'Pay without creating an account. Add a way to reach you. In-store drop-off has no shipping charge.'
+                        : needsShipping
+                          ? 'One address for this whole order. Refill shipping uses the lowest-cost available carrier, priced for this address.'
+                          : 'Add a way to reach you. In-store drop-off has no shipping charge.'}
                     </Text>
                     {(needsShipping
                       ? asGuest
@@ -603,6 +627,13 @@ function OrdersScreenBody({ stripe }) {
                         <TouchableOpacity style={styles.secondaryBtn} onPress={startAccountCheckout} disabled={checkingOut}>
                           <Text style={styles.secondaryText}>I have an account</Text>
                         </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.secondaryBtn}
+                          onPress={() => navigation.navigate('Profile', { intent: 'signup' })}
+                          disabled={checkingOut}
+                        >
+                          <Text style={styles.secondaryText}>Sign up for an account</Text>
+                        </TouchableOpacity>
                       </>
                     )}
                   </View>
@@ -631,6 +662,45 @@ function OrdersScreenBody({ stripe }) {
           </View>
         }
       />
+      <Modal visible={packingOpen} transparent animationType="fade" onRequestClose={() => setPackingOpen(false)}>
+        <View style={styles.packBackdrop}>
+          <View style={styles.packCard}>
+            <Text style={styles.packTitle}>{PACKING_ACK_TITLE}</Text>
+            <Text style={styles.packBody}>{PACKING_ACK_BODY}</Text>
+            <TouchableOpacity
+              style={styles.packCheckRow}
+              onPress={() => setPackingChecked((value) => !value)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: packingChecked }}
+            >
+              <View style={[styles.packBox, packingChecked && styles.packBoxOn]}>
+                {packingChecked ? <Text style={styles.packMark}>✓</Text> : null}
+              </View>
+              <Text style={styles.packCheckLabel}>I understand and accept these risks</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.checkoutBtn, !packingChecked && styles.packContinueOff]}
+              disabled={!packingChecked}
+              onPress={() => {
+                setPackingAccepted(true);
+                setPackingOpen(false);
+                void checkoutWithStripe({ saveOrder: pendingSave.current, packingOk: true });
+              }}
+            >
+              <Text style={styles.checkoutText}>Continue to payment</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.secondaryBtn}
+              onPress={() => {
+                setPackingChecked(false);
+                setPackingOpen(false);
+              }}
+            >
+              <Text style={styles.secondaryText}>Go back</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -962,6 +1032,56 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  packBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(16, 56, 49, 0.45)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  packCard: {
+    backgroundColor: colors.white,
+    borderRadius: radii.md,
+    padding: 18,
+  },
+  packTitle: {
+    fontFamily: fonts.heading,
+    fontSize: 20,
+    color: colors.primary,
+    marginBottom: 10,
+  },
+  packBody: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: 14,
+  },
+  packCheckRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 14,
+  },
+  packBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  packBoxOn: { backgroundColor: colors.primary },
+  packMark: { color: colors.white, fontSize: 14, fontWeight: '700' },
+  packCheckLabel: {
+    flex: 1,
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
+  },
+  packContinueOff: { opacity: 0.45 },
   shippingBox: {
     marginBottom: 12,
   },

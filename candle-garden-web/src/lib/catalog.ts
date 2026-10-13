@@ -29,6 +29,7 @@ export type CandleClass = {
   fullDescription: string;
   image: string;
   sku: string;
+  variantId?: string;
   url: string;
   location: string;
 };

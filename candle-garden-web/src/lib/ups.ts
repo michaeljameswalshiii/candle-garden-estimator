@@ -7,7 +7,13 @@ const ORIGIN: Party = {
   state: "FL", zip: "32233", phone: "9043167608",
 };
 
+/** Direct UPS stays in the API; set UPS_ENABLED=true to turn it back on. */
+export function upsEnabled() {
+  return ["1", "true", "yes", "on"].includes(String(process.env.UPS_ENABLED || "").toLowerCase());
+}
+
 function credentials() {
+  if (!upsEnabled()) throw new Error("UPS is disabled");
   const clientId = process.env.UPS_CLIENT_ID?.trim();
   const clientSecret = process.env.UPS_CLIENT_SECRET?.trim();
   const accountNumber = process.env.UPS_ACCOUNT_NUMBER?.trim();

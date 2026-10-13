@@ -211,6 +211,40 @@ def _price_product(item):
     }
 
 
+def _clean_scents(item):
+    raw = item.get("scents") if isinstance(item, dict) else None
+    if not isinstance(raw, list):
+        return None
+    cleaned = []
+    for row in raw[:12]:
+        if isinstance(row, str):
+            name = row.strip()[:80]
+            if name:
+                cleaned.append({"scent": name})
+            continue
+        if not isinstance(row, dict):
+            continue
+        scent = str(row.get("scent") or "").strip()[:80]
+        if not scent:
+            continue
+        vessel = str(row.get("vessel") or "").strip()[:80]
+        entry = {"scent": scent}
+        if vessel:
+            entry["vessel"] = vessel
+        cleaned.append(entry)
+    return cleaned or None
+
+
+def packing_acknowledged(body):
+    """True only when this checkout explicitly accepted the vessel notice.
+
+    Older app builds omit the flag. Checkout still proceeds.
+    """
+    if not isinstance(body, dict):
+        return False
+    return body.get("packingAcknowledged") is True or body.get("packing_acknowledged") is True
+
+
 def _price_refill(item):
     try:
         ounces = float(item.get("ounces") or 0)
@@ -247,7 +281,7 @@ def _price_refill(item):
         raise ValueError(str(error)) from error
     unit = int(round(quote["total_cents"] / qty))
     size = f"{quote['method_title']} · {quote['box_name']}"
-    return quote["total_cents"], {
+    row = {
         "type": "refill",
         "productId": "refill",
         "name": f"Candle refill · {ounces:g} oz",
@@ -261,6 +295,10 @@ def _price_refill(item):
         "speed": quote.get("speed") or speed,
         "vesselCount": int(item.get("vesselCount") or item.get("vessel_count") or qty),
     }
+    scents = _clean_scents(item)
+    if scents:
+        row["scents"] = scents
+    return quote["total_cents"], row
 
 
 def _zip_or_none(value):
@@ -277,6 +315,9 @@ def _price_class(item):
     if course.get("soldOut"):
         raise ValueError(f"{course.get('title') or 'That class'} is sold out")
     qty = _qty(item)
+    available = course.get("available")
+    if available is not None and qty > int(available):
+        raise ValueError("Not enough seats are left for that class")
     unit = int(round(float(course.get("price") or 0) * 100))
     if unit <= 0:
         raise ValueError("That class has no price")
@@ -289,6 +330,7 @@ def _price_class(item):
         "quantity": qty,
         "unitCents": unit,
         "date": course.get("date"),
+        "variantId": str(course.get("variantId") or "") or None,
     }
 
 
@@ -402,6 +444,26 @@ def _looks_like_email(value):
     return bool(local) and "." in domain
 
 
+def _phone_digits(value):
+    return "".join(ch for ch in str(value or "") if ch.isdigit())
+
+
+def guest_contact_error(claims, body):
+    """A checkout without an account must include a real email and a phone number."""
+    claims = claims or {}
+    if claims.get("sub") or claims.get("cognito:username"):
+        return None
+    body = body if isinstance(body, dict) else {}
+    shipping = body.get("shipping") if isinstance(body.get("shipping"), dict) else {}
+    email = str(body.get("email") or shipping.get("email") or "").strip()
+    phone = _phone_digits(shipping.get("phone") or body.get("phone"))
+    if not _looks_like_email(email):
+        return "A guest checkout needs an email address."
+    if len(phone) < 10:
+        return "A guest checkout needs a phone number."
+    return None
+
+
 ORDERS_TABLE = os.environ.get("ORDERS_TABLE", "candle-garden-orders")
 _orders_table = None
 
@@ -492,6 +554,8 @@ def _order_items_for_store(priced, amount):
             "shippingMethod": row.get("shippingMethod"),
             "speed": row.get("speed"),
             "vesselCount": row.get("vesselCount"),
+            "variantId": row.get("variantId"),
+            "scents": row.get("scents"),
         }
         rows.append({key: value for key, value in stored.items() if value is not None})
     return rows
@@ -648,10 +712,12 @@ def _apply_paid_labels(order):
         if str(item.get("type") or "").lower() != "refill":
             continue
         method = item.get("shippingMethod") or item.get("shipping_method") or "ship_own"
+        if method in ("store_dropoff", "local_dropoff"):
+            continue
         plan = label_purchase_plan(method)
         stubs = _stub_labels(method)
         queued = _merge_labels(queued, stubs)
-        now_rows, errors = _purchase_item_legs(item, dest, plan["now"], queued)
+        now_rows, errors = _purchase_item_legs(item, dest, plan["legs"], queued)
         purchased.extend(now_rows)
         queued = _merge_labels(queued, now_rows + errors)
     tracking = [row.get("trackingNumber") for row in queued if row.get("trackingNumber")]
@@ -672,9 +738,13 @@ def _create_payment_sheet(event):
     body = _body(event)
     device = headers.get("X-Device-Id") or headers.get("x-device-id") or "unknown"
     customer_id = claims.get("sub") or claims.get("cognito:username") or f"guest:{device}"
-    email = body.get("email") or claims.get("email")
-    name = body.get("name") or claims.get("name")
+    shipping_form = body.get("shipping") if isinstance(body.get("shipping"), dict) else {}
+    email = body.get("email") or shipping_form.get("email") or claims.get("email")
+    name = body.get("name") or shipping_form.get("name") or claims.get("name")
     try:
+        contact_error = guest_contact_error(claims, body)
+        if contact_error:
+            return _response(400, {"error": contact_error})
         checkout_zip = body.get("destZip") or body.get("zip")
         dest = body.get("shipping") or body.get("dest")
         items = body.get("items")
@@ -713,23 +783,26 @@ def _create_payment_sheet(event):
             shipping = {**shipping, "zip": checkout_zip}
         now = _now_iso()
         stored_items = _order_items_for_store(priced, amount)
+        order = {
+            "id": order_id,
+            "customer_id": customer_id,
+            "customer_email": email or "",
+            "total_amount": round(amount / 100.0, 2),
+            "status": "payment_pending",
+            "source": "mobile",
+            "payment_provider": "stripe",
+            "payment_intent_id": intent["id"],
+            "items": stored_items,
+            "shipping": shipping,
+            "label_status": "queued" if _planned_labels_for_items(stored_items) else "none",
+            "shipping_labels": _planned_labels_for_items(stored_items),
+            "created_at": now,
+            "updated_at": now,
+        }
+        if packing_acknowledged(body):
+            order["packing_acknowledged"] = True
         try:
-            _put_checkout_order({
-                "id": order_id,
-                "customer_id": customer_id,
-                "customer_email": email or "",
-                "total_amount": round(amount / 100.0, 2),
-                "status": "payment_pending",
-                "source": "mobile",
-                "payment_provider": "stripe",
-                "payment_intent_id": intent["id"],
-                "items": stored_items,
-                "shipping": shipping,
-                "label_status": "queued" if _planned_labels_for_items(stored_items) else "none",
-                "shipping_labels": _planned_labels_for_items(stored_items),
-                "created_at": now,
-                "updated_at": now,
-            })
+            _put_checkout_order(order)
         except Exception as error:
             print(f"checkout order persist failed: {error}")
         return _response(200, {
@@ -889,6 +962,197 @@ def _refill_labels(event):
         return _response(502, {"error": "Could not create shipping labels"})
 
 
+ORDER_FROM_EMAIL = os.environ.get(
+    "ORDER_FROM_EMAIL",
+    "The Candle Garden <hello@tripleibusinesssolutions.com>",
+)
+ORDER_REPLY_TO = os.environ.get("ORDER_REPLY_TO", "jordan@thecandlegarden.co")
+STUDIO_ADDRESS = "363 Atlantic Boulevard, Suite 8, Atlantic Beach, FL 32233"
+
+
+def _order_email(order):
+    email = str((order or {}).get("customer_email") or "").strip()
+    if _looks_like_email(email):
+        return email
+    shipping = (order or {}).get("shipping") if isinstance((order or {}).get("shipping"), dict) else {}
+    email = str(shipping.get("email") or "").strip()
+    return email if _looks_like_email(email) else ""
+
+
+def _confirmation_text(order):
+    order_id = str(order.get("id") or "")
+    short = order_id.split("-")[0] or order_id[:8] or "your order"
+    name = ""
+    shipping = order.get("shipping") if isinstance(order.get("shipping"), dict) else {}
+    if shipping.get("name"):
+        name = str(shipping.get("name")).strip()
+    lines = [
+        f"Hello{(' ' + name) if name else ''},",
+        "",
+        f"The Candle Garden received order #{short}.",
+        "",
+    ]
+    for item in order.get("items") or []:
+        qty = int(item.get("quantity") or 1)
+        title = item.get("name") or "Candle Garden item"
+        size = f" ({item.get('size')})" if item.get("size") else ""
+        lines.append(f"- {qty} x {title}{size}")
+        scent_bits = []
+        for scent_row in item.get("scents") or []:
+            if not isinstance(scent_row, dict):
+                continue
+            scent_name = str(scent_row.get("scent") or "").strip()
+            if not scent_name:
+                continue
+            vessel = str(scent_row.get("vessel") or "").strip()
+            scent_bits.append(f"{vessel}: {scent_name}" if vessel else scent_name)
+        if scent_bits:
+            lines.append("  " + "; ".join(scent_bits))
+    total = order.get("total_amount")
+    if total is not None:
+        lines.append("")
+        lines.append(f"Total: ${float(total):.2f}")
+    class_items = [
+        item for item in (order.get("items") or [])
+        if str(item.get("type") or "").lower() == "class"
+    ]
+    methods = {
+        str(item.get("shippingMethod") or item.get("shipping_method") or "")
+        for item in (order.get("items") or [])
+        if str(item.get("type") or "").lower() == "refill"
+    }
+    lines.append("")
+    if class_items:
+        when = ", ".join(str(item.get("size") or item.get("name") or "your class") for item in class_items)
+        if order.get("seat_reserved"):
+            lines.append(f"Your seat is reserved for {when} at {STUDIO_ADDRESS}.")
+        else:
+            lines.append(f"We received your class payment for {when}. The shop will confirm the seat.")
+        lines.append("")
+    if methods and methods <= {"store_dropoff", "local_dropoff"}:
+        lines.append(
+            f"Drop the empty vessels off at {STUDIO_ADDRESS}. "
+            "Pick the refill up when it is ready. There is no shipping charge."
+        )
+    elif "prepaid_labels" in methods:
+        lines.append(
+            "Your prepaid empties label is on this order in the app. Print it and tape it to the box. "
+            "We ship the refilled candles back to you."
+        )
+    elif "kit_roundtrip" in methods:
+        lines.append(
+            "We will mail a packing kit with a prepaid label for the empty vessels. "
+            "Send them back in that kit, and we will ship the refilled candles to you."
+        )
+    elif "ship_own" in methods:
+        lines.append(
+            f"Mail the empty vessels to {STUDIO_ADDRESS}. Postage for that trip is yours. "
+            "We ship the refilled candles back to you. You do not need a label from us for the empties."
+        )
+    else:
+        lines.append("We will follow up when your order is ready.")
+    lines.extend(["", "Thank you,", "The Candle Garden"])
+    return f"The Candle Garden received order #{short}", "\n".join(lines)
+
+
+def _ses():
+    import boto3
+    return boto3.client("ses", region_name=os.environ.get("AWS_REGION", "us-east-1"))
+
+
+def _class_seat_lines(order):
+    lines = []
+    classes = None
+    for item in order.get("items") or []:
+        if str(item.get("type") or "").lower() != "class":
+            continue
+        variant = str(item.get("variantId") or "").strip()
+        if not variant:
+            if classes is None:
+                try:
+                    classes = _load_classes()
+                except Exception:
+                    classes = {}
+            course = (classes or {}).get(str(item.get("productId") or "")) or {}
+            variant = str(course.get("variantId") or "").strip()
+        if not variant:
+            raise RuntimeError("That class is missing its Squarespace seat")
+        price = item.get("price")
+        if price is None and item.get("unitCents") is not None:
+            price = int(item.get("unitCents")) / 100.0
+        lines.append({
+            "variantId": variant,
+            "quantity": int(item.get("quantity") or 1),
+            "unitPrice": float(price or 0),
+            "title": str(item.get("size") or item.get("name") or "Candle class")[:200],
+        })
+    return lines
+
+
+def _book_class_seats(order):
+    """Reserve paid class seats on the Squarespace class products."""
+    if order.get("squarespace_order_id") or order.get("squarespace_inventory_adjusted"):
+        return {"ok": True, "already": True}
+    lines = _class_seat_lines(order)
+    if not lines:
+        return None
+    url = str(os.environ.get("CLASS_SEAT_URL") or "").strip()
+    secret = str(os.environ.get("CLASS_SEAT_SECRET") or "").strip()
+    if not url or not secret:
+        raise RuntimeError("Class seat booking is not configured")
+    shipping = order.get("shipping") if isinstance(order.get("shipping"), dict) else {}
+    payload = json.dumps({
+        "orderId": order.get("id"),
+        "email": _order_email(order),
+        "name": shipping.get("name") or "",
+        "items": lines,
+    }).encode("utf-8")
+    request = urllib.request.Request(
+        url,
+        data=payload,
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {secret}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "CandleGardenPayments/1.0",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        raw = error.read().decode("utf-8", "replace")
+        try:
+            message = json.loads(raw).get("error") or "Squarespace did not reserve the seat"
+        except json.JSONDecodeError:
+            message = "Squarespace did not reserve the seat"
+        raise RuntimeError(str(message)[:300]) from error
+    if not isinstance(data, dict) or not data.get("ok"):
+        message = data.get("error") if isinstance(data, dict) else "Squarespace did not reserve the seat"
+        raise RuntimeError(str(message)[:300])
+    return data
+
+
+def _send_order_confirmation(order):
+    if order.get("confirmation_sent_at"):
+        return False
+    email = _order_email(order)
+    if not email:
+        return False
+    subject, text = _confirmation_text(order)
+    _ses().send_email(
+        Source=ORDER_FROM_EMAIL,
+        Destination={"ToAddresses": [email]},
+        ReplyToAddresses=[ORDER_REPLY_TO],
+        Message={
+            "Subject": {"Data": subject, "Charset": "UTF-8"},
+            "Body": {"Text": {"Data": text, "Charset": "UTF-8"}},
+        },
+    )
+    return True
+
+
 def _finalize_payment(event):
     try:
         body = _body(event)
@@ -917,10 +1181,32 @@ def _finalize_payment(event):
                 except Exception as error:
                     print(f"paid label purchase failed: {error}")
                     patch["label_status"] = "queued"
+                try:
+                    booking = _book_class_seats(order)
+                    if booking and booking.get("squarespaceOrderId"):
+                        patch["squarespace_order_id"] = str(booking["squarespaceOrderId"])
+                    if booking and booking.get("squarespaceOrderNumber"):
+                        patch["squarespace_order_number"] = str(booking["squarespaceOrderNumber"])
+                    if booking and booking.get("inventoryAdjusted"):
+                        patch["squarespace_inventory_adjusted"] = True
+                except Exception as error:
+                    print(f"class seat booking failed: {error}")
+                    patch["squarespace_booking_error"] = str(error)[:300]
             try:
                 _update_order(order["id"], patch)
             except Exception as error:
                 print(f"finalize order update failed: {error}")
+            if paid and not order.get("confirmation_sent_at"):
+                try:
+                    notice = dict(order)
+                    notice["status"] = status
+                    notice["seat_reserved"] = bool(
+                        patch.get("squarespace_order_id") or patch.get("squarespace_inventory_adjusted")
+                    )
+                    if _send_order_confirmation(notice):
+                        _update_order(order["id"], {"confirmation_sent_at": _now_iso()})
+                except Exception as error:
+                    print(f"order confirmation email failed: {error}")
         return _response(200, {
             "ok": True,
             "paid": paid,

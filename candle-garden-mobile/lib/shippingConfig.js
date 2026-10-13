@@ -52,9 +52,19 @@ export const SHIPPING_METHODS = {
       'We’ll provide packing instructions and a prepaid label for empties. ' +
       'After we refill, we ship them back. Two shipping trips. You provide a sturdy box that matches the size below.',
   },
+  store_dropoff: {
+    key: 'store_dropoff',
+    title: 'Drop off in the store',
+    shortTitle: 'In-store drop-off',
+    chargeCount: 0,
+    legs: [],
+    summary:
+      'Bring your empties to The Candle Garden at 363 Atlantic Boulevard, Suite 8, Atlantic Beach. ' +
+      'We refill them in the studio and you pick them up. No shipping charge.',
+  },
 };
 
-export const METHOD_ORDER = ['local_dropoff', 'ship_own', 'kit_roundtrip', 'prepaid_labels'];
+export const METHOD_ORDER = ['store_dropoff', 'ship_own', 'kit_roundtrip', 'prepaid_labels'];
 
 export function shippingMethodSummary(methodKey, speed = 'standard') {
   const method = SHIPPING_METHODS[methodKey] || SHIPPING_METHODS.ship_own;
@@ -80,7 +90,7 @@ export const SHIPPING_POLICY = {
   summary:
     'Shipping uses the lowest-cost available carrier from Atlantic Beach, FL. ' +
     'Price depends on your ZIP, packed weight (vessels + box + packing), and how you send empties. ' +
-    'Pick one of three methods below.',
+    'You can also drop empties off at the studio and pay wax only, with no shipping.',
 };
 
 export const PACKING = {
@@ -439,6 +449,24 @@ export function quoteShippingMethod({
 
   if (method.key === 'local_dropoff') return {ok:true,needsZip:false,method,box,packedWeight,recommendation,shippingCostUsd:0,legs:[],shippingLabel:'Local drop-off & pickup',customerNote:method.summary};
   const zipOk = isValidDestZip(destZip);
+  if (method.key === 'store_dropoff') {
+    return {
+      ok: true,
+      method,
+      box,
+      packedWeight,
+      recommendation,
+      destZip: zipOk ? normalizeZip(destZip) : '',
+      zone: null,
+      legs: [],
+      shippingCostUsd: 0,
+      shippingLabel: 'In-store drop-off · no shipping',
+      customerNote:
+        'Bring your empties to The Candle Garden at 363 Atlantic Boulevard, Suite 8, Atlantic Beach. ' +
+        'We refill them in the studio and you pick them up. This price is wax only.',
+    };
+  }
+
   if (!zipOk) {
     return {
       ok: false,

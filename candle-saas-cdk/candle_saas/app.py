@@ -35,11 +35,12 @@ storage_stack = StorageStack(app, "CandleSaasStorageStack", env=env)
 # )
 
 # Create API stack with Lambda functions (without database for now)
-# The container_detector works without DB - only product_manager/order_processor need it
+# The container_detector works without DB - only product_manager/order_processor need it.
+# Keep Lambdas out of the VPC until RDS exists so we do not pay for a NAT Gateway.
 api_stack = APIStack(
     app, "CandleSaasAPIStack",
-    vpc=network_stack.vpc,
-    lambda_sg=network_stack.lambda_sg,
+    vpc=None,
+    lambda_sg=None,
     database=None,  # Temporarily None - no RDS available
     s3_bucket=storage_stack.image_bucket,
     env=env

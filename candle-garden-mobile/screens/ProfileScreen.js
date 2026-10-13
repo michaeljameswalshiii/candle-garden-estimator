@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useRoute } from '@react-navigation/native';
 import {
   StyleSheet,
   Text,
@@ -61,6 +62,7 @@ export default function ProfileScreen() {
     confirmForgotPassword,
     changePassword,
   } = useAuth();
+  const route = useRoute();
 
   const [appleAvailable,setAppleAvailable] = useState(false);
   React.useEffect(()=>{appleSignInAvailable().then(setAppleAvailable).catch(()=>{});},[]);
@@ -76,6 +78,12 @@ export default function ProfileScreen() {
   const [pushToken, setPushToken] = useState(null);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+
+  useEffect(() => {
+    if (!isAuthenticated && route.params?.intent === 'signup') {
+      setMode('signup');
+    }
+  }, [isAuthenticated, route.params?.intent]);
 
   React.useEffect(() => {
     getStoredPushToken().then((t) => {

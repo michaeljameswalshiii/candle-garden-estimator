@@ -156,6 +156,7 @@ export async function createStripePaymentSheet(items, contact = {}) {
   if (contact.shipping) body.shipping = contact.shipping;
   body.fulfillment = contact.fulfillment || "shipping";
   if (contact.promoCode) body.promoCode = contact.promoCode.trim();
+  if (contact.packingAcknowledged) body.packingAcknowledged = true;
   return apiFetch('/payments/payment-sheet', {
     method: 'POST',
     body,

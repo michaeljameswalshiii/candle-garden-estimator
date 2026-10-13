@@ -17,7 +17,12 @@ import urllib.request
 import uuid
 
 SERVICE_GROUND_SAVER = "93"
+SERVICE_2ND_DAY_AIR = "02"
 RETURN_PRINT_LABEL = "9"
+SERVICE_NAMES = {
+    SERVICE_GROUND_SAVER: "UPS Ground Saver",
+    SERVICE_2ND_DAY_AIR: "UPS 2nd Day Air",
+}
 
 ORIGIN = {
     "name": "The Candle Garden",
@@ -63,7 +68,14 @@ def _secret_dict():
     return merged
 
 
+def enabled():
+    """Direct UPS API stays in the codebase; set UPS_ENABLED=true to turn it back on."""
+    return str(os.environ.get("UPS_ENABLED") or "").strip().lower() in ("1", "true", "yes", "on")
+
+
 def configured():
+    if not enabled():
+        return False
     creds = _secret_dict()
     return bool(creds.get("clientId") and creds.get("clientSecret") and creds.get("accountNumber"))
 
@@ -158,12 +170,14 @@ def _package(weight_lb, length_in, width_in, height_in):
     }
 
 
-def rate_ground_saver(ship_from, ship_to, weight_lb, length_in, width_in, height_in):
-    """Return total USD cents for one Ground Saver package. Raises on UPS errors."""
+def rate_package(ship_from, ship_to, weight_lb, length_in, width_in, height_in, service_code=SERVICE_GROUND_SAVER):
+    """Return total USD cents for one UPS package. Raises on UPS errors."""
     creds = _secret_dict()
     shipper = dict(ORIGIN)
     shipper["account"] = creds["accountNumber"]
     ship_from = ship_from or ORIGIN
+    code = str(service_code or SERVICE_GROUND_SAVER)
+    name = SERVICE_NAMES.get(code, "UPS")
     body = {
         "RateRequest": {
             "Request": {"TransactionReference": {"CustomerContext": "refill-rate"}},
@@ -179,7 +193,7 @@ def rate_ground_saver(ship_from, ship_to, weight_lb, length_in, width_in, height
                         {"Type": "01", "BillShipper": {"AccountNumber": creds["accountNumber"]}}
                     ]
                 },
-                "Service": {"Code": SERVICE_GROUND_SAVER, "Description": "UPS Ground Saver"},
+                "Service": {"Code": code, "Description": name},
                 "NumOfPieces": "1",
                 "Package": _package(weight_lb, length_in, width_in, height_in),
                 "ShipmentRatingOptions": {"NegotiatedRatesIndicator": "Y"},
@@ -203,7 +217,11 @@ def rate_ground_saver(ship_from, ship_to, weight_lb, length_in, width_in, height
     return int(round(float(amount) * 100))
 
 
-def create_ground_saver_label(
+def rate_ground_saver(ship_from, ship_to, weight_lb, length_in, width_in, height_in):
+    return rate_package(ship_from, ship_to, weight_lb, length_in, width_in, height_in, SERVICE_GROUND_SAVER)
+
+
+def create_label(
     ship_from,
     ship_to,
     weight_lb,
@@ -212,8 +230,9 @@ def create_ground_saver_label(
     height_in,
     description="Candle Garden refill",
     return_label=False,
+    service_code=SERVICE_GROUND_SAVER,
 ):
-    """Create a Ground Saver label billed to Candle Garden. Returns tracking + GIF base64."""
+    """Create a UPS label billed to Candle Garden. Returns tracking + GIF base64."""
     creds = _secret_dict()
     shipper = dict(ORIGIN)
     shipment = {
@@ -227,7 +246,10 @@ def create_ground_saver_label(
                 "BillShipper": {"AccountNumber": creds["accountNumber"]},
             }
         },
-        "Service": {"Code": SERVICE_GROUND_SAVER, "Description": "UPS Ground Saver"},
+        "Service": {
+            "Code": str(service_code or SERVICE_GROUND_SAVER),
+            "Description": SERVICE_NAMES.get(str(service_code or SERVICE_GROUND_SAVER), "UPS"),
+        },
         "Package": {
             "Description": description[:35],
             "Packaging": {"Code": "02", "Description": "Package"},
@@ -267,5 +289,28 @@ def create_ground_saver_label(
     return {
         "trackingNumber": tracking,
         "labelGifBase64": graphic,
-        "service": "UPS Ground Saver",
+        "service": SERVICE_NAMES.get(str(service_code or SERVICE_GROUND_SAVER), "UPS"),
     }
+
+
+def create_ground_saver_label(
+    ship_from,
+    ship_to,
+    weight_lb,
+    length_in,
+    width_in,
+    height_in,
+    description="Candle Garden refill",
+    return_label=False,
+):
+    return create_label(
+        ship_from,
+        ship_to,
+        weight_lb,
+        length_in,
+        width_in,
+        height_in,
+        description=description,
+        return_label=return_label,
+        service_code=SERVICE_GROUND_SAVER,
+    )

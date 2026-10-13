@@ -13,14 +13,13 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { brand, colors, fonts, radii, spacing } from '../lib/theme';
 import { STORE } from '../lib/storeInfo';
-import { lifestyle, homeGallery } from '../lib/images';
+import { lifestyle } from '../lib/images';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const H_PAD = spacing.md + 4;
+const PAGE_W = SCREEN_W;
 const HERO_W = SCREEN_W - H_PAD * 2;
 const HERO_H = Math.round(HERO_W * 1.15);
-const CARD_W = Math.round(SCREEN_W * 0.72);
-const CARD_H = Math.round(CARD_W * 1.15);
 
 const HERO_SLIDES = [
   {
@@ -65,7 +64,7 @@ export default function HomeScreen() {
 
   const onHeroScroll = (e) => {
     const x = e.nativeEvent.contentOffset.x;
-    const i = Math.round(x / HERO_W);
+    const i = Math.round(x / PAGE_W);
     if (i >= 0 && i < HERO_SLIDES.length) setHeroIndex(i);
   };
 
@@ -97,14 +96,17 @@ export default function HomeScreen() {
           keyExtractor={(item) => item.key}
           horizontal
           pagingEnabled
+          decelerationRate="fast"
           showsHorizontalScrollIndicator={false}
+          style={styles.heroList}
           onMomentumScrollEnd={onHeroScroll}
           getItemLayout={(_, index) => ({
-            length: HERO_W,
-            offset: HERO_W * index,
+            length: PAGE_W,
+            offset: PAGE_W * index,
             index,
           })}
           renderItem={({ item }) => (
+            <View style={styles.heroPage}>
             <View style={styles.heroSlide}>
               <Image source={item.source} style={styles.heroImage} resizeMode="cover" />
               <View style={styles.heroOverlay} />
@@ -112,6 +114,7 @@ export default function HomeScreen() {
                 <Text style={styles.heroTitle}>{item.title}</Text>
                 <Text style={styles.heroSubtitle}>{item.subtitle}</Text>
               </View>
+            </View>
             </View>
           )}
         />
@@ -145,29 +148,6 @@ export default function HomeScreen() {
           <Text style={styles.ctaSecondaryText}>Book a class</Text>
         </TouchableOpacity>
       </View>
-
-      {/* Lifestyle story strip */}
-      <View style={styles.sectionHead}>
-        <Text style={styles.sectionTitle}>Life at The Candle Garden</Text>
-        <Text style={styles.sectionHint}>Classes, craft & signature scents</Text>
-      </View>
-
-      <FlatList
-        data={homeGallery}
-        keyExtractor={(item) => item.key}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.galleryList}
-        renderItem={({ item }) => (
-          <View style={styles.galleryCard}>
-            <Image source={item.source} style={styles.galleryImage} resizeMode="cover" />
-            <View style={styles.galleryBadge}>
-              <Text style={styles.galleryBadgeText}>{item.label}</Text>
-            </View>
-            <Text style={styles.galleryCaption}>{item.caption}</Text>
-          </View>
-        )}
-      />
 
       {/* Featured product moment */}
       <View style={styles.featureBlock}>
@@ -284,7 +264,7 @@ export default function HomeScreen() {
         onPress={() => Linking.openURL(brand.siteUrl)}
         activeOpacity={0.8}
       >
-        <Text style={styles.siteButtonText}>Visit thecandlegarden.co</Text>
+        <Text style={styles.siteButtonText}>visit thecandlegarden.co</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -330,11 +310,19 @@ const styles = StyleSheet.create({
   },
   heroWrap: {
     marginBottom: spacing.md,
+    alignItems: 'center',
+  },
+  heroList: {
+    width: PAGE_W,
+  },
+  heroPage: {
+    width: PAGE_W,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   heroSlide: {
     width: HERO_W,
     height: HERO_H,
-    marginHorizontal: H_PAD,
     borderRadius: radii.lg,
     overflow: 'hidden',
     backgroundColor: colors.surface,
@@ -433,60 +421,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     letterSpacing: 0.8,
-  },
-  sectionHead: {
-    paddingHorizontal: H_PAD,
-    marginBottom: spacing.sm,
-  },
-  sectionTitle: {
-    fontFamily: fonts.heading,
-    fontSize: 20,
-    fontWeight: '400',
-    color: colors.primary,
-  },
-  sectionHint: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-  galleryList: {
-    paddingHorizontal: H_PAD,
-    paddingBottom: spacing.lg,
-    gap: 12,
-  },
-  galleryCard: {
-    width: CARD_W,
-    marginRight: 4,
-  },
-  galleryImage: {
-    width: CARD_W,
-    height: CARD_H,
-    borderRadius: radii.md,
-    backgroundColor: colors.surface,
-  },
-  galleryBadge: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    backgroundColor: 'rgba(16, 56, 49, 0.88)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: radii.pill,
-  },
-  galleryBadgeText: {
-    color: colors.white,
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  galleryCaption: {
-    fontFamily: fonts.heading,
-    fontSize: 15,
-    color: colors.darkAccent,
-    marginTop: 8,
-    paddingHorizontal: 2,
   },
   featureBlock: {
     marginHorizontal: H_PAD,
@@ -659,7 +593,6 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 14,
     fontWeight: '500',
-    letterSpacing: 1.2,
-    textTransform: 'capitalize',
+    letterSpacing: 0.4,
   },
 });

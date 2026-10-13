@@ -33,10 +33,15 @@ VISION_PROMPT = """You are an expert candle refill estimator for The Candle Gard
 Customers photograph one or more containers they want REFILLED with soy wax. Your job is to estimate wax needed for EVERY refillable container in the photo, then SUM them.
 
 ## SCALE ONLY — never list as a vessel
-Any aluminum beverage can used for size reference (standard **12 fl oz / 355 ml**):
-- Athletic Brewing beer cans, Alani energy drinks, seltzer, soda, or similar
-- Brand/color does not matter — if it is a drink can, it is scale only
-- Do NOT put the can in vessels[] and do NOT add its volume to totals
+Any aluminum beverage can is scale only. Do NOT put the can in vessels[] and do NOT add its volume to totals.
+
+Studio scale can is a **12 fl oz** drink can (soda, seltzer, Athletic, or Arizona 12 oz). Use ~2.6 in diameter and the can's visible height as the ruler.
+
+- Slim 12 oz cans (White Claw / some Athletic) are taller and skinnier (~2.25 in × ~6.1 in) but still 12 fl oz
+- Energy cans (Alani, Monster, Celsius) are usually 16 fl oz — only use 16 if the label clearly says 16
+- Arizona Green Tea in these studio shots is the **12 oz** can, not 23 oz
+
+Scale each vessel's inner diameter and height off that 12 oz can, then convert to soy-fill ounces.
 
 ## INCLUDE as a candle vessel if ANY of these are true
 - Has a wick, wick tab, or metal wick clip (even when the glass is empty)
@@ -64,9 +69,13 @@ When in doubt: if it is a jar/mug/glass in the main foreground group next to the
 - Estimate each vessel separately with wax_needed_oz
 - total_wax_needed_oz = SUM of all vessels' wax_needed_oz
 - total_wax_needed_grams = SUM of all vessels' wax_needed_grams (or oz * 28.35)
-- Use the 12 oz can for relative diameter/height of each vessel
-- current_wax_percent: remaining usable wax (0–100); empty + wick only → 0
-- wax_needed_oz ≈ full_capacity_oz * (1 - current_wax_percent/100)
+- Use the 12 oz can for relative inner diameter and height of each vessel
+- **wax_needed_oz is soy to the studio fill line** (~1/4–1/2 in below the rim). That headspace is already in the number — do not subtract extra for unfilled rim, and do not quote brim-full glass volume
+- Typical soy-fill: votive 3–5 oz; rocks-glass / tumbler 8–10 oz; 12 oz jar 10–12 oz; 16 oz jar 14–16 oz
+- Four similar empty tumblers beside a 12 oz can usually total about 36–38 oz of wax (often 37 oz). Do not price them as four 12 oz brim-full glasses
+- current_wax_percent: remaining **solid wax** (0–100); empty + wick only → 0. Ignore leftover ice, water, or film
+- wax_needed_oz ≈ fill-line capacity * (1 - current_wax_percent/100)
+- Round each vessel to the nearest 0.5 oz
 
 ## Output
 Return ONLY valid JSON, no markdown, no other text:
@@ -100,21 +109,6 @@ Return ONLY valid JSON, no markdown, no other text:
 
 If ZERO vessels other than the scale can: set container_detected false, vessel_count 0, vessels [].
 There is no min/max vessel size.
-"""
-
-# Extra text appended when we ask the model to recount (undercount guard)
-RECOUNT_PROMPT_SUFFIX = """
-
-## RECOUNT PASS (required)
-You previously may have under-counted vessels in this same image.
-Common mistakes on studio photos:
-- Dropping the smallest short jar next to the scale can
-- Merging two similar tall tumblers into one vessel
-- Ignoring an empty glass that still has a wick
-
-List EVERY separate glass candle vessel in the foreground group again.
-Beverage cans = scale only. Background wax cubes / finished candles / wick bags = ignore.
-vessel_count MUST equal vessels.length. Return JSON only.
 """
 
 MEDIA_TYPES = {
@@ -516,46 +510,11 @@ def analyze_image(body):
             return built
         return None
 
-    def _maybe_recount(result, model_label, invoker):
-        """
-        Soft undercount guard: multi-vessel studio shots often miss 1 of 5.
-        If we only found 2–4 vessels, run one recount pass and keep the higher count.
-        """
-        if not result or not isinstance(result, dict):
-            return result
-        vessels = result.get("vessels") or []
-        n = len(vessels) if isinstance(vessels, list) else 0
-        if n < 2 or n > 4:
-            return result
-        try:
-            logger.info(
-                "%s soft recount (first pass vessel_count=%s)", model_label, n
-            )
-            text2 = invoker(
-                image_data,
-                image_format,
-                VISION_PROMPT + RECOUNT_PROMPT_SUFFIX,
-            )
-            result2 = _parse_model_json(text2)
-            if not result2 or not isinstance(result2, dict):
-                return result
-            n2 = len(result2.get("vessels") or [])
-            if n2 > n:
-                logger.info(
-                    "%s recount improved count %s → %s", model_label, n, n2
-                )
-                return result2
-            return result
-        except Exception as re_err:
-            logger.warning("%s recount failed: %s", model_label, re_err)
-            return result
-
     try:
         logger.info(f"Invoking Claude model: {CLAUDE_MODEL_ID}")
         text = _invoke_claude(image_data, image_format)
         models_tried.append("claude")
         result = _parse_model_json(text)
-        result = _maybe_recount(result, "Claude", _invoke_claude)
         handled = _handle_built(
             _build_success_response(result, CLAUDE_MODEL_ID),
             "Claude",
@@ -573,7 +532,6 @@ def analyze_image(body):
         text = _invoke_nova(image_data, image_format)
         models_tried.append("nova")
         result = _parse_model_json(text)
-        result = _maybe_recount(result, "Nova", _invoke_nova)
         handled = _handle_built(
             _build_success_response(result, NOVA_MODEL_ID),
             "Nova",
@@ -651,47 +609,21 @@ def _optional_jwt_claims(event):
         return {}
 
 
-def _verify_access_token_user(access_token):
-    """
-    Cryptographically useful attribution: Cognito GetUser validates the access token.
-    Returns {sub, email, username, verified: True} or {}.
-    """
-    if not access_token:
-        return {}
-    try:
-        cognito = boto3.client("cognito-idp", region_name=AWS_REGION)
-        resp = cognito.get_user(AccessToken=access_token)
-        attrs = {a["Name"]: a["Value"] for a in resp.get("UserAttributes", [])}
-        return {
-            "sub": attrs.get("sub"),
-            "email": attrs.get("email"),
-            "username": resp.get("Username"),
-            "verified": True,
-            "token_use": "access",
-        }
-    except Exception as e:
-        logger.info(f"Access token verify failed (guest or id token): {e}")
-        return {}
-
-
 def _resolve_user_context(event):
     """
-    Prefer verified Cognito GetUser when Authorization is an access token.
-    Fall back to unverified JWT claims (e.g. id token) for soft attribution.
+    Rate-limit attribution from JWT claims only.
+    Skip Cognito GetUser on this hot path — it added hundreds of ms per estimate.
+    Access tokens still get the signed-in bucket; id tokens stay unverified.
     """
-    token = _bearer_token(event)
-    verified = _verify_access_token_user(token)
-    if verified.get("sub"):
-        return verified
-
     claims = _optional_jwt_claims(event)
     if claims.get("sub"):
+        token_use = claims.get("token_use") or "unknown"
         return {
             "sub": claims.get("sub"),
             "email": claims.get("email"),
             "username": claims.get("cognito:username") or claims.get("username"),
-            "verified": False,
-            "token_use": claims.get("token_use") or "unknown",
+            "verified": token_use == "access",
+            "token_use": token_use,
         }
     return {"verified": False}
 

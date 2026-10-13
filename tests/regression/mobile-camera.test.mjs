@@ -28,6 +28,14 @@ test("estimator can open the camera and the photo library", () => {
   assert.match(estimator, /Compatible/);
 });
 
+test("estimator shows three photo instructions", () => {
+  assert.match(estimator, /PHOTO_STEPS/);
+  assert.match(estimator, /How to photograph/);
+  assert.match(estimator, /Gather vessels/);
+  assert.match(estimator, /Add a scale can/);
+  assert.match(estimator, /Photograph the group/);
+});
+
 test("estimator renders symbols instead of literal Unicode escape codes", () => {
   assert.doesNotMatch(estimator, /build: ups-ground-saver-v1 \\u00b7/);
   assert.doesNotMatch(estimator, /scale only \\u2014/);
@@ -41,8 +49,10 @@ test("iPhone HEIC photos are converted to JPEG before /detect", () => {
   assert.match(prepare, /export function isJpegBase64/);
   assert.match(prepare, /HEIC/);
   assert.match(prepare, /SaveFormat\.JPEG/);
+  assert.match(prepare, /width: 1024/);
   assert.match(detector, /heic/);
   assert.match(detector, /Never invent a volume quote on failure/);
+  assert.doesNotMatch(detector, /_maybe_recount/);
 });
 
 test("the vision fixture is a real JPEG the detector can accept", () => {

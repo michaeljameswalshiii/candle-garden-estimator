@@ -75,8 +75,21 @@ test("local drop-off is free and does not need a ZIP", () => {
   assert.equal(local.legs.length, 0);
 });
 
-test("the refill shipping methods and cartons are still the product set", () => {
-  assert.deepEqual(pricing.METHOD_ORDER, ["local_dropoff", "ship_own", "kit_roundtrip", "prepaid_labels"]);
+test("in-store drop-off is wax only and does not need a ZIP", () => {
+  const quote = pricing.calculateCost(10, { shippingMethod: "store_dropoff" });
+  assert.equal(quote.quote_ok, true);
+  assert.equal(quote.needs_zip, false);
+  assert.equal(quote.shipping_cost_num, 0);
+  assert.equal(quote.wax_cost_num, 17.5);
+  assert.equal(quote.total_cost_num, 17.5);
+  assert.equal(quote.legs.length, 0);
+  const expedited = pricing.calculateCost(10, { shippingMethod: "store_dropoff", speed: "expedited" });
+  assert.equal(expedited.shipping_cost_num, 0);
+  assert.equal(expedited.wax_cost_num, 22.5);
+});
+
+test("the refill handoff methods and cartons are still the product set", () => {
+  assert.deepEqual(pricing.METHOD_ORDER, ["store_dropoff", "ship_own", "kit_roundtrip", "prepaid_labels"]);
   assert.ok(shipping.UPS_BOXES.ups_small);
   assert.ok(shipping.UPS_BOXES.ups_medium);
   assert.ok(shipping.UPS_BOXES.ups_large);

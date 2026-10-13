@@ -128,7 +128,9 @@ export default function RefillStep4() {
                 vesselCount: Math.max(vesselCount, quantity),
                 detail:
                   `${speedMeta.title} \u00b7 ${speedMeta.timing}` +
-                  (shippingMethod === 'ship_own'
+                  (shippingMethod === 'store_dropoff' || shippingMethod === 'local_dropoff'
+                    ? ' \u00b7 drop off in the store'
+                    : shippingMethod === 'ship_own'
                     ? (speed === 'expedited'
                       ? ' \u00b7 you ship empties UPS 2nd Day Air'
                       : ' \u00b7 ship empties on your own')
@@ -198,13 +200,19 @@ export default function RefillStep4() {
           <TouchableOpacity key={methodKey} style={[styles.boxOption, shippingMethod === methodKey && styles.boxOptionSelected]} onPress={() => setShippingMethod(methodKey)}>
             <View style={styles.boxInfo}>
               <Text style={styles.boxName}>{method.title}</Text>
-              <Text style={styles.boxDetails}>{methodKey === 'ship_own' ? '1 UPS return trip to you' : `${method.chargeCount} UPS trips`}</Text>
+              <Text style={styles.boxDetails}>{methodKey === 'store_dropoff' || methodKey === 'local_dropoff' ? 'No shipping' : methodKey === 'ship_own' ? '1 UPS return trip to you' : `${method.chargeCount} UPS trips`}</Text>
               <Text style={styles.boxDetails} numberOfLines={8}>{shippingMethodSummary(methodKey, refillSpeed)}</Text>
             </View>
             <Text style={styles.boxPrice}>{methodCost.quote_ok ? `$${methodCost.shipping_cost}` : 'ZIP'}</Text>
           </TouchableOpacity>
         ))}
       </View>
+      {shippingMethod === 'store_dropoff' ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Studio drop-off</Text>
+          <Text style={styles.hintText}>Bring the empties to 363 Atlantic Boulevard, Suite 8, Atlantic Beach. You pick the refill up when it is ready. This price is wax only.</Text>
+        </View>
+      ) : (
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Recommended carton</Text>
         <Text style={styles.hintText}>Packed weight includes vessels, box, and packing. UPS bills the greater of scale and dim weight.</Text>
@@ -224,10 +232,11 @@ export default function RefillStep4() {
           );
         })}
       </View>
+      )}
       <View style={styles.totalSection}>
         <Text style={styles.totalLabel}>Estimate total</Text>
         <Text style={styles.totalAmount}>{cost.quote_ok ? `$${cost.total_cost}` : '\u2014'}</Text>
-        {cost.packed_weight ? (
+        {shippingMethod !== 'store_dropoff' && shippingMethod !== 'local_dropoff' && cost.packed_weight ? (
           <>
             <Text style={styles.weightLine}>Packed weight (refills): {cost.packed_weight.refillsOutboundLabel}</Text>
             <Text style={styles.weightDetail}>{cost.packed_weight.breakdownOutbound}</Text>

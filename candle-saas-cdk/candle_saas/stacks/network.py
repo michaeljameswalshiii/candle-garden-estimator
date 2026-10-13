@@ -16,7 +16,9 @@ class NetworkStack(Stack):
             self, "CandleSaasVPC",
             max_azs=3,
             ip_addresses=ec2.IpAddresses.cidr("10.0.0.0/16"),
-            nat_gateways=1,
+            # No RDS yet. A NAT Gateway is ~$32/month and Lambdas should run
+            # outside this VPC until a database actually needs private access.
+            nat_gateways=0,
             subnet_configuration=[
                 ec2.SubnetConfiguration(
                     subnet_type=ec2.SubnetType.PUBLIC,

@@ -8,7 +8,7 @@ How to run it: [README.md](./README.md). Command from the repo root: `npm test`.
 
 ## 1. Mobile app
 
-The Expo app’s six tabs, refill estimator, in-app cart, and checkout math.
+The Expo app’s seven tabs, refill estimator, in-app cart, and checkout math.
 
 ### App shell — `mobile-app.test.mjs`
 
@@ -90,7 +90,7 @@ The phone cannot set the charge. These lock that rule:
 | Client `unitPrice` is ignored; catalog cents are used | A modified app could underpay |
 | 18oz uses `priceMax` | Size upcharge disappeared |
 | Unknown product / empty cart / missing refill ZIP rejected | Checkout would create a bad PaymentIntent |
-| Refill total is server wax + UPS, not the client amount | Shipping could be skipped |
+| Refill total is server wax + shipping, not the client amount | Shipping could be skipped |
 | Kit > prepaid labels > ship-own | Method pricing drifted from the app table |
 | Alaska ZIP rejected | Out-of-coverage refill would still charge |
 | Class seat uses catalog $60 | Class checkout would take $1 from the client |
@@ -109,7 +109,7 @@ These used to be manual. They now run in CI/local `npm test`:
 | Vision `/detect` with a real JPEG fixture | `http/mobile-api.mjs` | Estimator backend is down or inventing quotes |
 | Stripe PaymentSheet client secret (Atlantic Beach $34) | `http/mobile-api.mjs` | Test checkout cannot start (secret missing/wrong) |
 | Guest `/orders` is rejected | `http/mobile-api.mjs` | Order history leaked without sign-in |
-| Live UPS shipping quote | `http/mobile-api.mjs` | Refill shipping API is down |
+| Live shipping quote (Shippo when configured) | `http/mobile-api.mjs` | Refill shipping API is down |
 | Cognito JWKS, bogus sign-in, forgot-password | `mobile-auth.test.mjs` | Profile login/reset cannot reach the user pool |
 | EAS project + public App Store lookup + Expo Updates | `mobile-release.test.mjs` | Public listing missing (TestFlight-only until 1.1.0 is released for sale) |
 | Apple Pay remains disabled | `mobile-release.test.mjs` | Merchant ID appeared without a product decision |
