@@ -99,6 +99,13 @@ export async function verifyCredentials(
   if (!password) return { ok: false };
   const users = loadAdminUsers();
   const incoming = normalizeId(id);
+  // Rotate the owner credential through production secrets without changing other logins.
+  const ownerHash = process.env.CANDLE_GARDEN_OWNER_PASSWORD_HASH;
+  if (ownerHash && incoming.toLowerCase() === "thepotentpig@gmail.com") {
+    return safeEqual(ownerHash, hashPassword(password))
+      ? { ok: true, id: "thepotentpig@gmail.com" }
+      : { ok: false };
+  }
   const envMatch = envPlaintextAccounts().find(
     (account) => account.id.toLowerCase() === incoming.toLowerCase(),
   );
