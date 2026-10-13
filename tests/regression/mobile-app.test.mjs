@@ -143,6 +143,7 @@ test("checkout talks to the live API with a test Stripe publishable key", () => 
   const home = fs.readFileSync(path.join(mobile, "screens", "HomeScreen.js"), "utf8");
   const scents = fs.readFileSync(path.join(mobile, "lib", "scents.js"), "utf8");
   assert.match(home, /visit thecandlegarden\.co/);
+  assert.match(home, /textTransform:\s*'lowercase'/);
   assert.doesNotMatch(home, /textTransform:\s*'capitalize'/);
   for (const name of ["Oh, Christmas Tree", "Juniper", "Almond", "Honey Butter", "Fruit Loops", "Atlantic Beach", "Neptune Beach", "Jax Beach", "Ponte Vedra", "Blood orange", "Vanilla"]) {
     assert.match(scents, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));

@@ -594,5 +594,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     letterSpacing: 0.4,
+    textTransform: 'lowercase',
   },
 });
