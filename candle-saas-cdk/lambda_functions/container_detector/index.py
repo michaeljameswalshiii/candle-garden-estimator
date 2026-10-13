@@ -5,12 +5,23 @@ import base64
 import logging
 import re
 import urllib.request
+from botocore.config import Config
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
-bedrock_runtime = boto3.client("bedrock-runtime", region_name=AWS_REGION)
+# API Gateway stops waiting at 29 seconds. One attempt per model, with a
+# short read timeout, leaves time for Nova if Claude is unavailable.
+bedrock_runtime = boto3.client(
+    "bedrock-runtime",
+    region_name=AWS_REGION,
+    config=Config(
+        connect_timeout=3,
+        read_timeout=12,
+        retries={"max_attempts": 1, "mode": "standard"},
+    ),
+)
 
 CLAUDE_MODEL_ID = os.environ.get(
     "CLAUDE_MODEL_ID",
