@@ -166,9 +166,10 @@ export default function ProductsScreen() {
           <View>
             <View style={styles.header}>
               <Image source={lifestyle.scentMoment} style={styles.headerImage} resizeMode="cover" />
-              <View style={styles.headerOverlay} />
-              <Text style={styles.headerTitle}>Shop</Text>
-              <Text style={styles.headerSubtitle}>Shop in the app. Checkout stays in Cart.</Text>
+              <View style={styles.headerCopy}>
+                <Text style={styles.headerTitle}>Shop</Text>
+                <Text style={styles.headerSubtitle}>Shop in the app. Checkout stays in Cart.</Text>
+              </View>
             </View>
             {itemCount > 0 ? (
               <View style={styles.cartBanner}>
@@ -221,13 +222,13 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: H_PAD, paddingBottom: 28 },
   row: { justifyContent: 'space-between', marginBottom: CARD_GAP },
   header: {
-    height: 160, borderRadius: radii.lg, overflow: 'hidden', marginBottom: spacing.md,
-    marginTop: 6, justifyContent: 'flex-end', backgroundColor: colors.surface,
+    borderRadius: radii.lg, overflow: 'hidden', marginBottom: spacing.md,
+    marginTop: 6, backgroundColor: colors.primary,
   },
-  headerImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
-  headerOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(16, 56, 49, 0.4)' },
-  headerTitle: { fontFamily: fonts.heading, fontSize: 28, fontWeight: '400', color: colors.white, paddingHorizontal: 16, zIndex: 1 },
-  headerSubtitle: { fontFamily: fonts.body, fontSize: 13, color: 'rgba(255,255,255,0.92)', paddingHorizontal: 16, paddingBottom: 14, marginTop: 4, zIndex: 1 },
+  headerImage: { width: '100%', height: 132 },
+  headerCopy: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 14 },
+  headerTitle: { fontFamily: fonts.heading, fontSize: 28, fontWeight: '400', color: colors.white },
+  headerSubtitle: { fontFamily: fonts.body, fontSize: 13, color: 'rgba(255,255,255,0.92)', marginTop: 4 },
   cartBanner: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     backgroundColor: colors.primarySoft, borderRadius: radii.sm, paddingHorizontal: 12,

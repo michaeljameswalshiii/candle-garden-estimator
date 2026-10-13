@@ -72,6 +72,9 @@ test("shop adds catalog items to the in-app cart and blocks sold-out products", 
   assert.match(source, /addItem\(product/);
   assert.match(source, /useFocusEffect/);
   assert.match(source, /5 \* 60 \* 1000/);
+  assert.match(source, /styles\.headerCopy/);
+  assert.match(source, /backgroundColor: colors\.primary/);
+  assert.doesNotMatch(source, /headerOverlay/);
 });
 
 test("classes book into the app cart, not the paused Acuity scheduler", () => {
