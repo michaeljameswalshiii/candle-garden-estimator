@@ -37,7 +37,7 @@
         ],
         "aps-environment": "production"
       },
-      "buildNumber": "28",
+      "buildNumber": "29",
       "usesAppleSignIn": true
     },
     "android": {
