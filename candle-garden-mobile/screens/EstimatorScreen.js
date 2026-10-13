@@ -659,8 +659,6 @@ export default function EstimatorScreen() {
           {cost.customer_note ? <Text style={styles.shipNote}>{cost.customer_note}</Text> : null}
           <Text style={styles.total}>Total: {displayTotal}</Text>
           <CustomButton title="Add refill to cart" onPress={addEstimateToCart} disabled={!cost.quote_ok || !refillSpeed} />
-            </>
-          ) : null}
         </View>
       )}
       <Modal visible={scentPicker != null} transparent animationType="fade" onRequestClose={() => setScentPicker(null)}>
