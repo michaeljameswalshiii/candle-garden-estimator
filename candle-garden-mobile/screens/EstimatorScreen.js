@@ -37,11 +37,12 @@ const PHOTO_STEPS = [
   },
 ];
 
-function CustomButton({ title, onPress, disabled, color }) {
+function CustomButton({ title, onPress, disabled, color, compact }) {
   return (
     <TouchableOpacity
       style={[
         styles.button,
+        compact ? styles.buttonCompact : null,
         disabled ? styles.buttonDisabled : null,
         color ? { backgroundColor: color } : null,
       ]}
@@ -49,7 +50,7 @@ function CustomButton({ title, onPress, disabled, color }) {
       disabled={disabled}
       activeOpacity={0.7}
     >
-      <Text style={[styles.buttonText, disabled ? styles.buttonTextDisabled : null]}>
+      <Text style={[styles.buttonText, compact ? styles.buttonTextCompact : null, disabled ? styles.buttonTextDisabled : null]}>
         {title}
       </Text>
     </TouchableOpacity>
@@ -508,8 +509,8 @@ export default function EstimatorScreen() {
             <Text style={styles.inputSuffix}>oz</Text>
           </View>
           <View style={styles.manualButtons}>
-            <CustomButton title="Cancel" onPress={() => setShowManualEntry(false)} color={colors.textMuted} />
-            <CustomButton title="Submit" onPress={submitManualEntry} />
+            <CustomButton title="Cancel" onPress={() => setShowManualEntry(false)} color={colors.textMuted} compact />
+            <CustomButton title="Submit" onPress={submitManualEntry} compact />
           </View>
         </View>
       )}
@@ -717,8 +718,10 @@ const styles = StyleSheet.create({
   placeholderHint: { fontFamily: fonts.body, fontSize: 16, color: colors.textFaint },
   buttonContainer: { alignItems: 'center', gap: 12, width: '100%' },
   button: { backgroundColor: colors.primary, paddingVertical: 14, paddingHorizontal: 30, borderRadius: radii.sm, minWidth: 200, alignItems: 'center' },
+  buttonCompact: { minWidth: 0, flexGrow: 1, flexBasis: 0, paddingHorizontal: 12, paddingVertical: 12 },
   buttonDisabled: { backgroundColor: colors.disabled },
   buttonText: { color: colors.white, fontSize: 15, fontWeight: '500', letterSpacing: 1.2 },
+  buttonTextCompact: { letterSpacing: 0.4 },
   buttonTextDisabled: { color: colors.textFaint },
   result: { backgroundColor: colors.lightAccent, padding: 20, borderRadius: radii.md, marginTop: 20, alignItems: 'center', width: '100%', borderWidth: 1, borderColor: colors.border },
   resultTitle: { fontFamily: fonts.heading, fontSize: 18, fontWeight: '400', marginBottom: 10, color: colors.primary },
@@ -746,7 +749,7 @@ const styles = StyleSheet.create({
   inputContainer: { backgroundColor: colors.white, borderRadius: radii.sm, borderWidth: 1, borderColor: colors.borderStrong, paddingHorizontal: 15, paddingVertical: 10 },
   input: { fontFamily: fonts.body, fontSize: 18, width: 80, textAlign: 'center', color: colors.text },
   inputSuffix: { fontFamily: fonts.body, fontSize: 18, marginLeft: 10, color: colors.textMuted },
-  manualButtons: { flexDirection: 'row', gap: 12 },
+  manualButtons: { flexDirection: 'row', gap: 10, width: '100%', alignSelf: 'stretch' },
   warnBanner: { width: '100%', backgroundColor: colors.lightAccent, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 16, alignItems: 'center', gap: 10 },
   warnTitle: { fontFamily: fonts.heading, fontSize: 15, color: colors.primary, textAlign: 'center' },
   warnBody: { fontFamily: fonts.body, fontSize: 13, color: colors.textSecondary, textAlign: 'center', lineHeight: 18 },

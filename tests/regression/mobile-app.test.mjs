@@ -62,6 +62,8 @@ test("estimator screen still quotes from pricing.js and can fall back to manual 
   assert.match(source, /normalizeZip\(destZip\)/);
   assert.match(source, /liveQuote\?\.key === liveKey/);
   assert.match(source, /destZip: quoteZip/);
+  assert.match(source, /buttonCompact/);
+  assert.match(source, /title="Cancel"[\s\S]*compact \/>/);
 });
 
 test("shop adds catalog items to the in-app cart and blocks sold-out products", () => {
