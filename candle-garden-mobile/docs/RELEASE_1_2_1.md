@@ -12,4 +12,6 @@ Build: https://expo.dev/accounts/michaeljameswalshiii/projects/candle-garden-est
 
 Submission: https://expo.dev/accounts/michaeljameswalshiii/projects/candle-garden-estimator/submissions/9f9e4fc8-db01-48bb-9356-2b767e8a13b3
 
+Release outcome: production website deployment `dpl_DUKYNQQBoQoWYvy2gGYtib2FqkBW` is ready. iOS/Android production update group `efbdb84f-6872-4c59-98fb-0edd1f337ad5` is published and verified through Expo's production update endpoint. iOS build 34 finished and its submission successfully uploaded to App Store Connect; Apple processing is pending before TestFlight availability.
+
 Device acceptance: photograph multiple vessels, choose different scents, search by fragrance notes, apply one scent to all, verify missing selections block adding to cart, and confirm the order retains each vessel's scent. Repeat with manual ounces and with a reorder. Verify the Home footer and absence of gift card purchase links. Verify Apple first-time sign-in, returning sign-in, and Hide My Email on a physical iPhone.
