@@ -13,6 +13,7 @@ export async function POST(request:NextRequest) {
     return NextResponse.json(await appleSession(body.identityToken,String(body.nonce||""),device,String(body.name||"")),{headers:{"Cache-Control":"no-store"}});
   }catch(error){
     const name=(error as Error).name;
+    console.error("apple sign-in failed", name);
     const message=name==="ConditionalCheckFailedException"?"Please wait a minute, then restart Sign in with Apple.":name==="AliasExistsException"?"That email already has an account. Sign in with your existing email and password.":"Sign in with Apple could not complete. Please try again or use email sign-in.";
     return NextResponse.json({error:message},{status:400});
   }

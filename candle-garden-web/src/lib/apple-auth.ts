@@ -41,6 +41,7 @@ export async function appleSession(identityToken:string,nonce:string,device:stri
   // Only a verified, unused Apple assertion can reach this session exchange.
   const password=`Aa1!${randomBytes(36).toString("base64url")}`;
   await idp.send(new AdminSetUserPasswordCommand({UserPoolId:pool,Username:username,Password:password,Permanent:true}));
+  // The mobile client must include ALLOW_ADMIN_USER_PASSWORD_AUTH or this exchange fails.
   const result=await idp.send(new AdminInitiateAuthCommand({UserPoolId:pool,ClientId:clientId,AuthFlow:"ADMIN_USER_PASSWORD_AUTH",AuthParameters:{USERNAME:username,PASSWORD:password}}));
   if(!result.AuthenticationResult)throw new Error("Apple sign-in requires an additional account step.");
   const auth=result.AuthenticationResult;

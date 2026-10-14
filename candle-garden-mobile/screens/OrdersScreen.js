@@ -78,7 +78,6 @@ function OrdersScreenCheckout() {
 
 function OrdersScreenBody({ stripe }) {
   const navigation = useNavigation();
-  const [fulfillment, setFulfillment] = useState("shipping");
   const [promoCode, setPromoCode] = useState("");
   const { lines, itemCount, subtotal, addItem, setQuantity, removeItem, clearCart } = useCart();
   const { isAuthenticated, signIn, busy: authBusy, user } = useAuth();
@@ -107,11 +106,12 @@ function OrdersScreenBody({ stripe }) {
   });
   const asGuest = checkoutStep === 'guest' || (!isAuthenticated && checkoutStep !== 'account');
 
-  const needsShipping = fulfillment !== 'pickup' && lines.some((line) => {
+  const needsShipping = lines.some((line) => {
     if (line.type === 'class') return false;
     if (line.type === 'refill' && (line.shippingMethod === 'store_dropoff' || line.shippingMethod === 'local_dropoff')) return false;
     return true;
   });
+  const fulfillment = needsShipping ? 'shipping' : 'pickup';
   const needsPackingAck = lines.some((line) => line.type === 'refill');
   const refillKey = lines.filter((line) => line.type === 'refill').map((line) => line.key).join('|');
 
@@ -258,7 +258,7 @@ function OrdersScreenBody({ stripe }) {
           ounces: line.ounces,
           boxKey: line.boxKey,
           destZip: line.destZip || shipping.zip,
-          shippingMethod: fulfillment === 'pickup' && line.type === 'refill' ? 'store_dropoff' : line.shippingMethod || 'ship_own',
+          shippingMethod: line.shippingMethod || 'ship_own',
           speed: line.speed || 'standard',
           vesselCount: line.vesselCount,
           vesselScents: line.vesselScents,
@@ -293,7 +293,7 @@ function OrdersScreenBody({ stripe }) {
       trackEvent('payment_success');
       const printLabels = customerPrintLabels(finalized);
       const refillLines = lines.filter((line) => line.type === 'refill');
-      const methods = refillLines.map((line) => fulfillment === 'pickup' ? 'store_dropoff' : line.shippingMethod);
+      const methods = refillLines.map((line) => line.shippingMethod);
       let labelNote = '';
       if (printLabels.length) {
         labelNote = 'Your prepaid empties label is ready. Print it and tape it to the box.';
@@ -518,32 +518,6 @@ function OrdersScreenBody({ stripe }) {
                   <Text style={styles.subtotalValue}>${subtotal.toFixed(2)}</Text>
                 </View>
                 <View style={styles.fulfillmentBox}>
-                  <Text style={styles.shippingTitle}>Delivery or local pickup</Text>
-                  <View style={styles.fulfillmentRow}>
-                    <TouchableOpacity
-                      style={[styles.fulfillmentChoice, fulfillment === 'shipping' && styles.fulfillmentChoiceOn]}
-                      onPress={() => setFulfillment('shipping')}
-                      accessibilityRole="radio"
-                      accessibilityState={{ checked: fulfillment === 'shipping' }}
-                    >
-                      <Text style={[styles.fulfillmentChoiceText, fulfillment === 'shipping' && styles.fulfillmentChoiceTextOn]}>
-                        {fulfillment === 'shipping' ? '✓  ' : ''}Ship to me
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.fulfillmentChoice, fulfillment === 'pickup' && styles.fulfillmentChoiceOn]}
-                      onPress={() => setFulfillment('pickup')}
-                      accessibilityRole="radio"
-                      accessibilityState={{ checked: fulfillment === 'pickup' }}
-                    >
-                      <Text style={[styles.fulfillmentChoiceText, fulfillment === 'pickup' && styles.fulfillmentChoiceTextOn]}>
-                        {fulfillment === 'pickup' ? '✓  ' : ''}Atlantic Beach pickup
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                  {fulfillment === 'pickup' ? (
-                    <Text style={styles.historyMeta}>{STORE.address}, {STORE.city}. No shipping charge.</Text>
-                  ) : null}
                   <TextInput
                     style={styles.shippingInput}
                     placeholder="Promo code (optional)"
