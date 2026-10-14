@@ -12,6 +12,7 @@ import {
   DEFAULT_SHIPPING_METHOD,
   REFILL_SPEEDS,
   normalizeSpeed,
+  waxPriceForSpeed,
 } from '../lib/pricing';
 import { BOX_FIT_ORDER, PACKING_INSTRUCTIONS, normalizeZip, shippingMethodSummary } from '../lib/shippingConfig';
 import { STORE } from '../lib/storeInfo';
@@ -169,11 +170,18 @@ export default function EstimatorScreen() {
   ].join('|');
   const liveQuotes = liveQuote?.key === liveKey ? liveQuote.quotes : [];
   const liveSelected = liveQuotes.find((quote) => quote.method === shippingMethod);
-  const displayTotal = liveSelected && liveSelected.total_cents != null
-    ? `$${(liveSelected.total_cents / 100).toFixed(2)}`
-    : cost?.quote_ok
-      ? `$${cost.total_cost}`
-      : '\u2014';
+  const payable = useMemo(() => {
+    if (!cost || !refillSpeed) return null;
+    const wax = Number(cost.wax_cost_num) || 0;
+    const shipping = cost.quote_ok
+      ? (liveSelected && liveSelected.shipping_cents != null
+        ? liveSelected.shipping_cents / 100
+        : Number(cost.shipping_cost_num) || 0)
+      : null;
+    const total = shipping == null ? null : Math.round((wax + shipping) * 100) / 100;
+    return { wax, shipping, total, rate: waxPriceForSpeed(refillSpeed) };
+  }, [cost, liveSelected, refillSpeed]);
+  const displayTotal = payable?.total == null ? '\u2014' : `$${payable.total.toFixed(2)}`;
 
   useEffect(() => {
     if (!result?.estimated_ounces || !quoteZip || !refillSpeed) return undefined;
@@ -215,7 +223,7 @@ export default function EstimatorScreen() {
   }, [result, vesselCount, perVesselOz, destZip, selectedBox, refillSpeed]);
 
   const addEstimateToCart = () => {
-    if (!result?.estimated_ounces || !cost || !refillSpeed) return;
+    if (!result?.estimated_ounces || !cost || !refillSpeed || !payable || payable.total == null) return;
     let vesselScents;
     try { vesselScents = vesselScentChoices(vessels, selectedScents, scents); }
     catch (error) { Alert.alert('Choose your scents', error.message); return; }
@@ -234,7 +242,7 @@ export default function EstimatorScreen() {
         id: 'refill',
         type: 'refill',
         name: `Candle refill \u00b7 ${result.estimated_ounces} oz`,
-        price: Number(cost.total_cost),
+        price: payable.total,
         image: image || undefined,
       },
       {
@@ -256,9 +264,9 @@ export default function EstimatorScreen() {
               ? ' · you ship empties UPS 2nd Day Air'
               : ' · ship empties on your own')
             : ` · ${method?.title || 'Shipping'}`),
-        unitPrice: Number(cost.total_cost),
-        waxUnitPrice: cost.wax_cost_num,
-        returnShippingUnitPrice: cost.shipping_cost_num,
+        unitPrice: payable.total,
+        waxUnitPrice: payable.wax,
+        returnShippingUnitPrice: payable.shipping,
       }
     );
     Alert.alert(
@@ -535,9 +543,12 @@ export default function EstimatorScreen() {
               </TouchableOpacity>
             );
           })}
-          {refillSpeed ? <Text style={styles.sectionLabel}>How the empties get to us</Text> : null}
           {refillSpeed ? (
             <>
+          <Text style={styles.sectionLabel}>Your ZIP</Text>
+          <Text style={styles.shipNote}>Estimated shipping is based on ZIP and packed weight. Checkout confirms the lowest live carrier rate (USPS in Shippo test mode).</Text>
+          <TextInput style={styles.zipInput} value={destZip} onChangeText={(t) => setDestZip(t.replace(/[^\d]/g, '').slice(0, 10))} keyboardType="number-pad" placeholder="32250" placeholderTextColor={colors.textFaint} maxLength={10} />
+          <Text style={styles.sectionLabel}>How the empties get to us</Text>
           {methodQuotes.map(({ methodKey, method, cost: methodCost }) => {
             const selected = shippingMethod === methodKey;
             const live = liveQuotes.find((q) => q.method === methodKey);
@@ -586,9 +597,6 @@ export default function EstimatorScreen() {
             </View>
           ) : (
             <>
-          <Text style={styles.sectionLabel}>Your ZIP</Text>
-          <Text style={styles.shipNote}>Estimated shipping is based on ZIP and packed weight. Checkout confirms the lowest live carrier rate (USPS in Shippo test mode).</Text>
-          <TextInput style={styles.zipInput} value={destZip} onChangeText={(t) => setDestZip(t.replace(/[^\d]/g, '').slice(0, 10))} keyboardType="number-pad" placeholder="32250" placeholderTextColor={colors.textFaint} maxLength={10} />
           <Text style={styles.sectionLabel}>Carton</Text>
           <Text style={styles.shipNote}>Packed weight includes vessels, cardboard, and packing. Carriers bill the greater of scale weight and dimensional weight.</Text>
           {BOX_FIT_ORDER.map((key) => {
@@ -626,7 +634,19 @@ export default function EstimatorScreen() {
             </>
           ) : null}
           {cost.customer_note ? <Text style={styles.shipNote}>{cost.customer_note}</Text> : null}
-          <Text style={styles.total}>Total: {displayTotal}</Text>
+          {payable ? (
+            <View style={styles.totalBlock}>
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Wax · ${payable.rate.toFixed(2)}/oz</Text>
+                <Text style={styles.totalValue}>${payable.wax.toFixed(2)}</Text>
+              </View>
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Shipping</Text>
+                <Text style={styles.totalValue}>{payable.shipping == null ? '\u2014' : `$${payable.shipping.toFixed(2)}`}</Text>
+              </View>
+              <Text style={styles.total}>Total: {displayTotal}</Text>
+            </View>
+          ) : null}
           <CustomButton title="Add refill to cart" onPress={addEstimateToCart} disabled={!cost.quote_ok || !refillSpeed} />
         </View>
       )}
@@ -635,11 +655,11 @@ export default function EstimatorScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', padding: spacing.md + 4 },
-  title: { fontFamily: fonts.heading, fontSize: 26, fontWeight: '400', marginBottom: 4, color: colors.primary },
-  buildTag: { fontFamily: fonts.body, fontSize: 11, color: colors.textFaint, marginBottom: 10 },
-  stepsCard: { width: '100%', backgroundColor: colors.surface, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 16 },
-  stepsHeading: { fontFamily: fonts.heading, fontSize: 16, color: colors.primary, marginBottom: 10 },
+  container: { flexGrow: 1, backgroundColor: colors.white, alignItems: 'center', padding: spacing.md + 4, paddingBottom: 28 },
+  title: { fontFamily: fonts.heading, fontSize: 26, fontWeight: '400', marginBottom: 2, color: colors.primary, textAlign: 'center' },
+  buildTag: { fontFamily: fonts.body, fontSize: 11, color: colors.textFaint, marginBottom: 8, textAlign: 'center' },
+  stepsCard: { width: '100%', backgroundColor: colors.surface, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 12 },
+  stepsHeading: { fontFamily: fonts.heading, fontSize: 16, color: colors.primary, marginBottom: 8, textAlign: 'center' },
   stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 10 },
   stepNum: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   stepNumText: { color: colors.white, fontSize: 13, fontWeight: '700' },
@@ -653,19 +673,23 @@ const styles = StyleSheet.create({
   placeholderContainer: { backgroundColor: colors.surface, borderRadius: radii.md, justifyContent: 'center', alignItems: 'center', marginBottom: 20, borderWidth: 2, borderColor: colors.borderStrong, borderStyle: 'dashed', alignSelf: 'center' },
   placeholderText: { fontSize: 60, marginBottom: 10 },
   placeholderHint: { fontFamily: fonts.body, fontSize: 16, color: colors.textFaint },
-  buttonContainer: { alignItems: 'center', gap: 12, width: '100%' },
+  buttonContainer: { alignItems: 'center', gap: 10, width: '100%' },
   button: { backgroundColor: colors.primary, paddingVertical: 14, paddingHorizontal: 30, borderRadius: radii.sm, minWidth: 200, alignItems: 'center' },
   buttonCompact: { minWidth: 0, flexGrow: 1, flexBasis: 0, paddingHorizontal: 12, paddingVertical: 12 },
   buttonDisabled: { backgroundColor: colors.disabled },
   buttonText: { color: colors.white, fontSize: 15, fontWeight: '500', letterSpacing: 1.2 },
   buttonTextCompact: { letterSpacing: 0.4 },
   buttonTextDisabled: { color: colors.textFaint },
-  result: { backgroundColor: colors.lightAccent, padding: 20, borderRadius: radii.md, marginTop: 20, alignItems: 'center', width: '100%', borderWidth: 1, borderColor: colors.border },
-  resultTitle: { fontFamily: fonts.heading, fontSize: 18, fontWeight: '400', marginBottom: 10, color: colors.primary },
-  resultText: { fontFamily: fonts.body, fontSize: 16, marginBottom: 5, color: colors.textSecondary },
-  vesselList: { width: '100%', marginBottom: 10, paddingHorizontal: 8 },
-  vesselLine: { fontFamily: fonts.body, fontSize: 13, color: colors.textSecondary, marginBottom: 4, textAlign: 'left' },
-  total: { fontFamily: fonts.body, fontSize: 24, fontWeight: 'bold', color: colors.primary, marginTop: 10, marginBottom: 12 },
+  result: { backgroundColor: colors.lightAccent, padding: 16, borderRadius: radii.md, marginTop: 16, alignItems: 'center', width: '100%', borderWidth: 1, borderColor: colors.border },
+  resultTitle: { fontFamily: fonts.heading, fontSize: 18, fontWeight: '400', marginBottom: 8, color: colors.primary, textAlign: 'center' },
+  resultText: { fontFamily: fonts.body, fontSize: 16, marginBottom: 4, color: colors.textSecondary, textAlign: 'center' },
+  vesselList: { width: '100%', marginBottom: 6, alignItems: 'center' },
+  vesselLine: { fontFamily: fonts.body, fontSize: 13, color: colors.textSecondary, marginBottom: 3, textAlign: 'center' },
+  totalBlock: { width: '100%', maxWidth: 300, marginTop: 8, alignItems: 'center' },
+  totalRow: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+  totalLabel: { fontFamily: fonts.body, fontSize: 14, color: colors.textSecondary },
+  totalValue: { fontFamily: fonts.body, fontSize: 15, fontWeight: '700', color: colors.text },
+  total: { fontFamily: fonts.body, fontSize: 24, fontWeight: 'bold', color: colors.primary, marginTop: 8, marginBottom: 8, textAlign: 'center' },
   manualEntryContainer: { backgroundColor: colors.surface, padding: 20, borderRadius: radii.md, marginTop: 20, alignItems: 'center', width: '100%', borderWidth: 1, borderColor: colors.border },
   manualEntryTitle: { fontFamily: fonts.heading, fontSize: 18, fontWeight: '400', marginBottom: 10, color: colors.primary },
   manualEntryHint: { fontFamily: fonts.body, fontSize: 14, color: colors.textMuted, marginBottom: 15, textAlign: 'center' },
@@ -677,24 +701,24 @@ const styles = StyleSheet.create({
   warnBanner: { width: '100%', backgroundColor: colors.lightAccent, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 16, alignItems: 'center', gap: 10 },
   warnTitle: { fontFamily: fonts.heading, fontSize: 15, color: colors.primary, textAlign: 'center' },
   warnBody: { fontFamily: fonts.body, fontSize: 13, color: colors.textSecondary, textAlign: 'center', lineHeight: 18 },
-  shipNote: { fontFamily: fonts.body, fontSize: 12, color: colors.textMuted, textAlign: 'center', lineHeight: 17, marginTop: 6, marginBottom: 4, paddingHorizontal: 8 },
-  weightBreakdown: { fontFamily: fonts.body, fontSize: 12, color: colors.textMuted, textAlign: 'center', marginBottom: 6 },
-  sectionLabel: { fontFamily: fonts.heading, fontSize: 16, color: colors.primary, marginTop: 16, marginBottom: 6, alignSelf: 'flex-start' },
+  shipNote: { fontFamily: fonts.body, fontSize: 12, color: colors.textMuted, textAlign: 'center', lineHeight: 17, marginTop: 2, marginBottom: 6, paddingHorizontal: 8 },
+  weightBreakdown: { fontFamily: fonts.body, fontSize: 12, color: colors.textMuted, textAlign: 'center', marginBottom: 4 },
+  sectionLabel: { fontFamily: fonts.heading, fontSize: 16, color: colors.primary, marginTop: 12, marginBottom: 4, textAlign: 'center', alignSelf: 'center', width: '100%' },
   zipInput: { fontFamily: fonts.body, fontSize: 20, letterSpacing: 2, textAlign: 'center', backgroundColor: colors.white, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radii.sm, paddingVertical: 10, paddingHorizontal: 16, width: 160, color: colors.text, marginBottom: 8 },
-  methodCard: { width: '100%', backgroundColor: colors.white, borderWidth: 2, borderColor: colors.borderStrong, borderRadius: radii.md, padding: 12, marginBottom: 10, alignItems: 'flex-start' },
+  methodCard: { width: '100%', backgroundColor: colors.white, borderWidth: 2, borderColor: colors.borderStrong, borderRadius: radii.md, padding: 12, marginBottom: 8, alignItems: 'center' },
   methodCardSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   methodHeader: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   methodTitle: { fontFamily: fonts.body, fontSize: 15, fontWeight: '700', color: colors.text, flex: 1 },
   methodPrice: { fontFamily: fonts.body, fontSize: 16, fontWeight: '700', color: colors.primary },
-  methodMeta: { fontFamily: fonts.body, fontSize: 12, color: colors.primaryMid, marginTop: 2 },
-  methodBody: { fontFamily: fonts.body, fontSize: 12, color: colors.textSecondary, lineHeight: 17, marginTop: 6 },
-  methodWarn: { fontFamily: fonts.body, fontSize: 12, color: colors.danger, marginTop: 6 },
-  legLine: { fontFamily: fonts.body, fontSize: 11, color: colors.textMuted, marginTop: 4 },
-  boxOption: { width: '100%', padding: 10, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radii.sm, marginBottom: 8, backgroundColor: colors.white },
+  methodMeta: { fontFamily: fonts.body, fontSize: 12, color: colors.primaryMid, marginTop: 2, textAlign: 'center' },
+  methodBody: { fontFamily: fonts.body, fontSize: 12, color: colors.textSecondary, lineHeight: 17, marginTop: 4, textAlign: 'center' },
+  methodWarn: { fontFamily: fonts.body, fontSize: 12, color: colors.danger, marginTop: 4, textAlign: 'center' },
+  legLine: { fontFamily: fonts.body, fontSize: 11, color: colors.textMuted, marginTop: 3, textAlign: 'center' },
+  boxOption: { width: '100%', padding: 10, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radii.sm, marginBottom: 8, backgroundColor: colors.white, alignItems: 'center' },
   boxOptionSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  boxName: { fontFamily: fonts.body, fontSize: 14, fontWeight: '700', color: colors.text },
-  boxDetails: { fontFamily: fonts.body, fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  boxName: { fontFamily: fonts.body, fontSize: 14, fontWeight: '700', color: colors.text, textAlign: 'center' },
+  boxDetails: { fontFamily: fonts.body, fontSize: 12, color: colors.textMuted, marginTop: 2, textAlign: 'center' },
   weightBlock: { width: '100%', marginTop: 8, marginBottom: 4 },
   instructBox: { width: '100%', backgroundColor: colors.white, borderRadius: radii.sm, padding: 12, marginTop: 8, borderWidth: 1, borderColor: colors.border },
-  instructLine: { fontFamily: fonts.body, fontSize: 12, color: colors.textSecondary, lineHeight: 17, marginBottom: 4, textAlign: 'left' },
+  instructLine: { fontFamily: fonts.body, fontSize: 12, color: colors.textSecondary, lineHeight: 17, marginBottom: 4, textAlign: 'center' },
 });

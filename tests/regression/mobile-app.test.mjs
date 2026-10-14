@@ -64,6 +64,13 @@ test("estimator screen still quotes from pricing.js and can fall back to manual 
   assert.match(source, /destZip: quoteZip/);
   assert.match(source, /buttonCompact/);
   assert.match(source, /title="Cancel"[\s\S]*compact \/>/);
+  const speedAt = source.indexOf("How fast should we turn this around?");
+  const zipAt = source.indexOf("Your ZIP");
+  const emptiesAt = source.indexOf("How the empties get to us");
+  assert.ok(speedAt >= 0 && zipAt > speedAt && emptiesAt > zipAt);
+  assert.match(source, /wax_cost_num/);
+  assert.match(source, /Wax · \$\{payable\.rate\.toFixed\(2\)\}\/oz/);
+  assert.doesNotMatch(source, /liveSelected\.total_cents/);
 });
 
 test("shop adds catalog items to the in-app cart and blocks sold-out products", () => {

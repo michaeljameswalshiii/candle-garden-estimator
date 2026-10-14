@@ -56,12 +56,12 @@ export default function RefillScentSelector({ vessels, selected, onChange, onSce
 
 const styles = StyleSheet.create({
   section: { width: '100%', marginVertical: spacing.sm },
-  heading: { fontFamily: fonts.heading, fontSize: 19, color: colors.primary, marginBottom: 4 },
-  hint: { fontFamily: fonts.body, fontSize: 12, lineHeight: 17, color: colors.textSecondary, marginBottom: 4 },
-  title: { fontFamily: fonts.body, fontSize: 14, color: colors.primary },
-  card: { padding: 12, marginTop: 8, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, backgroundColor: colors.white },
-  control: { minHeight: 44, padding: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.primary, borderRadius: radii.md, marginVertical: 6 },
-  link: { fontFamily: fonts.body, color: colors.primary, paddingVertical: 10, fontSize: 14, textDecorationLine: 'underline' },
+  heading: { fontFamily: fonts.heading, fontSize: 19, color: colors.primary, marginBottom: 4, textAlign: 'center' },
+  hint: { fontFamily: fonts.body, fontSize: 12, lineHeight: 17, color: colors.textSecondary, marginBottom: 4, textAlign: 'center' },
+  title: { fontFamily: fonts.body, fontSize: 14, color: colors.primary, textAlign: 'center' },
+  card: { padding: 12, marginTop: 8, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, backgroundColor: colors.white, alignItems: 'center' },
+  control: { alignSelf: 'stretch', minHeight: 44, padding: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.primary, borderRadius: radii.md, marginVertical: 6 },
+  link: { fontFamily: fonts.body, color: colors.primary, paddingVertical: 10, fontSize: 14, textDecorationLine: 'underline', textAlign: 'center' },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
   sheet: { height: '76%', maxHeight: 620, width: '100%', maxWidth: 600, alignSelf: 'center', backgroundColor: colors.white, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden' },
   sheetContent: { flex: 1, paddingHorizontal: 18, paddingTop: 10 },
