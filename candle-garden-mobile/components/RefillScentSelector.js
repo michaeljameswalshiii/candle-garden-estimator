@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, SafeAreaView } from 'react-native';
+import { Modal, View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { refillScents } from '../../packages/catalog/refillScents';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 
@@ -20,7 +22,7 @@ export default function RefillScentSelector({ vessels, selected, onChange, onSce
       const chosen = scents.find(scent => scent.id === selected[index]);
       return <View style={styles.card} key={index}>
         <Text style={styles.title}>Vessel {index + 1} · {vessel.ounces} oz</Text>
-        <Text style={styles.hint}>{vessel.description}</Text>
+        {vessel.description !== `Vessel ${index + 1}` ? <Text style={styles.hint}>{vessel.description}</Text> : null}
         <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Choose scent for vessel ${index + 1}${chosen ? `, ${chosen.name}` : ''}`} style={styles.control} onPress={() => { setActive(index); setQuery(''); }}>
           <Text style={styles.title}>{chosen ? chosen.name : 'Choose scent'}</Text><Text style={styles.title}>⌄</Text>
         </TouchableOpacity>
@@ -29,27 +31,50 @@ export default function RefillScentSelector({ vessels, selected, onChange, onSce
       </View>;
     })}
     <Modal visible={active !== null} animationType="slide" transparent onRequestClose={() => setActive(null)}>
-      <View style={styles.backdrop}><SafeAreaView style={styles.sheet}>
-        <View style={styles.row}><Text accessibilityRole="header" style={styles.heading}>Scent for vessel {(active ?? 0) + 1}</Text><TouchableOpacity accessibilityRole="button" onPress={() => setActive(null)}><Text style={styles.link}>Close</Text></TouchableOpacity></View>
-        <TextInput autoFocus accessibilityLabel="Search scents" placeholder="Search scents or fragrance notes" value={query} onChangeText={setQuery} style={styles.search} />
-        <FlatList data={options} keyboardShouldPersistTaps="handled" keyExtractor={scent => scent.id} ListEmptyComponent={<Text style={styles.hint}>No scents found. Try another search.</Text>} renderItem={({ item }) => <TouchableOpacity accessibilityRole="radio" accessibilityState={{ checked: selected[active] === item.id }} style={styles.option} onPress={() => choose(item.id)}><View style={styles.optionCopy}><Text style={styles.title}>{item.name}</Text><Text style={styles.hint}>{item.notes}</Text></View><Text style={styles.title}>{selected[active] === item.id ? '●' : '○'}</Text></TouchableOpacity>} />
-      </SafeAreaView></View>
+      <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <SafeAreaView style={styles.sheet} edges={['bottom']}>
+          <View style={styles.sheetContent}>
+            <View style={styles.handle} />
+            <View style={styles.row}>
+              <Text accessibilityRole="header" style={styles.sheetTitle}>Scent for vessel {(active ?? 0) + 1}</Text>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close scent picker" style={styles.close} onPress={() => setActive(null)}><Text style={styles.closeText}>Close</Text></TouchableOpacity>
+            </View>
+            <TextInput accessibilityLabel="Search scents" placeholder="Search scents or notes" placeholderTextColor={colors.textSecondary} value={query} onChangeText={setQuery} autoCorrect={false} returnKeyType="search" style={styles.search} />
+            <FlatList style={styles.list} data={options} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" keyExtractor={scent => scent.id} ListEmptyComponent={<Text style={styles.hint}>No scents found. Try another search.</Text>} renderItem={({ item }) => {
+              const checked = selected[active] === item.id;
+              return <TouchableOpacity accessibilityRole="radio" accessibilityState={{ checked }} style={[styles.option, checked && styles.optionSelected]} onPress={() => choose(item.id)}>
+                <View style={styles.optionCopy}><Text style={styles.optionTitle}>{item.name}</Text><Text style={styles.optionNotes} numberOfLines={2}>{item.notes}</Text></View>
+                <Ionicons name={checked ? 'radio-button-on' : 'radio-button-off'} size={20} color={checked ? colors.primary : colors.textSecondary} />
+              </TouchableOpacity>;
+            }} />
+          </View>
+        </SafeAreaView>
+      </KeyboardAvoidingView>
     </Modal>
   </View>;
 }
 
 const styles = StyleSheet.create({
-  section: { width: '100%', marginVertical: spacing.md },
-  heading: { fontFamily: fonts.heading, fontSize: 21, color: colors.primary, marginBottom: 8 },
-  hint: { fontFamily: fonts.body, fontSize: 13, lineHeight: 19, color: colors.textSecondary, marginBottom: 8 },
-  title: { fontFamily: fonts.body, fontSize: 16, color: colors.primary },
-  card: { padding: 14, marginTop: 12, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, backgroundColor: colors.white },
-  control: { minHeight: 48, padding: 12, flexDirection: 'row', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.primary, borderRadius: radii.md, marginVertical: 8 },
+  section: { width: '100%', marginVertical: spacing.sm },
+  heading: { fontFamily: fonts.heading, fontSize: 19, color: colors.primary, marginBottom: 4 },
+  hint: { fontFamily: fonts.body, fontSize: 12, lineHeight: 17, color: colors.textSecondary, marginBottom: 4 },
+  title: { fontFamily: fonts.body, fontSize: 14, color: colors.primary },
+  card: { padding: 12, marginTop: 8, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, backgroundColor: colors.white },
+  control: { minHeight: 44, padding: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.primary, borderRadius: radii.md, marginVertical: 6 },
   link: { fontFamily: fonts.body, color: colors.primary, paddingVertical: 10, fontSize: 14, textDecorationLine: 'underline' },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
-  sheet: { height: '80%', padding: 20, backgroundColor: colors.white, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  search: { minHeight: 48, padding: 12, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, marginVertical: 10, color: colors.text },
-  option: { flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingVertical: 14, borderBottomWidth: 1, borderColor: colors.border },
-  optionCopy: { flex: 1, paddingRight: 12 },
+  sheet: { height: '76%', maxHeight: 620, width: '100%', maxWidth: 600, alignSelf: 'center', backgroundColor: colors.white, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden' },
+  sheetContent: { flex: 1, paddingHorizontal: 18, paddingTop: 10 },
+  handle: { width: 32, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 4 },
+  row: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sheetTitle: { flex: 1, fontFamily: fonts.body, fontWeight: '600', fontSize: 18, color: colors.primary, paddingRight: 12 },
+  close: { minHeight: 44, minWidth: 44, justifyContent: 'center', alignItems: 'center' },
+  closeText: { fontFamily: fonts.body, fontSize: 14, fontWeight: '600', color: colors.primary },
+  search: { height: 44, paddingHorizontal: 12, borderWidth: 1, borderColor: colors.border, borderRadius: radii.sm, marginBottom: 8, fontSize: 14, color: colors.text },
+  list: { flex: 1 },
+  option: { flexDirection: 'row', alignItems: 'center', minHeight: 64, paddingVertical: 10, paddingHorizontal: 6, borderBottomWidth: 1, borderColor: colors.border },
+  optionSelected: { backgroundColor: colors.lightAccent, borderRadius: radii.sm },
+  optionCopy: { flex: 1, paddingRight: 10 },
+  optionTitle: { fontFamily: fonts.body, fontSize: 15, fontWeight: '600', color: colors.primary, marginBottom: 2 },
+  optionNotes: { fontFamily: fonts.body, fontSize: 12, lineHeight: 17, color: colors.textSecondary },
 });

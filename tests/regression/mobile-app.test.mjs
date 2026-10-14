@@ -9,7 +9,6 @@ const app = fs.readFileSync(path.join(mobile, "App.js"), "utf8");
 
 const TABS = [
   ["Home", "HomeScreen.js", "The Candle Garden App"],
-  ["Scents", "ScentsScreen.js", "Scents"],
   ["Estimator", "EstimatorScreen.js", "Refill Estimator"],
   ["Products", "ProductsScreen.js", "Shop"],
   ["Orders", "OrdersScreen.js", "Cart"],
@@ -17,7 +16,8 @@ const TABS = [
   ["Profile", "ProfileScreen.js", "Profile"],
 ];
 
-test("the app still exposes the seven customer tabs", () => {
+test("the app exposes six customer tabs with scents chosen inside the estimator", () => {
+  assert.doesNotMatch(app, /name="Scents"/);
   for (const [route, file, title] of TABS) {
     assert.match(app, new RegExp(`name="${route}"`));
     assert.match(app, new RegExp(`title: '${title}'`));

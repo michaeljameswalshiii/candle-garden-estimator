@@ -9,7 +9,6 @@ import * as Updates from 'expo-updates';
 import { StripeProvider } from './lib/stripeBridge';
 
 import HomeScreen from './screens/HomeScreen';
-import ScentsScreen from './screens/ScentsScreen';
 import ProductsScreen from './screens/ProductsScreen';
 import OrdersScreen from './screens/OrdersScreen';
 import ClassScheduleScreen from './screens/ClassScheduleScreen';
@@ -70,7 +69,6 @@ function MainTabs() {
           let iconName;
 
           if (route.name === 'Home') iconName = focused ? 'home' : 'home-outline';
-          else if (route.name === 'Scents') iconName = focused ? 'flower' : 'flower-outline';
           else if (route.name === 'Estimator') iconName = focused ? 'calculator' : 'calculator-outline';
           else if (route.name === 'Products') iconName = focused ? 'pricetag' : 'pricetag-outline';
           else if (route.name === 'Orders') iconName = focused ? 'cart' : 'cart-outline';
@@ -95,7 +93,6 @@ function MainTabs() {
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'The Candle Garden App' }} />
-      <Tab.Screen name="Scents" component={ScentsScreen} options={{ title: 'Scents' }} />
       <Tab.Screen
         name="Estimator"
         component={EstimatorSuspense}
