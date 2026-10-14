@@ -9,3 +9,5 @@ Validation: 12 relevant regression checks passed. A 390 × 844 browser preview o
 Build: https://expo.dev/accounts/michaeljameswalshiii/projects/candle-garden-estimator/builds/b632e329-40b7-4575-9e3d-51b1bdba73fc
 
 Submission: https://expo.dev/accounts/michaeljameswalshiii/projects/candle-garden-estimator/submissions/f8b59aaf-1bf9-4806-80ab-0c0bfc00a5a0
+
+Release outcome: production iOS/Android update group `3ab60b4c-3f40-42c8-aa3b-3d9c92e2d55c` is published and verified through Expo's production endpoints. Build 35 and its Apple submission both finished successfully; Apple processing is pending before TestFlight availability.
