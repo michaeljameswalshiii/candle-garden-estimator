@@ -253,7 +253,7 @@ export default function HomeScreen() {
         <Text style={styles.infoText}>
           {STORE.address}{'\n'}
           {STORE.city}, {STORE.state} {STORE.zip}{'\n'}
-          {STORE.hours}
+          {STORE.hours.split(' · ').join('\n')}
         </Text>
         <TouchableOpacity onPress={() => Linking.openURL(STORE.mapsUrl)} accessibilityRole="link">
           <Text style={styles.inlineLinkText}>Map and directions</Text>
@@ -582,6 +582,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     borderRadius: radii.sm,
     marginTop: spacing.sm,
+    marginBottom: 12,
     marginHorizontal: H_PAD,
     alignItems: 'center',
   },
