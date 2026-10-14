@@ -24,6 +24,7 @@ import { useNavigation } from '@react-navigation/native';
 import OrderHistoryCard from '../components/OrderHistoryCard';
 import { fetchLatestProducts } from '../lib/shopCatalog';
 import { STORE } from '../lib/storeInfo';
+import { scentSummary } from '../../packages/catalog/refillScents';
 
 const ORDER_PROGRESS = ['paid', 'processing', 'shipped', 'completed'];
 const STATUS_COPY = {
@@ -235,6 +236,7 @@ function OrdersScreenBody({ stripe }) {
           shippingMethod: fulfillment === 'pickup' && line.type === 'refill' ? 'local_dropoff' : line.shippingMethod || 'ship_own',
           speed: line.speed || 'standard',
           vesselCount: line.vesselCount,
+          vesselScents: line.vesselScents,
         })),
         { email: shipping.email, name: shipping.name, zip: shipping.zip, shipping, fulfillment, promoCode }
       );
@@ -280,6 +282,7 @@ function OrdersScreenBody({ stripe }) {
           name: item.name,
           quantity: item.quantity,
           size: item.size,
+          vesselScents: item.vesselScents,
           lineTotal: Number(item.unitPrice) * Number(item.quantity),
         })),
         customerName: shipping.name,
@@ -319,6 +322,7 @@ function OrdersScreenBody({ stripe }) {
         ) : null}
         {item.size ? <Text style={styles.lineMeta}>{item.type === 'class' ? item.size : item.type === 'refill' ? item.detail || item.size : `Size: ${item.size}`}</Text> : null}
         {item.detail ? <Text style={styles.lineMeta}>{item.detail}</Text> : null}
+        {item.vesselScents?.length ? <Text style={styles.lineMeta}>{scentSummary(item.vesselScents)}</Text> : null}
         {item.type === 'refill' && Number.isFinite(item.waxUnitPrice) && Number.isFinite(item.returnShippingUnitPrice) ? (
           <Text style={styles.lineMeta}>
             ${item.waxUnitPrice.toFixed(2)} refill + ${item.returnShippingUnitPrice.toFixed(2)} return shipping
@@ -406,6 +410,7 @@ function OrdersScreenBody({ stripe }) {
                       <Text style={styles.successItemMeta}>
                         Qty {item.quantity}{item.size ? ` · ${item.size}` : ''}
                       </Text>
+                      {item.vesselScents?.length ? <Text style={styles.successItemMeta}>{scentSummary(item.vesselScents)}</Text> : null}
                     </View>
                     <Text style={styles.successItemPrice}>${item.lineTotal.toFixed(2)}</Text>
                   </View>

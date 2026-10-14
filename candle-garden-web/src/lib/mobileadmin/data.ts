@@ -13,7 +13,7 @@ export type MobileOrder = {
   payment_intent_id?: string;
   refund_id?: string;
   refunded_amount?: number;
-  items?: Array<{ type?: string; productId?: string; name?: string; size?: string; quantity?: number; price?: number; ounces?: number; boxKey?: string; shippingMethod?: string; vesselCount?: number; speed?: string }>;
+  items?: Array<{ type?: string; productId?: string; name?: string; size?: string; quantity?: number; price?: number; ounces?: number; boxKey?: string; shippingMethod?: string; vesselCount?: number; speed?: string; vesselScents?: import("../../../../packages/catalog/refillScents").VesselScent[] }>;
   created_at?: string;
   updated_at?: string;
   shipping?: Record<string, string>;

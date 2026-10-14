@@ -8,6 +8,7 @@ import { mobileCustomerId, mobileIdentity } from "@/lib/mobile-auth";
 import { putMobileOrder } from "@/lib/mobileadmin/data";
 import { checkoutParty, priceRefillShipping } from "@/lib/refill-pricing";
 import { stubLabelsForItems } from "@/lib/shipping-labels";
+import { validateVesselScents } from "../../../../../packages/catalog/refillScents";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ async function priceItems(raw: unknown, shipping: unknown) {
   if (!Array.isArray(raw) || !raw.length) throw new Error("Your cart is empty");
   let total = 0;
   const kinds=(raw as any[]).map(item=>String(item.type||'product').toLowerCase());
-  const productResponse=kinds.includes('product')?await liveProductsResponse():null;
+  const productResponse=kinds.includes('product') || (raw as any[]).some(item=>item.type==='refill' && item.vesselScents!==undefined)?await liveProductsResponse():null;
   const classResponse=kinds.includes('class')?await liveClassesResponse():null;
   if(productResponse && !productResponse.ok || classResponse && !classResponse.ok)throw new Error('Could not verify current stock and prices. Please try again.');
   const products: any[]=productResponse?(await productResponse.json()).products:[];
@@ -33,13 +34,15 @@ async function priceItems(raw: unknown, shipping: unknown) {
     const kind = String(item.type || "product").toLowerCase();
     if (kind === "refill") {
       const ounces = Number(item.ounces || 0);
+      const vesselCount = Number(item.vesselCount || qty);
+      const vesselScents = validateVesselScents(item.vesselScents, vesselCount, products);
       const quote = await priceRefillShipping(item, destination || candleGardenOrigin());
       const expedited = String(item.speed || "").toLowerCase() === "expedited";
       const waxCents = Math.round(ounces * (expedited ? 225 : 175) * qty);
       const shippingCents = expedited ? Math.round(quote.shippingCents * 2.2) : quote.shippingCents;
       const lineCents = waxCents + shippingCents;
       total += lineCents;
-      return { type: "refill", productId: "refill", name: `Candle refill · ${ounces} oz`, size: quote.serviceSummary, quantity: qty, unitCents: Math.round(lineCents / qty), shippingCents: quote.shippingCents, ounces, boxKey: item.boxKey, shippingMethod: item.shippingMethod || "ship_own", vesselCount: Number(item.vesselCount || qty), speed: item.speed || "standard", destZip: item.destZip || "" };
+      return { type: "refill", productId: "refill", name: `Candle refill · ${ounces} oz`, size: quote.serviceSummary, quantity: qty, unitCents: Math.round(lineCents / qty), shippingCents: quote.shippingCents, ounces, boxKey: item.boxKey, shippingMethod: item.shippingMethod || "ship_own", vesselCount, vesselScents, speed: item.speed || "standard", destZip: item.destZip || "" };
     }
     if (kind === "class") {
       const entry = classes.find((row) => row.id === String(item.productId));

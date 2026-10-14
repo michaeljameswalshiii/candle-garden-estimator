@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Linking } from 'react-native';
 import { colors, fonts, radii } from '../lib/theme';
 import { STORE } from '../lib/storeInfo';
+import { scentSummary } from '../../packages/catalog/refillScents';
 
 const STATUS_COPY = {
   payment_pending: ['Awaiting payment', 'Payment has not been confirmed.', -1],
@@ -116,6 +117,7 @@ export default function OrderHistoryCard({ order, onPrintLabel, onReorderProduct
             <Text style={styles.kind}>{itemKind(item)}</Text>
             <Text style={styles.itemTitle}>{item.quantity || 1} × {item.name || 'Candle Garden item'}</Text>
             <Text style={styles.meta}>{itemDetail(item)}</Text>
+            {item.vesselScents?.length ? <Text style={styles.meta}>{scentSummary(item.vesselScents)}</Text> : null}
           </View>
           {item.price != null ? (
             <Text style={styles.amount}>${(Number(item.price) * Number(item.quantity || 1)).toFixed(2)}</Text>

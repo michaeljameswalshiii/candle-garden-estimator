@@ -20,6 +20,9 @@ import { colors, fonts, radii, spacing } from '../lib/theme';
 import { postDetect, postShippingQuote } from '../lib/apiClient';
 import { useAuth } from '../lib/AuthContext';
 import { useCart } from '../lib/cart';
+import RefillScentSelector from '../components/RefillScentSelector';
+import { estimateVessels, refillScents, vesselScentChoices } from '../../packages/catalog/refillScents';
+import { products } from '../lib/shopCatalog';
 
 const PHOTO_STEPS = [
   {
@@ -62,6 +65,10 @@ export default function EstimatorScreen() {
   const { addItem } = useCart();
   const [image, setImage] = useState(null);
   const [result, setResult] = useState(null);
+  const [selectedScents, setSelectedScents] = useState([]);
+  const [scents, setScents] = useState(() => refillScents(products));
+  const vessels = useMemo(() => estimateVessels(result), [result]);
+  useEffect(() => { setSelectedScents((result?.vesselScents || []).map(vessel => vessel.scentId)); }, [result]);
   const [loading, setLoading] = useState(false);
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [manualOunces, setManualOunces] = useState('');
@@ -96,7 +103,7 @@ export default function EstimatorScreen() {
     const previous=route.params?.reorder;
     if (!previous || !Number(previous.ounces)) return;
     const count=Math.max(1,Number(previous.vesselCount)||1);
-    setResult({estimated_ounces:Number(previous.ounces),vessels:Array.from({length:count},()=>({wax_needed_oz:Number(previous.ounces)/count}))});
+    setResult({estimated_ounces:Number(previous.ounces),vessels:Array.from({length:count},(_,index)=>({description:previous.vesselScents?.[index]?.description,wax_needed_oz:previous.vesselScents?.[index]?.ounces || Number(previous.ounces)/count})),vesselScents:previous.vesselScents});
     setShippingMethod(previous.shippingMethod || DEFAULT_SHIPPING_METHOD);
     setDestZip(previous.destZip || '');setSelectedBox(previous.boxKey || null);
     setRefillSpeed(previous.speed || 'standard');
@@ -189,6 +196,9 @@ export default function EstimatorScreen() {
 
   const addEstimateToCart = () => {
     if (!result?.estimated_ounces || !cost || !refillSpeed) return;
+    let vesselScents;
+    try { vesselScents = vesselScentChoices(vessels, selectedScents, scents); }
+    catch (error) { Alert.alert('Choose your scents', error.message); return; }
     if (!cost.quote_ok) {
       Alert.alert(
         'ZIP needed',
@@ -216,6 +226,7 @@ export default function EstimatorScreen() {
         shippingMethod,
         speed,
         vesselCount,
+        vesselScents,
         detail:
           `${speedMeta.title} \u00b7 ${speedMeta.timing}` +
           (shippingMethod === 'local_dropoff'
@@ -479,16 +490,7 @@ export default function EstimatorScreen() {
             Total wax needed: {result.estimated_ounces} oz
             {result.vessels?.length ? ` (${result.vessels.length} container${result.vessels.length === 1 ? '' : 's'})` : ''}
           </Text>
-          {Array.isArray(result.vessels) && result.vessels.length > 0 && (
-            <View style={styles.vesselList}>
-              {result.vessels.map((v, i) => (
-                <Text key={i} style={styles.vesselLine}>
-                  {'•'} {v.description || `Vessel ${i + 1}`}:{' '}
-                  {v.wax_needed_oz != null ? `${v.wax_needed_oz} oz` : '\u2014'}
-                </Text>
-              ))}
-            </View>
-          )}
+          <RefillScentSelector vessels={vessels} selected={selectedScents} onChange={setSelectedScents} onScents={setScents} />
           {result.confidence != null && result.confidence < 1 && (
             <Text style={styles.resultText}>Confidence: {Math.round(result.confidence * 100)}%</Text>
           )}

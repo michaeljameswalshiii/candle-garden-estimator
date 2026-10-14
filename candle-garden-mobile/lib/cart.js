@@ -12,6 +12,7 @@ import React, {
 } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { isGiftCard } from './shopCatalog';
+import { refillScentKey } from '../../packages/catalog/refillScents';
 
 const CartContext = createContext(null);
 const CART_KEY = 'cg_cart_v1';
@@ -19,7 +20,7 @@ const CART_KEY = 'cg_cart_v1';
 function lineKey(item) {
   const type = item.type || 'product';
   if (type === 'refill') {
-    return `refill::${Number(item.ounces || 0).toFixed(1)}::${item.boxKey || 'box'}::${item.shippingMethod || 'ship_own'}::${item.speed || 'standard'}::${item.destZip || ''}`;
+    return `refill::${Number(item.ounces || 0).toFixed(1)}::${item.boxKey || 'box'}::${item.shippingMethod || 'ship_own'}::${item.speed || 'standard'}::${item.destZip || ''}::${refillScentKey(item.vesselScents)}`;
   }
   if (type === 'class') {
     return `class::${item.productId}`;
@@ -104,6 +105,7 @@ export function CartProvider({ children }) {
       shippingMethod: options.shippingMethod,
       speed: options.speed || 'standard',
       vesselCount: options.vesselCount,
+      vesselScents: options.vesselScents,
       waxUnitPrice: options.waxUnitPrice != null ? Number(options.waxUnitPrice) : undefined,
       returnShippingUnitPrice:
         options.returnShippingUnitPrice != null
