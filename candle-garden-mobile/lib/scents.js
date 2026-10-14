@@ -1,4 +1,4 @@
-/** Refill scents. Notes come from the shop catalog. Empty notes are not on the shop page. */
+/** Refill scents. Shop candles use their published notes. Blood orange and Vanilla use the approved list. */
 export const REFILL_SCENTS = [
   { name: 'Oh, Christmas Tree', notes: 'Pine, eucalyptus, cypress, tonka bean, and white birch' },
   { name: 'Juniper', notes: 'Ozone, red currant, berry, juniper, pear, citrus, sage, and cherry blossom' },
@@ -9,8 +9,8 @@ export const REFILL_SCENTS = [
   { name: 'Neptune Beach', notes: 'Sandalwood, musk, amber, and coriander' },
   { name: 'Jax Beach', notes: 'Bergamot, tangerine, coconut, and lemon verbena' },
   { name: 'Ponte Vedra', notes: 'Cardamom, orange peel, sea salt, palm, light musk, and ozone' },
-  { name: 'Blood orange', notes: '' },
-  { name: 'Vanilla', notes: '' },
+  { name: 'Blood orange', notes: 'Blood orange, mandarin, grapefruit peel, and bitter orange' },
+  { name: 'Vanilla', notes: 'Vanilla bean, cream, sugar, and tonka bean' },
 ];
 
 export const PACKING_ACK_TITLE = 'Before you pay';

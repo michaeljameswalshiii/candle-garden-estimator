@@ -153,6 +153,8 @@ test("checkout talks to the live API with a test Stripe publishable key", () => 
   for (const name of ["Oh, Christmas Tree", "Juniper", "Almond", "Honey Butter", "Fruit Loops", "Atlantic Beach", "Neptune Beach", "Jax Beach", "Ponte Vedra", "Blood orange", "Vanilla"]) {
     assert.match(scents, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
+  assert.match(scents, /Blood orange, mandarin, grapefruit peel, and bitter orange/);
+  assert.match(scents, /Vanilla bean, cream, sugar, and tonka bean/);
   assert.match(scents, /wrapped generously in bubble wrap/);
   assert.match(payments, /sk_live_/);
   assert.match(payments, /STRIPE_LIVE_ENABLED/);

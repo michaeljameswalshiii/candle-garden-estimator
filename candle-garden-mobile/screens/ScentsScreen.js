@@ -9,7 +9,7 @@ export default function ScentsScreen() {
       <Text style={styles.kicker}>The Candle Garden</Text>
       <Text style={styles.title}>Scents</Text>
       <Text style={styles.lead}>
-        These are the scents you can choose for a refill. The notes are the ones published on the shop.
+        These are the scents you can choose for a refill.
       </Text>
       {REFILL_SCENTS.map((scent) => (
         <View key={scent.name} style={styles.card}>
