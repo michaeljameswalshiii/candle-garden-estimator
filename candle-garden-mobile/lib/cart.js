@@ -20,7 +20,8 @@ const CART_KEY = 'cg_cart_v1';
 function lineKey(item) {
   const type = item.type || 'product';
   if (type === 'refill') {
-    return `refill::${Number(item.ounces || 0).toFixed(1)}::${item.boxKey || 'box'}::${item.shippingMethod || 'ship_own'}::${item.speed || 'standard'}::${item.destZip || ''}::${refillScentKey(item.vesselScents)}`;
+    const scentKey = item.vesselScents ? refillScentKey(item.vesselScents) : JSON.stringify(item.scents || []);
+    return `refill::${Number(item.ounces || 0).toFixed(1)}::${item.boxKey || 'box'}::${item.shippingMethod || 'ship_own'}::${item.speed || 'standard'}::${item.destZip || ''}::${scentKey}`;
   }
   if (type === 'class') {
     return `class::${item.productId}`;
@@ -112,6 +113,7 @@ export function CartProvider({ children }) {
           ? Number(options.returnShippingUnitPrice)
           : undefined,
       detail: options.detail,
+      scents: Array.isArray(options.scents) ? options.scents : undefined,
       date: product.date,
     };
     entry.key = lineKey(entry);

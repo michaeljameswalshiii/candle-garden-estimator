@@ -1,9 +1,9 @@
+import approvedScents from "./refill-scents.json";
 export type RefillScent = { id: string; name: string; notes: string };
 export type VesselScent = { vessel: number; description: string; ounces: number; scentId: string; scentName: string };
 
-export function refillScents(products: any[]): RefillScent[] {
-  return products.filter(product => product.type === "physical" && !product.soldOut && /Candle Scent Notes:/i.test(String(product.description || "")))
-    .map(product => ({ id: String(product.id), name: String(product.name), notes: String(product.description).split(/Candle Scent Notes:/i)[1].trim() }))
+export function refillScents(_products: any[] = []): RefillScent[] {
+  return approvedScents.map(scent => ({ id: `refill:${scent.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, name: scent.name, notes: scent.notes }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 

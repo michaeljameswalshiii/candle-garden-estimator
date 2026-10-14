@@ -24,11 +24,14 @@ export async function priceRefillShipping(item: any, destination: Party) {
   const ounces = Number(item.ounces || 0);
   const quantity = Number(item.quantity || 0);
   if (!Number.isFinite(ounces) || ounces <= 0 || ounces > 80 || !Number.isInteger(quantity) || quantity < 1 || quantity > 20) throw new Error("Refill quantity or ounces are invalid");
+  const method = String(item.shippingMethod || "ship_own");
+  if (method === "store_dropoff") {
+    return { shippingCents: 0, serviceSummary: "In-store drop-off", legs: [] };
+  }
   const shipment = plan(ounces, quantity, Number(item.vesselCount || quantity), item.boxKey);
   const origin = candleGardenOrigin();
   if (item.shippingMethod === "local_dropoff") return {shippingCents:0, serviceSummary:"Local drop-off & pickup at Atlantic Beach", legs:[]};
   const outbound = await lowestRate(origin, destination, shipment.refills, shipment.dims);
-  const method = String(item.shippingMethod || "ship_own");
   const legs = [{ key: "refills_out", from: origin, to: destination, weight: shipment.refills, dims: shipment.dims, rate: outbound, description: "Candle Garden refill return", returnLabel: false }];
   if (method === "prepaid_labels" || method === "kit_roundtrip") {
     const rate = await lowestRate(destination, origin, shipment.empties, shipment.dims, false);

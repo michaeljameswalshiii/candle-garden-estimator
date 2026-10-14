@@ -1,21 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, SafeAreaView } from 'react-native';
-import { products, fetchLatestProducts } from '../lib/shopCatalog';
 import { refillScents } from '../../packages/catalog/refillScents';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 
 export default function RefillScentSelector({ vessels, selected, onChange, onScents }) {
-  const [scents, setScents] = useState(() => refillScents(products));
+  const [scents] = useState(() => refillScents());
   const [active, setActive] = useState(null);
   const [query, setQuery] = useState('');
-  const [status, setStatus] = useState('');
-  useEffect(() => {
-    let mounted = true;
-    fetchLatestProducts().then(latest => {
-      if (mounted) { setScents(refillScents(latest.products)); setStatus(''); }
-    }).catch(() => { if (mounted) setStatus('Showing saved scents. Availability is checked at checkout.'); });
-    return () => { mounted = false; };
-  }, []);
   useEffect(() => { onScents(scents); }, [scents, onScents]);
   const choose = id => {
     const next = [...selected]; next[active] = id;
@@ -37,7 +28,6 @@ export default function RefillScentSelector({ vessels, selected, onChange, onSce
         {chosen && vessels.length > 1 ? <TouchableOpacity accessibilityRole="button" onPress={() => onChange(vessels.map(() => chosen.id))}><Text style={styles.link}>Use {chosen.name} for all vessels</Text></TouchableOpacity> : null}
       </View>;
     })}
-    {status ? <Text style={styles.hint}>{status}</Text> : null}
     <Modal visible={active !== null} animationType="slide" transparent onRequestClose={() => setActive(null)}>
       <View style={styles.backdrop}><SafeAreaView style={styles.sheet}>
         <View style={styles.row}><Text accessibilityRole="header" style={styles.heading}>Scent for vessel {(active ?? 0) + 1}</Text><TouchableOpacity accessibilityRole="button" onPress={() => setActive(null)}><Text style={styles.link}>Close</Text></TouchableOpacity></View>

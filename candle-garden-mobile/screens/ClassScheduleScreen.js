@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -10,7 +10,7 @@ import {
   View,
   RefreshControl,
 } from 'react-native';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { classes as bundledClasses, fetchLatestClasses, getUpcomingClasses } from '../lib/classesCatalog';
 import { useCart } from '../lib/cart';
 import { colors, fonts, radii, spacing } from '../lib/theme';
@@ -42,11 +42,13 @@ export default function ClassScheduleScreen() {
     }
   }, []);
 
-  useFocusEffect(useCallback(() => {
-    void refreshClasses();
-    const timer = setInterval(() => void refreshClasses(), 60 * 60 * 1000);
-    return () => clearInterval(timer);
-  }, [refreshClasses]));
+  useFocusEffect(
+    useCallback(() => {
+      void refreshClasses();
+      const timer = setInterval(() => void refreshClasses(), 5 * 60 * 1000);
+      return () => clearInterval(timer);
+    }, [refreshClasses])
+  );
 
   const bookClass = (course) => {
     if (course.soldOut || Number(course.available) === 0) {
@@ -81,7 +83,7 @@ export default function ClassScheduleScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Book a class</Text>
         <Text style={styles.subtitle}>
-          Add a seat to your app cart and check out in Cart. This does not use the website cart.
+          Add a seat to your app cart and check out in Cart. Payment reserves that seat on the class.
         </Text>
         <Text style={styles.liveStatus}>{status}</Text>
       </View>
@@ -99,7 +101,7 @@ export default function ClassScheduleScreen() {
             return (
               <View key={course.id} style={styles.classCard}>
                 {course.image ? (
-                  <Image source={{ uri: course.image }} style={styles.classImage} />
+                  <Image source={{ uri: course.image }} style={styles.classImage} resizeMode="contain" />
                 ) : null}
                 <View style={styles.classBody}>
                   <Text style={styles.classTitle} numberOfLines={2}>

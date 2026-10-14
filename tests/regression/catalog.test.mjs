@@ -61,6 +61,14 @@ test("every class has a unique id, date, price, and booking url", () => {
   }
 });
 
+test("class feed keeps the Squarespace variant that holds the seat", () => {
+  const route = fs.readFileSync(path.join(ROOT, "candle-garden-web/src/app/api/mobile/classes/route.ts"), "utf8");
+  const booking = fs.readFileSync(path.join(ROOT, "candle-garden-web/src/app/api/mobile/class-seat/route.ts"), "utf8");
+  assert.match(route, /variantId/);
+  assert.match(booking, /inventoryBehavior: "DEDUCT"/);
+  assert.match(booking, /CLASS_SEAT_SECRET/);
+});
+
 test("payment processor copies match the shared catalog snapshots", () => {
   const payProducts = readJson("candle-saas-cdk/lambda_functions/payment_processor/catalog.json");
   const payClasses = readJson("candle-saas-cdk/lambda_functions/payment_processor/classes.json");

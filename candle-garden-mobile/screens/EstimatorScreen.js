@@ -13,7 +13,7 @@ import {
   REFILL_SPEEDS,
   normalizeSpeed,
 } from '../lib/pricing';
-import { BOX_FIT_ORDER, PACKING_INSTRUCTIONS, shippingMethodSummary } from '../lib/shippingConfig';
+import { BOX_FIT_ORDER, PACKING_INSTRUCTIONS, normalizeZip, shippingMethodSummary } from '../lib/shippingConfig';
 import { STORE } from '../lib/storeInfo';
 import { prepareImageForDetect, isImageManipulatorAvailable } from '../lib/prepareImage';
 import { colors, fonts, radii, spacing } from '../lib/theme';
@@ -39,11 +39,12 @@ const PHOTO_STEPS = [
   },
 ];
 
-function CustomButton({ title, onPress, disabled, color }) {
+function CustomButton({ title, onPress, disabled, color, compact }) {
   return (
     <TouchableOpacity
       style={[
         styles.button,
+        compact ? styles.buttonCompact : null,
         disabled ? styles.buttonDisabled : null,
         color ? { backgroundColor: color } : null,
       ]}
@@ -51,7 +52,7 @@ function CustomButton({ title, onPress, disabled, color }) {
       disabled={disabled}
       activeOpacity={0.7}
     >
-      <Text style={[styles.buttonText, disabled ? styles.buttonTextDisabled : null]}>
+      <Text style={[styles.buttonText, compact ? styles.buttonTextCompact : null, disabled ? styles.buttonTextDisabled : null]}>
         {title}
       </Text>
     </TouchableOpacity>
@@ -66,7 +67,7 @@ export default function EstimatorScreen() {
   const [image, setImage] = useState(null);
   const [result, setResult] = useState(null);
   const [selectedScents, setSelectedScents] = useState([]);
-  const [scents, setScents] = useState(() => refillScents(products));
+  const [scents, setScents] = useState(() => refillScents());
   const vessels = useMemo(() => estimateVessels(result), [result]);
   useEffect(() => { setSelectedScents((result?.vesselScents || []).map(vessel => vessel.scentId)); }, [result]);
   const [loading, setLoading] = useState(false);
@@ -76,7 +77,7 @@ export default function EstimatorScreen() {
   const [shippingMethod, setShippingMethod] = useState(DEFAULT_SHIPPING_METHOD);
   const [refillSpeed, setRefillSpeed] = useState(null);
   const [selectedBox, setSelectedBox] = useState(null);
-  const [liveQuotes, setLiveQuotes] = useState([]);
+  const [liveQuote, setLiveQuote] = useState(null);
   const [photoSize, setPhotoSize] = useState(null);
   const [loadingPhase, setLoadingPhase] = useState('');
   const preparedRef = useRef(null);
@@ -93,6 +94,7 @@ export default function EstimatorScreen() {
   const vesselCount = Array.isArray(result?.vessels) && result.vessels.length
     ? result.vessels.length
     : 1;
+
   const perVesselOz = Array.isArray(result?.vessels)
     ? result.vessels
         .map((v) => Number(v.wax_needed_oz ?? v.estimated_ounces ?? v.volume_oz))
@@ -157,31 +159,49 @@ export default function EstimatorScreen() {
     }
   };
 
+  const quoteZip = normalizeZip(destZip);
+  const liveKey = [
+    quoteZip,
+    refillSpeed || '',
+    selectedBox || '',
+    vesselCount,
+    Number(result?.estimated_ounces) || 0,
+  ].join('|');
+  const liveQuotes = liveQuote?.key === liveKey ? liveQuote.quotes : [];
+  const liveSelected = liveQuotes.find((quote) => quote.method === shippingMethod);
+  const displayTotal = liveSelected && liveSelected.total_cents != null
+    ? `$${(liveSelected.total_cents / 100).toFixed(2)}`
+    : cost?.quote_ok
+      ? `$${cost.total_cost}`
+      : '\u2014';
+
   useEffect(() => {
-    const zip = String(destZip || '').replace(/\D/g, '');
-    if (!result?.estimated_ounces || zip.length < 5 || !refillSpeed) {
-      setLiveQuotes([]);
-      return undefined;
-    }
+    if (!result?.estimated_ounces || !quoteZip || !refillSpeed) return undefined;
+    const key = liveKey;
     let cancelled = false;
     postShippingQuote({
       ounces: result.estimated_ounces,
-      destZip: zip,
+      destZip: quoteZip,
       boxKey: selectedBox,
       vesselCount,
       speed: refillSpeed,
       methods: ['ship_own', 'kit_roundtrip', 'prepaid_labels'],
     })
       .then((data) => {
-        if (!cancelled) setLiveQuotes(Array.isArray(data?.quotes) ? data.quotes : []);
+        if (!cancelled) {
+          setLiveQuote({
+            key,
+            quotes: Array.isArray(data?.quotes) ? data.quotes : [],
+          });
+        }
       })
       .catch(() => {
-        if (!cancelled) setLiveQuotes([]);
+        if (!cancelled) setLiveQuote((current) => (current?.key === key ? null : current));
       });
     return () => {
       cancelled = true;
     };
-  }, [result, destZip, selectedBox, vesselCount, refillSpeed]);
+  }, [liveKey, quoteZip, result, selectedBox, vesselCount, refillSpeed]);
 
   const methodQuotes = useMemo(() => {
     if (!result?.estimated_ounces) return [];
@@ -229,7 +249,7 @@ export default function EstimatorScreen() {
         vesselScents,
         detail:
           `${speedMeta.title} \u00b7 ${speedMeta.timing}` +
-          (shippingMethod === 'local_dropoff'
+          (shippingMethod === 'store_dropoff' || shippingMethod === 'local_dropoff'
             ? ' · drop off and pick up in Atlantic Beach'
             : shippingMethod === 'ship_own'
             ? (speed === 'expedited'
@@ -243,7 +263,9 @@ export default function EstimatorScreen() {
     );
     Alert.alert(
       'Added to cart',
-      'Your refill is in the cart. Add shop items or a class if you want, then check out. We\u2019ll confirm your address at the end.',
+      shippingMethod === 'store_dropoff' || shippingMethod === 'local_dropoff'
+        ? 'Your refill is in the cart. There is no shipping charge. Drop the empties off at the studio and pick the refill up when it is ready.'
+        : 'Your refill is in the cart. Add shop items or a class if you want, then check out. We\u2019ll confirm your address at the end.',
       [
         { text: 'Keep estimating', style: 'cancel' },
         { text: 'Go to cart', onPress: () => navigation.navigate('Orders') },
@@ -478,8 +500,8 @@ export default function EstimatorScreen() {
             <Text style={styles.inputSuffix}>oz</Text>
           </View>
           <View style={styles.manualButtons}>
-            <CustomButton title="Cancel" onPress={() => setShowManualEntry(false)} color={colors.textMuted} />
-            <CustomButton title="Submit" onPress={submitManualEntry} />
+            <CustomButton title="Cancel" onPress={() => setShowManualEntry(false)} color={colors.textMuted} compact />
+            <CustomButton title="Submit" onPress={submitManualEntry} compact />
           </View>
         </View>
       )}
@@ -520,7 +542,8 @@ export default function EstimatorScreen() {
             const selected = shippingMethod === methodKey;
             const live = liveQuotes.find((q) => q.method === methodKey);
             const liveShip = live && live.shipping_cents != null ? (live.shipping_cents / 100).toFixed(2) : null;
-            const priceLabel = methodKey === 'local_dropoff'
+            const dropoff = methodKey === 'store_dropoff' || methodKey === 'local_dropoff';
+            const priceLabel = dropoff
               ? '$0.00'
               : liveShip
                 ? `$${liveShip}`
@@ -536,7 +559,7 @@ export default function EstimatorScreen() {
                   <Text style={styles.methodPrice}>{priceLabel}</Text>
                 </View>
                 <Text style={styles.methodMeta}>
-                  {methodKey === 'local_dropoff'
+                  {dropoff
                     ? 'Drop off and pick up in Atlantic Beach'
                     : methodKey === 'ship_own'
                       ? '1 return trip to you'
@@ -555,10 +578,11 @@ export default function EstimatorScreen() {
               </TouchableOpacity>
             );
           })}
-          {shippingMethod === 'local_dropoff' ? (
+          {(shippingMethod === 'store_dropoff' || shippingMethod === 'local_dropoff') ? (
             <View style={styles.instructBox}>
               <Text style={styles.sectionLabel}>The Candle Garden shop</Text>
               <Text style={styles.shipNote}>{STORE.address}{'\n'}{STORE.city}, {STORE.state} {STORE.zip}{'\n'}{STORE.hours}</Text>
+              <Text style={styles.shipNote}>This price is wax only. Drop the empties off and pick the refill up when it is ready.</Text>
             </View>
           ) : (
             <>
@@ -589,6 +613,8 @@ export default function EstimatorScreen() {
               ) : null}
             </View>
           ) : null}
+            </>
+          )}
           {shippingMethod === 'prepaid_labels' ? (
             <View style={styles.instructBox}>
               <Text style={styles.sectionLabel}>Packing instructions</Text>
@@ -598,12 +624,10 @@ export default function EstimatorScreen() {
             </View>
           ) : null}
             </>
-          )}
-          {cost.customer_note ? <Text style={styles.shipNote}>{cost.customer_note}</Text> : null}
-          <Text style={styles.total}>Total: {cost.quote_ok ? `$${cost.total_cost}` : '\u2014'}</Text>
-          <CustomButton title="Add refill to cart" onPress={addEstimateToCart} disabled={!cost.quote_ok || !refillSpeed} />
-            </>
           ) : null}
+          {cost.customer_note ? <Text style={styles.shipNote}>{cost.customer_note}</Text> : null}
+          <Text style={styles.total}>Total: {displayTotal}</Text>
+          <CustomButton title="Add refill to cart" onPress={addEstimateToCart} disabled={!cost.quote_ok || !refillSpeed} />
         </View>
       )}
     </ScrollView>
@@ -631,8 +655,10 @@ const styles = StyleSheet.create({
   placeholderHint: { fontFamily: fonts.body, fontSize: 16, color: colors.textFaint },
   buttonContainer: { alignItems: 'center', gap: 12, width: '100%' },
   button: { backgroundColor: colors.primary, paddingVertical: 14, paddingHorizontal: 30, borderRadius: radii.sm, minWidth: 200, alignItems: 'center' },
+  buttonCompact: { minWidth: 0, flexGrow: 1, flexBasis: 0, paddingHorizontal: 12, paddingVertical: 12 },
   buttonDisabled: { backgroundColor: colors.disabled },
   buttonText: { color: colors.white, fontSize: 15, fontWeight: '500', letterSpacing: 1.2 },
+  buttonTextCompact: { letterSpacing: 0.4 },
   buttonTextDisabled: { color: colors.textFaint },
   result: { backgroundColor: colors.lightAccent, padding: 20, borderRadius: radii.md, marginTop: 20, alignItems: 'center', width: '100%', borderWidth: 1, borderColor: colors.border },
   resultTitle: { fontFamily: fonts.heading, fontSize: 18, fontWeight: '400', marginBottom: 10, color: colors.primary },
@@ -647,7 +673,7 @@ const styles = StyleSheet.create({
   inputContainer: { backgroundColor: colors.white, borderRadius: radii.sm, borderWidth: 1, borderColor: colors.borderStrong, paddingHorizontal: 15, paddingVertical: 10 },
   input: { fontFamily: fonts.body, fontSize: 18, width: 80, textAlign: 'center', color: colors.text },
   inputSuffix: { fontFamily: fonts.body, fontSize: 18, marginLeft: 10, color: colors.textMuted },
-  manualButtons: { flexDirection: 'row', gap: 12 },
+  manualButtons: { flexDirection: 'row', gap: 10, width: '100%', alignSelf: 'stretch' },
   warnBanner: { width: '100%', backgroundColor: colors.lightAccent, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 16, alignItems: 'center', gap: 10 },
   warnTitle: { fontFamily: fonts.heading, fontSize: 15, color: colors.primary, textAlign: 'center' },
   warnBody: { fontFamily: fonts.body, fontSize: 13, color: colors.textSecondary, textAlign: 'center', lineHeight: 18 },

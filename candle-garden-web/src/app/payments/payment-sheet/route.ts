@@ -8,6 +8,7 @@ import { mobileCustomerId, mobileIdentity } from "@/lib/mobile-auth";
 import { putMobileOrder } from "@/lib/mobileadmin/data";
 import { checkoutParty, priceRefillShipping } from "@/lib/refill-pricing";
 import { stubLabelsForItems } from "@/lib/shipping-labels";
+
 import { validateVesselScents } from "../../../../../packages/catalog/refillScents";
 
 export const dynamic = "force-dynamic";
@@ -21,14 +22,17 @@ function quantity(value: unknown) {
 async function priceItems(raw: unknown, shipping: unknown) {
   if (!Array.isArray(raw) || !raw.length) throw new Error("Your cart is empty");
   let total = 0;
-  const kinds=(raw as any[]).map(item=>String(item.type||'product').toLowerCase());
-  const productResponse=kinds.includes('product') || (raw as any[]).some(item=>item.type==='refill' && item.vesselScents!==undefined)?await liveProductsResponse():null;
-  const classResponse=kinds.includes('class')?await liveClassesResponse():null;
-  if(productResponse && !productResponse.ok || classResponse && !classResponse.ok)throw new Error('Could not verify current stock and prices. Please try again.');
-  const products: any[]=productResponse?(await productResponse.json()).products:[];
-  const classes: any[]=classResponse?(await classResponse.json()).classes:[];
-
-  const destination = (raw as any[]).some((item) => String(item.type).toLowerCase() === "refill" && item.shippingMethod !== "local_dropoff") ? checkoutParty(shipping) : null;
+  const kinds = (raw as any[]).map(item => String(item.type || "product").toLowerCase());
+  const productResponse = kinds.includes("product") ? await liveProductsResponse() : null;
+  const classResponse = kinds.includes("class") ? await liveClassesResponse() : null;
+  if ((productResponse && !productResponse.ok) || (classResponse && !classResponse.ok)) throw new Error("Could not verify current stock and prices. Please try again.");
+  const products: any[] = productResponse ? (await productResponse.json()).products : [];
+  const classes: any[] = classResponse ? (await classResponse.json()).classes : [];
+  const needsShipQuote = (raw as any[]).some((item) => {
+    const method = String(item.shippingMethod || "ship_own");
+    return String(item.type || "").toLowerCase() === "refill" && method !== "store_dropoff" && method !== "local_dropoff";
+  });
+  const destination = needsShipQuote ? checkoutParty(shipping) : null;
   const items = await Promise.all(raw.map(async (item: any) => {
     const qty = quantity(item.quantity);
     const kind = String(item.type || "product").toLowerCase();
@@ -75,7 +79,7 @@ export async function POST(request: NextRequest) {
     }
     const body = await request.json();
     const fulfillment=body.fulfillment==='pickup'?'pickup':'shipping';
-    const rawItems=Array.isArray(body.items)?body.items.map((item:any)=>fulfillment==='pickup' && item.type==='refill'?{...item,shippingMethod:'local_dropoff'}:item):body.items;
+    const rawItems=Array.isArray(body.items)?body.items.map((item:any)=>fulfillment==='pickup' && item.type==='refill'?{...item,shippingMethod:'store_dropoff'}:item):body.items;
     const priced = await priceItems(rawItems, body.shipping);
     const customer=await mobileCustomerId(request);
     const promotion=await applyPromotion(key,String(body.promoCode||''),priced.total,customer);

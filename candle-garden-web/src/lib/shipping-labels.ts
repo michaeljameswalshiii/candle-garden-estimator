@@ -8,6 +8,7 @@ export function methodLegs(method?: string) {
   if (method === "kit_roundtrip") return ["kit_out", "empties_in", "refills_out"];
   if (method === "prepaid_labels") return ["empties_in", "refills_out"];
   if (method === "ship_own") return ["refills_out"];
+  if (method === "store_dropoff" || method === "local_dropoff") return [];
   return [];
 }
 

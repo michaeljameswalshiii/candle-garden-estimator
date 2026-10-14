@@ -17,6 +17,9 @@
       "environment": "preview",
       "distribution": "internal",
       "channel": "preview",
+      "android": {
+        "buildType": "apk"
+      },
       "ios": {
         "simulator": false
       }

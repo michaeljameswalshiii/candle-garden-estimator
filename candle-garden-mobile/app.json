@@ -2,7 +2,7 @@
   "expo": {
     "name": "The Candle Garden App",
     "slug": "candle-garden-estimator",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "runtimeVersion": "1.2.0",
     "updates": {
       "url": "https://u.expo.dev/7769d138-60fb-46b1-92dc-90cdcdac10d3"
@@ -32,12 +32,9 @@
         "ITSAppUsesNonExemptEncryption": false
       },
       "entitlements": {
-        "com.apple.developer.in-app-payments": [
-          "merchant.com.michaeljameswalshiii.candlegarden"
-        ],
         "aps-environment": "production"
       },
-      "buildNumber": "28",
+      "buildNumber": "33",
       "usesAppleSignIn": true
     },
     "android": {
@@ -60,8 +57,7 @@
       [
         "@stripe/stripe-react-native",
         {
-          "enableGooglePay": true,
-          "merchantIdentifier": "merchant.com.michaeljameswalshiii.candlegarden"
+          "enableGooglePay": true
         }
       ],
       "expo-notifications",

@@ -171,7 +171,86 @@ def test_refill_checkout_reads_speed():
     assert total == expected["total_cents"]
 
 
-def test_refill_requires_zip():
+def test_store_dropoff_is_wax_only_without_a_zip():
+    from refill_shipping import label_purchase_plan, quote_refill_shipping
+
+    quote = quote_refill_shipping(10, shipping_method="store_dropoff")
+    own = quote_refill_shipping(10, dest_zip="32250", shipping_method="ship_own")
+    assert quote["shipping_cents"] == 0
+    assert quote["wax_cents"] == 1750
+    assert quote["total_cents"] == 1750
+    assert quote["legs"] == []
+    assert quote["method_title"] == "Drop off in the store"
+    assert quote["total_cents"] < own["total_cents"]
+    assert label_purchase_plan("store_dropoff")["legs"] == []
+    processor = load_processor()
+    total, priced = processor.amount_from_catalog(
+        [{"type": "refill", "ounces": 10, "quantity": 1, "shippingMethod": "store_dropoff"}]
+    )
+    assert total == 1750
+    assert priced[0]["shippingMethod"] == "store_dropoff"
+
+
+def test_local_dropoff_quotes_as_store_dropoff():
+    from refill_shipping import label_purchase_plan, quote_refill_shipping
+
+    quote = quote_refill_shipping(10, shipping_method="local_dropoff")
+    assert quote["method"] == "store_dropoff"
+    assert quote["shipping_cents"] == 0
+    assert quote["total_cents"] == 1750
+    assert quote["legs"] == []
+    plan = label_purchase_plan("local_dropoff")
+    assert plan["method"] == "store_dropoff"
+    assert plan["legs"] == []
+
+
+def test_refill_scents_are_kept_and_still_optional():
+    processor = load_processor()
+    total, priced = processor.amount_from_catalog(
+        [
+            {
+                "type": "refill",
+                "ounces": 10,
+                "quantity": 1,
+                "shippingMethod": "store_dropoff",
+                "scents": [
+                    {"vessel": "Mug", "scent": "Juniper"},
+                    {"vessel": "Jar", "scent": "x" * 200},
+                    "Vanilla",
+                    {"scent": ""},
+                ],
+            }
+        ]
+    )
+    assert priced[0]["scents"][0] == {"vessel": "Mug", "scent": "Juniper"}
+    assert priced[0]["scents"][1]["scent"] == "x" * 80
+    assert priced[0]["scents"][2] == {"scent": "Vanilla"}
+    assert len(priced[0]["scents"]) == 3
+    stored = processor._order_items_for_store(priced, total)
+    assert stored[0]["scents"][0]["vessel"] == "Mug"
+    bare_total, bare = processor.amount_from_catalog(
+        [{"type": "refill", "ounces": 10, "quantity": 1, "shippingMethod": "store_dropoff"}]
+    )
+    assert bare_total == 1750
+    assert "scents" not in bare[0]
+    assert processor.packing_acknowledged({}) is False
+    assert processor.packing_acknowledged({"packingAcknowledged": True}) is True
+    note = processor._confirmation_text(
+        {
+            "id": "abc",
+            "items": [
+                {
+                    "type": "refill",
+                    "name": "Candle refill",
+                    "quantity": 1,
+                    "shippingMethod": "store_dropoff",
+                    "scents": [{"vessel": "Jar", "scent": "Vanilla"}],
+                }
+            ],
+            "shipping": {},
+        }
+    )
+    assert "Jar: Vanilla" in note[1]
     processor = load_processor()
     try:
         processor.amount_from_catalog(
@@ -270,6 +349,7 @@ def test_guest_payment_sheet_does_not_require_signin(monkeypatch):
                     "items": [{"productId": "65faf809b85f1d19a61c8374", "quantity": 1, "size": "10oz"}],
                     "email": "guest@example.com",
                     "name": "Guest Shopper",
+                    "shipping": {"phone": "9045551212"},
                 }
             ),
         },
@@ -281,6 +361,17 @@ def test_guest_payment_sheet_does_not_require_signin(monkeypatch):
     assert captured["values"]["metadata[guest]"] == "true"
     assert captured["values"]["metadata[customer_id]"].startswith("guest:dev_abc123")
     assert captured["values"]["receipt_email"] == "guest@example.com"
+    missing = processor.handler(
+        {
+            "httpMethod": "POST",
+            "path": "/prod/payments/payment-sheet",
+            "headers": {"X-Device-Id": "dev_abc123"},
+            "body": json.dumps({"items": [{"productId": "65faf809b85f1d19a61c8374", "quantity": 1}], "email": "guest@example.com"}),
+        },
+        None,
+    )
+    assert missing["statusCode"] == 400
+    assert "phone" in json.loads(missing["body"])["error"]
 
 
 def test_signed_in_jwt_is_still_tagged_without_api_authorizer(monkeypatch):
@@ -312,6 +403,119 @@ def test_signed_in_jwt_is_still_tagged_without_api_authorizer(monkeypatch):
     assert captured["values"]["metadata[customer_id]"] == "user-123"
 
 
+def test_guest_checkout_requires_email_and_phone():
+    processor = load_processor()
+    assert processor.guest_contact_error({}, {"email": "not-an-email", "shipping": {"phone": "9045551212"}}) == "A guest checkout needs an email address."
+    assert processor.guest_contact_error({}, {"email": "guest@example.com", "shipping": {"phone": "555"}}) == "A guest checkout needs a phone number."
+    assert processor.guest_contact_error({}, {"shipping": {"email": "guest@example.com", "phone": "(904) 555-1212"}}) is None
+    assert processor.guest_contact_error({"sub": "user-1"}, {}) is None
+
+
+def test_ship_own_confirmation_omits_return_tracking(monkeypatch):
+    processor = load_processor()
+    sent = {}
+
+    class FakeSes:
+        def send_email(self, **kwargs):
+            sent.update(kwargs)
+
+    monkeypatch.setattr(processor, "_ses", lambda: FakeSes())
+    order = {
+        "id": "92a1863d-0b19-42e6-b4a0-54423da04e54",
+        "customer_email": "guest@example.com",
+        "total_amount": 71.25,
+        "items": [{
+            "type": "refill",
+            "name": "Candle refill",
+            "quantity": 1,
+            "shippingMethod": "ship_own",
+            "size": "Ship on your own",
+        }],
+        "shipping_labels": [{"key": "refills_out", "trackingNumber": "9334620845500001895633"}],
+    }
+    assert processor._send_order_confirmation(order) is True
+    body = sent["Message"]["Body"]["Text"]["Data"]
+    assert "9334620845500001895633" not in body
+    assert "Postage for that trip is yours" in body
+    assert sent["Destination"]["ToAddresses"] == ["guest@example.com"]
+    assert sent["Source"].startswith("The Candle Garden")
+
+
+def test_confirmation_is_not_sent_twice(monkeypatch):
+    processor = load_processor()
+    monkeypatch.setattr(processor, "_ses", lambda: (_ for _ in ()).throw(AssertionError("should not send")))
+    assert processor._send_order_confirmation({
+        "customer_email": "guest@example.com",
+        "confirmation_sent_at": "2026-10-12T00:00:00.000Z",
+        "items": [],
+    }) is False
+
+
+def test_class_seat_request_reserves_the_variant(monkeypatch):
+    import json
+
+    processor = load_processor()
+    captured = {}
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return b'{"ok":true,"squarespaceOrderId":"sq-1","squarespaceOrderNumber":"44","inventoryAdjusted":false}'
+
+    def fake_open(request, timeout=0):
+        captured["body"] = json.loads(request.data.decode())
+        captured["auth"] = request.headers.get("Authorization")
+        return Response()
+
+    monkeypatch.setenv("CLASS_SEAT_URL", "https://candle.test/api/mobile/class-seat")
+    monkeypatch.setenv("CLASS_SEAT_SECRET", "seat-secret")
+    monkeypatch.setattr(processor.urllib.request, "urlopen", fake_open)
+    result = processor._book_class_seats({
+        "id": "order-1",
+        "customer_email": "guest@example.com",
+        "shipping": {"name": "Ada Lovelace"},
+        "items": [{
+            "type": "class",
+            "productId": "class-1",
+            "variantId": "variant-9",
+            "quantity": 1,
+            "price": 60,
+            "size": "Friday at 6PM",
+        }],
+    })
+    assert result["squarespaceOrderId"] == "sq-1"
+    assert captured["auth"] == "Bearer seat-secret"
+    assert captured["body"]["email"] == "guest@example.com"
+    assert captured["body"]["items"][0]["variantId"] == "variant-9"
+    assert captured["body"]["items"][0]["unitPrice"] == 60
+
+
+def test_class_without_a_variant_cannot_reserve_a_seat(monkeypatch):
+    processor = load_processor()
+    monkeypatch.delenv("CLASS_CATALOG_URL", raising=False)
+    try:
+        processor._class_seat_lines({"items": [{"type": "class", "productId": "missing-class", "quantity": 1}]})
+        assert False, "expected a missing variant to fail"
+    except RuntimeError as error:
+        assert "Squarespace seat" in str(error)
+
+
+def test_class_confirmation_says_the_seat_is_reserved():
+    processor = load_processor()
+    _subject, body = processor._confirmation_text({
+        "id": "order-1",
+        "total_amount": 60,
+        "seat_reserved": True,
+        "items": [{"type": "class", "name": "Candle Making Class", "size": "Friday, October 9 at 6PM", "quantity": 1}],
+    })
+    assert "Your seat is reserved for Friday, October 9 at 6PM" in body
+
+
 def test_label_purchase_plan_splits_customer_and_staff_legs():
     from refill_shipping import label_purchase_plan
 
@@ -326,7 +530,7 @@ def test_label_purchase_plan_splits_customer_and_staff_legs():
     assert own["queued"] == ["refills_out"]
 
 
-def test_paid_prepaid_labels_buy_only_empties_in(monkeypatch):
+def test_paid_prepaid_labels_save_every_leg(monkeypatch):
     processor = load_processor()
     printed = []
 
@@ -341,8 +545,7 @@ def test_paid_prepaid_labels_buy_only_empties_in(monkeypatch):
         "items": [{"type": "refill", "ounces": 10, "quantity": 1, "shippingMethod": "prepaid_labels", "boxKey": "ups_medium"}],
         "shipping_labels": [],
     })
-    assert printed == ["empties_in"]
-    assert [row["key"] for row in purchased] == ["empties_in"]
-    assert status == "partial"
-    assert "refills_out" in [row["key"] for row in labels]
-    assert next(row for row in labels if row["key"] == "refills_out")["status"] == "queued"
+    assert printed == ["empties_in", "refills_out"]
+    assert [row["key"] for row in purchased] == ["empties_in", "refills_out"]
+    assert status == "created"
+    assert all(row["status"] == "purchased" and row["labelUrl"] for row in labels)

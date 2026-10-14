@@ -57,13 +57,17 @@ export async function GET() {
           price, available, soldOut: available !== null && available < 1,
           description: clean(item?.excerpt || item?.body).slice(0, 240), fullDescription: clean(item?.body),
           image: String(item?.assetUrl || "").replace(/^http:/, "https:"), sku: String(variant?.sku || ""),
+          variantId: String(variant?.id || ""),
           url: new URL(String(item?.fullUrl || "/candle-garden-events"), "https://www.thecandlegarden.co").toString(),
           location: "The Candle Garden · Atlantic Beach, FL",
         };
       })
       .filter((item: any) => item.id && item.date >= today && !/^test\b/i.test(item.scheduleLabel) && !/\bprivate\b/i.test(item.scheduleLabel) && !seen.has(item.id) && seen.add(item.id))
       .sort((a: any, b: any) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
-    return NextResponse.json({ classes, refreshedAt: new Date().toISOString() }, { headers: { "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" } });
+    return NextResponse.json(
+      { classes, refreshedAt: new Date().toISOString(), source: SOURCE },
+      { headers: { "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" } },
+    );
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Class refresh failed" }, { status: 502 });
   }

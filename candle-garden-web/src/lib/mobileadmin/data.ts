@@ -23,6 +23,10 @@ export type MobileOrder = {
   promotion_code?: string;
   label_status?: string;
   tracking_numbers?: string[];
+  squarespace_order_id?: string;
+  squarespace_order_number?: string;
+  squarespace_inventory_adjusted?: boolean;
+  squarespace_booking_error?: string;
   shipping_labels?: Array<{ key?: string; title?: string; status?: string; trackingNumber?: string; trackingUrl?: string; labelUrl?: string; service?: string; format?: string; purchasedAt?: string; error?: string; recipient?: string; recipientAddress?: string }>;
 };
 

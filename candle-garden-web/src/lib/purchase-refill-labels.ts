@@ -3,7 +3,7 @@ import { createLabel } from "@/lib/shippo";
 import {
   LEG_TITLES,
   mergeLabels,
-  purchaseOnPayKeys,
+  methodLegs,
   stubLabelsForItems,
   type ShippingLabel,
 } from "@/lib/shipping-labels";
@@ -15,16 +15,15 @@ function persistable(row: ShippingLabel): ShippingLabel {
 }
 
 export async function purchaseOrderLegs(order: MobileOrder, keys?: string[]) {
-  const hasShippedRefills = (order.items || []).some(item => item.type === "refill" && item.shippingMethod !== "local_dropoff");
-  if (!hasShippedRefills) return {labels:[], printed:[]};
+  const isDropoff = (method?: string) => method === "store_dropoff" || method === "local_dropoff";
+  const refillItems = (order.items || []).filter((item) => String(item.type || "").toLowerCase() === "refill" && !isDropoff(item.shippingMethod));
+  if (!refillItems.length) return { labels: order.shipping_labels || [], printed: [] as ShippingLabel[] };
   const destination = checkoutParty(order.shipping || {});
   let labels = mergeLabels(order.shipping_labels || [], stubLabelsForItems(order.items || []));
   const printed: ShippingLabel[] = [];
-  for (const item of order.items || []) {
-    if (String(item.type || "").toLowerCase() !== "refill") continue;
-    if (item.shippingMethod === "local_dropoff") continue;
+  for (const item of refillItems) {
     const quote = await priceRefillShipping(item, destination);
-    const wanted = keys?.length ? keys : purchaseOnPayKeys(item.shippingMethod);
+    const wanted = keys?.length ? keys : methodLegs(item.shippingMethod);
     for (const leg of quote.legs) {
       if (!wanted.includes(leg.key)) continue;
       const existing = labels.find((row) => row.key === leg.key && row.status === "purchased" && row.labelUrl);

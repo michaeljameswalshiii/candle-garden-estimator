@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -42,21 +42,38 @@ export default function ProductsScreen() {
   const items = useMemo(() => filterProducts(category, productCatalog).filter(p => `${p.name} ${p.description||''} ${(p.sizes||[]).join(' ')}`.toLowerCase().includes(query.trim().toLowerCase())), [category, productCatalog, query]);
   const activeMeta = SHOP_CATEGORIES.find((c) => c.id === category) || SHOP_CATEGORIES[0];
 
-  const refreshProducts = useCallback(async () => {
+  const refreshProducts = useCallback(() => {
+    let cancelled = false;
     setRefreshing(true);
-    try {
-      const latest = await fetchLatestProducts();
-      setProductCatalog(latest.products);
-      setCatalogStatus('Live inventory updated just now');
-    } catch(error) { setCatalogStatus('Offline catalog: ' + error.message); }
-    finally { setRefreshing(false); }
-  },[]);
-  useFocusEffect(useCallback(() => {
-    void refreshProducts();
-    const timer = setInterval(() => void refreshProducts(), 60 * 60 * 1000);
-    return () => clearInterval(timer);
-  },[refreshProducts]));
+    fetchLatestProducts()
+      .then((latest) => {
+        if (!cancelled) {
+          setProductCatalog(latest.products);
+          setCatalogStatus('Live Squarespace inventory');
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setCatalogStatus('Showing saved inventory');
+      })
+      .finally(() => {
+        if (!cancelled) setRefreshing(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const popular = [...productCatalog].filter(p => !p.soldOut && Number(p.popularity)>0).sort((a,b)=>Number(b.popularity)-Number(a.popularity)).slice(0,6);
+
+  useFocusEffect(
+    useCallback(() => {
+      const cancel = refreshProducts();
+      const timer = setInterval(() => { refreshProducts(); }, 5 * 60 * 1000);
+      return () => {
+        cancel();
+        clearInterval(timer);
+      };
+    }, [refreshProducts])
+  );
 
   const handleAddToCart = (product) => {
     if (product.soldOut) {
@@ -101,7 +118,7 @@ export default function ProductsScreen() {
       <View style={styles.productCard}>
         <View style={styles.imageWrap}>
           {item.image ? (
-            <Image source={{ uri: item.image }} style={styles.productImage} resizeMode="cover" />
+            <Image source={{ uri: item.image }} style={styles.productImage} resizeMode="contain" />
           ) : (
             <View style={styles.imagePlaceholder}>
               <Text style={styles.placeholderEmoji}>🕯️</Text>
@@ -147,9 +164,10 @@ export default function ProductsScreen() {
           <View>
             <View style={styles.header}>
               <Image source={lifestyle.scentMoment} style={styles.headerImage} resizeMode="cover" />
-              <View style={styles.headerOverlay} />
-              <Text style={styles.headerTitle}>Shop</Text>
-              <Text style={styles.headerSubtitle}>Shop in the app. Checkout stays in Cart.</Text>
+              <View style={styles.headerCopy}>
+                <Text style={styles.headerTitle}>Shop</Text>
+                <Text style={styles.headerSubtitle}>Shop in the app. Checkout stays in Cart.</Text>
+              </View>
             </View>
             {itemCount > 0 ? (
               <View style={styles.cartBanner}>
@@ -201,13 +219,13 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: H_PAD, paddingBottom: 28 },
   row: { justifyContent: 'space-between', marginBottom: CARD_GAP },
   header: {
-    height: 160, borderRadius: radii.lg, overflow: 'hidden', marginBottom: spacing.md,
-    marginTop: 6, justifyContent: 'flex-end', backgroundColor: colors.surface,
+    borderRadius: radii.lg, overflow: 'hidden', marginBottom: spacing.md,
+    marginTop: 6, backgroundColor: colors.primary,
   },
-  headerImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
-  headerOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(16, 56, 49, 0.4)' },
-  headerTitle: { fontFamily: fonts.heading, fontSize: 28, fontWeight: '400', color: colors.white, paddingHorizontal: 16, zIndex: 1 },
-  headerSubtitle: { fontFamily: fonts.body, fontSize: 13, color: 'rgba(255,255,255,0.92)', paddingHorizontal: 16, paddingBottom: 14, marginTop: 4, zIndex: 1 },
+  headerImage: { width: '100%', height: 132 },
+  headerCopy: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 14 },
+  headerTitle: { fontFamily: fonts.heading, fontSize: 28, fontWeight: '400', color: colors.white },
+  headerSubtitle: { fontFamily: fonts.body, fontSize: 13, color: 'rgba(255,255,255,0.92)', marginTop: 4 },
   cartBanner: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     backgroundColor: colors.primarySoft, borderRadius: radii.sm, paddingHorizontal: 12,
@@ -229,7 +247,7 @@ const styles = StyleSheet.create({
     width: CARD_W, backgroundColor: colors.surface, borderRadius: radii.md, padding: 10,
     borderWidth: 1, borderColor: colors.border,
   },
-  imageWrap: { width: '100%', aspectRatio: 0.85, borderRadius: radii.sm, overflow: 'hidden', backgroundColor: colors.lightAccent, marginBottom: 8 },
+  imageWrap: { width: '100%', aspectRatio: 0.85, borderRadius: radii.sm, overflow: 'hidden', backgroundColor: colors.lightAccent, marginBottom: 8, alignItems: 'center', justifyContent: 'center' },
   productImage: { width: '100%', height: '100%' },
   imagePlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   placeholderEmoji: { fontSize: 36 },

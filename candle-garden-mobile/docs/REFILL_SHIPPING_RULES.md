@@ -16,7 +16,7 @@ The refill estimator must:
 1. Estimate **wax volume (oz)** for the customer’s empty vessel(s).
 2. Recommend a **carton** large enough for those vessels **with packing material**.
 3. Estimate **packed shipment weight** (vessels + box + packing, plus wax on the return).
-4. Quote **UPS Ground Saver** from Atlantic Beach, FL (`32233`) using destination ZIP, billed pounds, and one of three shipping methods.
+4. Quote shipping from Atlantic Beach, FL (`32233`) using destination ZIP, billed pounds, and one of three shipping methods. Customers can also drop empties off at the studio and pay wax only. Live rates come from **Shippo** (USPS in test). Direct UPS is disabled until `UPS_ENABLED=true`.
 
 Ground Saver is **zone × weight**, not a flat-rate box. A ZIP is required to quote.
 
@@ -34,19 +34,20 @@ Ground Saver is **zone × weight**, not a flat-rate box. A ZIP is required to qu
 | Per package | List rate + **$4.65** residential surcharge |
 | Billable weight | Greater of scale pounds (ceil oz/16) and dim weight `(L×W×H)/166` |
 
-Checkout and the estimator call **UPS Rating** (Ground Saver service 93) when `candlesaas/ups` credentials exist; otherwise they use this published table so the app still quotes. After payment, methods 2 and 3 call **UPS Shipping** to print prepaid Ground Saver labels (return label for empties). Fuel/residential in the table path: **16%** fuel on the list rate; **$4.65** residential only on packages to the customer.
+Checkout and the estimator call **Shippo** when `SHIPPO_API_TOKEN` / `candlesaas/shippo` exists (cheapest USPS rate). Direct UPS Rating stays in the API but is off unless `UPS_ENABLED=true`. Otherwise they use this published Ground Saver table so the app still quotes. After payment, methods 2 and 3 purchase Shippo labels (return label for empties). Fuel/residential in the table path: **16%** fuel on the list rate; **$4.65** residential only on packages to the customer.
 
 ---
 
-## Three shipping methods (charges = Ground Saver trips Candle Garden pays)
+## Handoff methods
 
 | Key | Customer-facing name | UPS trips in the quote | What happens |
 |-----|----------------------|------------------------|--------------|
+| `store_dropoff` | **Drop off in the store** | **0** | Customer brings empties to 363 Atlantic Boulevard, Suite 8, Atlantic Beach, and picks the refill up. Wax only. No ZIP, no label, no shipping charge. |
 | `ship_own` | **Ship on your own** | **1** — refills CG → customer | Customer packs and ships empties at **their** cost. We include only the refill return. |
 | `kit_roundtrip` | **We send packing** | **3** — kit out + empties in + refills out | We mail a packing kit (folded carton + wrap + labels). Customer sends empties on a prepaid label. We refill and ship back. The kit is **not** glass. |
 | `prepaid_labels` | **Prepaid labels** | **2** — empties in + refills out | We email packing instructions and a prepaid label. Customer uses **their own** box matching the recommended size. We receive, refill, and ship back. |
 
-All three need a destination ZIP (zone is the same both directions in this quote).
+The three shipping methods need a destination ZIP (zone is the same both directions in this quote). In-store drop-off does not.
 
 **Method 3 caps:** billed weight ≤ 20 lb, longest side ≤ 18 in, length + girth ≤ 84 in. Over that, the method is unavailable.
 
@@ -99,7 +100,7 @@ Checkout **recomputes** wax + UPS from ounces, ZIP, method, and box. Client `uni
 
 - Ship on your own: “You pack and ship empties to us. We send refills back via UPS Ground Saver — that one trip is included.”
 - We send packing: “We mail you a packing kit and prepaid labels, you send empties in, then we ship refills back. Three Ground Saver trips.”
-- Prepaid labels: “We’ll email packing instructions and a prepaid UPS Ground Saver label. After we refill, we ship them back. You provide a sturdy box that matches the size we recommend.”
+- Prepaid labels: “We’ll email packing instructions and a prepaid label. After we refill, we ship them back. You provide a sturdy box that matches the size we recommend.”
 - Weight always: “Packed weight includes your vessels, the box, and packing supplies. UPS bills the next whole pound, or dimensional weight if that’s higher.”
 
 ---

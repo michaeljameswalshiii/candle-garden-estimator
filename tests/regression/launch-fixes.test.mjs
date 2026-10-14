@@ -38,17 +38,17 @@ test("order history shows details, tracking, pickup, and one-tap reorder", () =>
   assert.match(orders, /navigate\('Estimator'/);
 });
 
-test("Apple Pay, promo codes, and Atlantic Beach pickup are wired at checkout", () => {
+test("Stripe card checkout, promo codes, and Atlantic Beach pickup are wired", () => {
   const orders = read("candle-garden-mobile/screens/OrdersScreen.js");
   const appJson = read("candle-garden-mobile/app.json");
   const app = read("candle-garden-mobile/App.js");
   const stripe = read("candle-garden-mobile/lib/stripeConfig.js");
-  assert.match(orders, /applePay: \{ merchantCountryCode: 'US' \}/);
+  assert.doesNotMatch(orders, /applePay:/);
   assert.match(orders, /promoCode/);
   assert.match(orders, /Atlantic Beach pickup/);
   assert.match(orders, /fulfillment === 'pickup'/);
-  assert.match(appJson, /merchant.com.michaeljameswalshiii.candlegarden/);
-  assert.match(appJson, /com.apple.developer.in-app-payments/);
+  assert.doesNotMatch(appJson, /com.apple.developer.in-app-payments/);
+  assert.match(appJson, /expo-apple-authentication/);
   assert.match(app, /merchantIdentifier=\{APPLE_MERCHANT_IDENTIFIER\}/);
   assert.match(stripe, /APPLE_MERCHANT_IDENTIFIER/);
 });

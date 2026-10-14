@@ -233,6 +233,40 @@ def ddb_create_order(customer_id, body, claims):
     return _json(201, out)
 
 
+STAFF_LABEL_KEYS = {"refills_out", "kit_out"}
+CUSTOMER_SHIPPED = {"shipped", "completed"}
+
+
+def customer_order_view(row):
+    """Customers print their empties label. The studio return label stays off the order until it ships."""
+    row = dict(row or {})
+    reveal_return = str(row.get("status") or "") in CUSTOMER_SHIPPED
+    hidden_tracking = set()
+    visible = []
+    for label in row.get("shipping_labels") or []:
+        if not isinstance(label, dict):
+            continue
+        key = label.get("key")
+        if key in STAFF_LABEL_KEYS and not reveal_return:
+            if label.get("trackingNumber"):
+                hidden_tracking.add(str(label.get("trackingNumber")))
+            continue
+        public = {
+            field: value
+            for field, value in label.items()
+            if field not in ("imageBase64", "labelGifBase64") or key == "empties_in"
+        }
+        if key in STAFF_LABEL_KEYS:
+            public.pop("labelUrl", None)
+            public.pop("imageBase64", None)
+            public.pop("labelGifBase64", None)
+        visible.append(public)
+    row["shipping_labels"] = visible
+    tracking = [str(number) for number in (row.get("tracking_numbers") or []) if str(number) not in hidden_tracking]
+    row["tracking_numbers"] = tracking
+    return row
+
+
 def ddb_list_orders(customer_id, query_params=None):
     query_params = query_params or {}
     try:
@@ -251,7 +285,7 @@ def ddb_list_orders(customer_id, query_params=None):
     items = [i for i in items if i.get("status") != "deleted"]
     out = []
     for i in items:
-        row = dict(i)
+        row = customer_order_view(i)
         if "total_amount" in row:
             row["total_amount"] = float(row["total_amount"])
         if isinstance(row.get("items"), list):
@@ -269,7 +303,7 @@ def ddb_get_order(order_id, customer_id):
         return _json(404, {"error": "Order not found"})
     if item.get("status") == "deleted":
         return _json(404, {"error": "Order not found"})
-    row = dict(item)
+    row = customer_order_view(item)
     if "total_amount" in row:
         row["total_amount"] = float(row["total_amount"])
     if isinstance(row.get("items"), list):

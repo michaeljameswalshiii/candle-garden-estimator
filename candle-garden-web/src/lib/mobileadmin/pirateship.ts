@@ -87,5 +87,6 @@ export function pirateshipCsv(orders: ShipOrder[]) {
 export function trackingUrl(tracking: string) {
   const value = tracking.trim();
   if (/^1Z/i.test(value)) return `https://www.ups.com/track?tracknum=${encodeURIComponent(value)}`;
+  if (/^https?:\/\//i.test(value)) return value;
   return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encodeURIComponent(value)}`;
 }
