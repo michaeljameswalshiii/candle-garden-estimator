@@ -11,11 +11,9 @@ import {
   Alert,
   TextInput,
   RefreshControl,
-  Linking,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import ProductDetails from '../components/ProductDetails';
-import { STORE } from '../lib/storeInfo';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 import { lifestyle } from '../lib/images';
 import {
@@ -163,7 +161,6 @@ export default function ProductsScreen() {
             ) : null}
             <TextInput accessibilityLabel="Search candles" placeholder="Search scents, notes or sizes" value={query} onChangeText={setQuery} style={{borderWidth:1,borderColor:colors.border,padding:14,borderRadius:8,marginBottom:12,color:colors.text}} />
             {!query && category==='all' ? <View style={{marginBottom:18}}><Text style={{fontFamily:fonts.heading,fontSize:23,color:colors.primary}}>Most popular</Text><Text style={styles.countText}>{popular.length?'Based on completed Candle Garden app orders':'Your favorites will appear here as orders are completed.'}</Text><ScrollView horizontal showsHorizontalScrollIndicator={false}>{popular.map(p=><TouchableOpacity key={p.id} onPress={()=>setSelectedProduct(p)} style={{width:140,margin:8}}><Image source={{uri:p.image}} style={{width:140,height:130,borderRadius:8}}/><Text style={styles.productName}>{p.name}</Text><Text style={styles.productPrice}>{formatPrice(p)}</Text></TouchableOpacity>)}</ScrollView></View>:null}
-            <TouchableOpacity style={styles.cartBanner} onPress={()=>Linking.openURL(STORE.giftCardUrl)}><View><Text style={styles.cartBannerText}>Give a Candle Garden gift card</Text><Text style={styles.countText}>Choose your amount on our secure gift-card page</Text></View></TouchableOpacity>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
               {SHOP_CATEGORIES.map((cat) => {
                 const active = cat.id === category;

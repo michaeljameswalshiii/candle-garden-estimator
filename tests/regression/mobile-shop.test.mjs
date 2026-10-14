@@ -9,8 +9,29 @@ test("shop catalog is the shared products snapshot", () => {
   assert.equal(shop.SHOP_BASE, "https://www.thecandlegarden.co");
   assert.deepEqual(
     shop.SHOP_CATEGORIES.map((item) => item.id),
-    ["all", "fall", "summer", "classic", "subscription", "gift-card"],
+    ["all", "fall", "summer", "classic", "subscription"],
   );
+});
+
+test("gift cards stay hidden in bundled, live, and category catalogs", async () => {
+  const candle = { id: "candle", name: "Atlantic", categories: ["classic"] };
+  const giftCards = [
+    { id: "type", type: "gift_card" },
+    { id: "name", name: "Candle Class Gift Card" },
+    { id: "category", categories: ["gift-card", "classic"] },
+    { id: "url", url: "https://www.thecandlegarden.co/giftcard/p/class" },
+  ];
+  assert.ok(giftCards.every(shop.isGiftCard));
+  assert.ok(shop.products.every(item => !shop.isGiftCard(item)));
+  assert.deepEqual(shop.filterProducts("all", [candle, ...giftCards]), [candle]);
+  assert.deepEqual(shop.filterProducts("classic", [candle, ...giftCards]), [candle]);
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => ({ ok: true, json: async () => ({ products: [candle, ...giftCards], refreshedAt: "now" }) });
+    const latest = await shop.fetchLatestProducts();
+    assert.deepEqual(latest.products, [candle]);
+    assert.equal(latest.refreshedAt, "now");
+  } finally { globalThis.fetch = originalFetch; }
 });
 
 test("shop filters and price labels match the catalog", () => {

@@ -90,7 +90,8 @@ test("shop search, popular row, product detail, and live catalog refresh are pre
   assert.match(products, /Most popular/);
   assert.match(details, /Scent notes/);
   assert.match(home, /Map and directions/);
-  assert.match(home, /Buy a Candle Garden gift card/);
+  assert.doesNotMatch(home, /gift.?card/i);
+  assert.doesNotMatch(products, /gift.?card/i);
   assert.match(catalog, /api\/mobile\/catalog/);
   assert.match(classes, /api\/mobile\/classes/);
   assert.match(schedule, /Retry/);

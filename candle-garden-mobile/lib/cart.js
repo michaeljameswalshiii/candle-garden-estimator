@@ -11,6 +11,7 @@ import React, {
   useState,
 } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import { isGiftCard } from './shopCatalog';
 
 const CartContext = createContext(null);
 const CART_KEY = 'cg_cart_v1';
@@ -31,7 +32,7 @@ async function loadPersistedLines() {
     const raw = await SecureStore.getItemAsync(CART_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed) ? parsed.filter(item => !isGiftCard(item)) : [];
   } catch {
     return [];
   }
@@ -77,6 +78,7 @@ export function CartProvider({ children }) {
   }, [lines, ready]);
 
   const addItem = useCallback((product, options = {}) => {
+    if (isGiftCard(product) || isGiftCard({ type: options.type })) return;
     const type = options.type || product.type || 'product';
     const size =
       options.size ||

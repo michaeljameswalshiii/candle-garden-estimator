@@ -215,24 +215,6 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      <View style={styles.infoContainer}>
-        <Text style={styles.infoHeading}>Visit our Atlantic Beach shop</Text>
-        <Text style={styles.infoText}>
-          {STORE.address}{'\n'}
-          {STORE.city}, {STORE.state} {STORE.zip}{'\n'}
-          {STORE.hours}
-        </Text>
-        <TouchableOpacity onPress={() => Linking.openURL(STORE.mapsUrl)} accessibilityRole="link">
-          <Text style={styles.inlineLinkText}>Map and directions</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => Linking.openURL(`tel:${STORE.phone}`)} accessibilityRole="link">
-          <Text style={styles.inlineLinkText}>(904) 316-7608</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => Linking.openURL(STORE.giftCardUrl)} accessibilityRole="link">
-          <Text style={[styles.inlineLinkText, { marginTop: 12 }]}>Buy a Candle Garden gift card</Text>
-          <Text style={styles.infoText}>Choose an amount and complete your purchase securely on our website.</Text>
-        </TouchableOpacity>
-      </View>
       {/* Why the pig */}
       <View style={styles.infoContainer}>
         <Image
@@ -286,6 +268,20 @@ export default function HomeScreen() {
       >
         <Text style={styles.siteButtonText}>Visit thecandlegarden.co</Text>
       </TouchableOpacity>
+      <View style={styles.infoContainer}>
+        <Text style={styles.infoHeading}>Visit our Atlantic Beach shop</Text>
+        <Text style={styles.infoText}>
+          {STORE.address}{'\n'}
+          {STORE.city}, {STORE.state} {STORE.zip}{'\n'}
+          {STORE.hours}
+        </Text>
+        <TouchableOpacity onPress={() => Linking.openURL(STORE.mapsUrl)} accessibilityRole="link">
+          <Text style={styles.inlineLinkText}>Map and directions</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => Linking.openURL(`tel:${STORE.phone}`)} accessibilityRole="link">
+          <Text style={styles.inlineLinkText}>(904) 316-7608</Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 }

@@ -35,7 +35,6 @@ export function orderStatus(order) {
 function itemKind(item) {
   if (item.type === 'refill') return 'Refill';
   if (item.type === 'class') return 'Class';
-  if (item.type === 'gift_card' || String(item.name || '').toLowerCase().includes('gift card')) return 'Gift card';
   return 'Shop';
 }
 
