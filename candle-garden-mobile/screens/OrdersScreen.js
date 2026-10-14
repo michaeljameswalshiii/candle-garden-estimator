@@ -351,9 +351,6 @@ function OrdersScreenBody({ stripe }) {
         <Text style={styles.lineMeta}>
           {item.type === 'class' ? 'Class' : item.type === 'refill' ? 'Refill' : 'Shop'}
         </Text>
-        {item.type === 'refill' && item.speed ? (
-          <Text style={styles.lineMeta}>{item.speed === 'expedited' ? 'Expedited · about 7 days' : 'Standard · about 14 days'}</Text>
-        ) : null}
         {item.size && item.type !== 'refill' ? <Text style={styles.lineMeta}>{item.type === 'class' ? item.size : `Size: ${item.size}`}</Text> : null}
         {item.detail ? <Text style={styles.lineMeta}>{item.detail}</Text> : null}
         {item.vesselScents?.length ? <Text style={styles.lineMeta}>{scentSummary(item.vesselScents)}</Text> : null}
@@ -367,9 +364,6 @@ function OrdersScreenBody({ stripe }) {
             ${item.waxUnitPrice.toFixed(2)} refill + ${item.returnShippingUnitPrice.toFixed(2)} return shipping
           </Text>
         ) : null}
-        <Text style={styles.lineMeta}>
-          ${Number(item.unitPrice).toFixed(2)} each
-        </Text>
         <View style={styles.qtyRow}>
           <TouchableOpacity
             style={styles.qtyBtn}

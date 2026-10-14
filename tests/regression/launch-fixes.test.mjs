@@ -46,6 +46,8 @@ test("Stripe card checkout and promo codes are wired, and cart does not re-ask p
   assert.doesNotMatch(orders, /applePay:/);
   assert.match(orders, /promoCode/);
   assert.doesNotMatch(orders, /Atlantic Beach pickup/);
+  assert.doesNotMatch(orders, /Standard · about 14 days/);
+  assert.doesNotMatch(orders, /\$\{Number\(item\.unitPrice\)\.toFixed\(2\)\} each/);
   assert.doesNotMatch(orders, /setFulfillment/);
   assert.match(orders, /needsShipping \? 'shipping' : 'pickup'/);
   assert.doesNotMatch(appJson, /com.apple.developer.in-app-payments/);
