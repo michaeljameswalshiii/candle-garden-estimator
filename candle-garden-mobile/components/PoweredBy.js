@@ -1,5 +1,5 @@
 import React from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { colors, fonts } from '../lib/theme';
 
@@ -26,10 +26,14 @@ export default function PoweredBy() {
         accessibilityRole="link"
         accessibilityLabel="Powered by Triple I Business Solutions"
         onPress={() => Linking.openURL(BUILDER_URL)}
+        style={styles.creditHit}
       >
-        <Text style={styles.credit} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
-          Powered by Triple I Business Solutions
-        </Text>
+        <View style={styles.creditRow}>
+          <Image source={require('../assets/triple-i-logo.png')} style={styles.creditLogo} resizeMode="contain" />
+          <Text style={styles.credit} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+            Powered by Triple I Business Solutions
+          </Text>
+        </View>
       </Pressable>
     </View>
   );
@@ -61,12 +65,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 10,
   },
+  creditHit: {
+    marginTop: 14,
+    maxWidth: '100%',
+  },
+  creditRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  creditLogo: {
+    width: 54,
+    height: 14,
+  },
   credit: {
+    flexShrink: 1,
     fontFamily: fonts.body,
     fontSize: 12,
-    color: colors.textFaint,
+    color: colors.primary,
     textAlign: 'center',
-    marginTop: 14,
+    textDecorationLine: 'underline',
   },
   legal: {
     fontFamily: fonts.body,

@@ -439,6 +439,9 @@ export default function EstimatorScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Refill Estimator</Text>
+      <Text style={styles.estimatorLead}>
+        Photograph the empty vessels you already own, or type the ounces, and we’ll estimate the wax and shipping to refill them.
+      </Text>
       <View style={styles.stepsCard}>
         <Text style={styles.stepsHeading}>How to photograph</Text>
         {PHOTO_STEPS.map((step, index) => (
@@ -658,6 +661,7 @@ export default function EstimatorScreen() {
 const styles = StyleSheet.create({
   container: { flexGrow: 1, backgroundColor: colors.white, alignItems: 'center', padding: spacing.md + 4, paddingBottom: 28 },
   title: { fontFamily: fonts.heading, fontSize: 26, fontWeight: '400', marginBottom: 2, color: colors.primary, textAlign: 'center' },
+  estimatorLead: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: colors.textMuted, textAlign: 'center', marginTop: 6, marginBottom: 18, paddingHorizontal: 8 },
 
   stepsCard: { width: '100%', backgroundColor: colors.surface, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 12 },
   stepsHeading: { fontFamily: fonts.heading, fontSize: 16, color: colors.primary, marginBottom: 8, textAlign: 'center' },

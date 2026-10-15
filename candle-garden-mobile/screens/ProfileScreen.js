@@ -81,6 +81,10 @@ export default function ProfileScreen() {
   const [pushToken, setPushToken] = useState(null);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetCode, setResetCode] = useState('');
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetSent, setResetSent] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated && route.params?.intent === 'signup') {
@@ -103,6 +107,7 @@ export default function ProfileScreen() {
     setPhone(user.phone || '');
     setAddress(user.address || '');
     setMarketingOptIn(Boolean(user.marketingOptIn));
+    setResetEmail((current) => current || user.email || '');
   }, [user]);
 
   const onToggleNotifications = async (on) => {
@@ -138,6 +143,37 @@ export default function ProfileScreen() {
       Alert.alert('Password updated');
     } catch (e) {
       Alert.alert('Could not change password', e.message || 'Try again');
+    }
+  };
+
+  const onEmailReset = async () => {
+    const target = resetEmail.trim();
+    if (!target.includes('@')) {
+      Alert.alert('Add your email', 'Enter the email on your Candle Garden account.');
+      return;
+    }
+    try {
+      await forgotPassword(target);
+      setResetSent(true);
+      Alert.alert('Check your email', 'Enter the reset code and choose a new password.');
+    } catch (e) {
+      Alert.alert('Reset failed', e.message || 'Try again');
+    }
+  };
+
+  const onConfirmEmailReset = async () => {
+    try {
+      await confirmForgotPassword({
+        email: resetEmail.trim(),
+        code: resetCode.trim(),
+        password: resetPassword,
+      });
+      setResetCode('');
+      setResetPassword('');
+      setResetSent(false);
+      Alert.alert('Password updated', 'Use the new password the next time you sign in.');
+    } catch (e) {
+      Alert.alert('Could not reset', e.message || 'Check the code and try again');
     }
   };
 
@@ -453,6 +489,16 @@ export default function ProfileScreen() {
         <View style={styles.inputGroup}><Text style={styles.label}>Current password</Text><TextInput style={styles.input} value={oldPassword} onChangeText={setOldPassword} secureTextEntry placeholderTextColor={colors.textFaint} placeholder="Current password" /></View>
         <View style={styles.inputGroup}><Text style={styles.label}>New password</Text><TextInput style={styles.input} value={newPassword} onChangeText={setNewPassword} secureTextEntry placeholderTextColor={colors.textFaint} placeholder="Min 8 chars, upper, lower, number" /></View>
         <TouchableOpacity style={[styles.button, busy && styles.buttonDisabled]} onPress={onChangePassword} disabled={busy || !oldPassword || !newPassword}><Text style={styles.buttonText}>Update password</Text></TouchableOpacity>
+        <Text style={[styles.hint, { marginTop: 16 }]}>Forgot the current password? Enter the email on this account and we’ll send a reset code.</Text>
+        <View style={styles.inputGroup}><Text style={styles.label}>Email</Text><TextInput style={styles.input} value={resetEmail} onChangeText={setResetEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} placeholder="you@example.com" placeholderTextColor={colors.textFaint} /></View>
+        <TouchableOpacity style={[styles.button, busy && styles.buttonDisabled]} onPress={onEmailReset} disabled={busy || !resetEmail.trim()}><Text style={styles.buttonText}>Email me a reset code</Text></TouchableOpacity>
+        {resetSent ? (
+          <>
+            <View style={styles.inputGroup}><Text style={styles.label}>Reset code</Text><TextInput style={styles.input} value={resetCode} onChangeText={setResetCode} keyboardType="number-pad" placeholder="Code from email" placeholderTextColor={colors.textFaint} /></View>
+            <View style={styles.inputGroup}><Text style={styles.label}>New password</Text><TextInput style={styles.input} value={resetPassword} onChangeText={setResetPassword} secureTextEntry placeholder="Min 8 chars, upper, lower, number" placeholderTextColor={colors.textFaint} /></View>
+            <TouchableOpacity style={[styles.button, busy && styles.buttonDisabled]} onPress={onConfirmEmailReset} disabled={busy || !resetCode.trim() || !resetPassword}><Text style={styles.buttonText}>Set new password</Text></TouchableOpacity>
+          </>
+        ) : null}
       </View>
       <TouchableOpacity style={[styles.button, styles.logoutButton]} onPress={handleLogout} activeOpacity={0.8} disabled={busy}><Text style={[styles.buttonText, styles.logoutText]}>Sign out</Text></TouchableOpacity>
       <TouchableOpacity style={styles.deleteBtn} onPress={handleDeleteAccount} activeOpacity={0.8} disabled={busy}><Text style={styles.deleteText}>Delete account</Text></TouchableOpacity>
