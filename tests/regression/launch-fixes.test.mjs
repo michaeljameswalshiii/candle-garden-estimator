@@ -94,7 +94,8 @@ test("shop search, popular row, product detail, and live catalog refresh are pre
   assert.match(details, /Scent notes/);
   assert.match(home, /Map and directions/);
   assert.doesNotMatch(home, /gift.?card/i);
-  assert.doesNotMatch(products, /gift.?card/i);
+  assert.match(products, /Give a gift card/);
+  assert.match(products, /GiftCardPurchase/);
   assert.match(catalog, /api\/mobile\/catalog/);
   assert.match(classes, /api\/mobile\/classes/);
   assert.match(schedule, /Retry/);

@@ -41,6 +41,22 @@ export async function SiteFooter() {
         <span>© {new Date().getFullYear()} The Candle Garden</span>
         <span>Woman-owned · Hand-poured in Atlantic Beach</span>
       </div>
+      <div className="powered-by page-shell">
+        <p>
+          Having a problem or question?{" "}
+          <a href="mailto:mike@tripleibusinesssolutions.com,thepotentpig@gmail.com">Contact us</a>
+        </p>
+        <p className="powered-legal">
+          <Link href="/privacy">Privacy</Link>
+          <span aria-hidden="true"> · </span>
+          <Link href="/terms">Terms</Link>
+        </p>
+        <p className="powered-credit">
+          <a href="https://tripleibusinesssolutions.com" target="_blank" rel="noreferrer">
+            Powered by Triple I Business Solutions
+          </a>
+        </p>
+      </div>
     </footer>
   );
 }

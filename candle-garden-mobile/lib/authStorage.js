@@ -1,4 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from './clientStorage';
 
 const KEYS = {
   accessToken: 'cg_access_token',

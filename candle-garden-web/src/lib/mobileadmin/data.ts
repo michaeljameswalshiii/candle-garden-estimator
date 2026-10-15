@@ -13,6 +13,10 @@ export type MobileOrder = {
   payment_intent_id?: string;
   refund_id?: string;
   refunded_amount?: number;
+  gift_checkout?: boolean;
+  gift_card_cents?: number;
+  stripe_amount_cents?: number;
+  gift_refund_review?: boolean;
   items?: Array<{ type?: string; productId?: string; name?: string; size?: string; quantity?: number; price?: number; ounces?: number; boxKey?: string; shippingMethod?: string; vesselCount?: number; speed?: string; vesselScents?: import("../../../../packages/catalog/refillScents").VesselScent[] }>;
   created_at?: string;
   updated_at?: string;
@@ -74,7 +78,7 @@ export async function updateMobileOrder(id: string, patch: { status?: string; to
 }
 
 export async function getMobileOrder(id: string) {
-  const response = await client.send(new GetCommand({ TableName: ordersTable, Key: { id } }));
+  const response = await client.send(new GetCommand({ TableName: ordersTable, Key: { id }, ConsistentRead: true }));
   return response.Item as MobileOrder | undefined;
 }
 

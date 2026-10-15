@@ -8,7 +8,8 @@
     "test:mobile": "node --test tests/regression/mobile-app.test.mjs tests/regression/mobile-shop.test.mjs tests/regression/mobile-shipping.test.mjs",
     "test:http": "node tests/regression/http/run.mjs",
     "test:browser": "playwright test --config tests/regression/playwright.config.mjs",
-    "test:cdk": "python -m pytest candle-saas-cdk/tests/test_payment_processor.py -q"
+    "test:gift:ui": "node tests/regression/gift-card-mobile-ui.mjs",
+    "test:cdk": "python -m pytest candle-saas-cdk/tests/test_payment_processor.py candle-saas-cdk/tests/test_gift_cards.py candle-saas-cdk/tests/test_apple_auth_challenge.py -q"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.1"

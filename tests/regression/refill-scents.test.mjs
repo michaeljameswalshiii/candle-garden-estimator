@@ -62,6 +62,11 @@ test('payment checkout persists per-vessel scents with the server-authenticated 
     '../../../../../packages/catalog/refillScents': helpers,
   };
   const route = ts.transpile(fs.readFileSync(path.join(ROOT, 'candle-garden-web/src/app/payments/payment-sheet/route.ts'), 'utf8'), { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 });
+  stubs['../../../packages/catalog/refillScents'] = helpers;
+  const pricing = ts.transpile(fs.readFileSync(path.join(ROOT, 'candle-garden-web/src/lib/mobile-checkout-pricing.ts'), 'utf8'), { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 });
+  const pricingContext = { exports: {}, require: id => { if (!stubs[id]) throw Error(`Unexpected dependency: ${id}`); return stubs[id]; } };
+  vm.runInNewContext(pricing, pricingContext);
+  stubs['@/lib/mobile-checkout-pricing'] = pricingContext.exports;
   const context = { exports: {}, require: id => { if (!stubs[id]) throw Error(`Unexpected dependency: ${id}`); return stubs[id]; }, process: { env: { STRIPE_SECRET_KEY: 'sk_test_stub' } }, URLSearchParams, fetch: async () => json({ id: 'pi_test', client_secret: 'test' }) };
   vm.runInNewContext(route, context);
   const vesselScents = helpers.vesselScentChoices(helpers.estimateVessels({ estimated_ounces: 20, vessels: [{ wax_needed_oz: 8 }, { wax_needed_oz: 12 }] }), ['refill:almond', 'refill:atlantic-beach'], scents);

@@ -14,6 +14,7 @@ import { useNavigation } from '@react-navigation/native';
 import { brand, colors, fonts, radii, spacing } from '../lib/theme';
 import { STORE } from '../lib/storeInfo';
 import { lifestyle } from '../lib/images';
+import PoweredBy from '../components/PoweredBy';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const H_PAD = spacing.md + 4;
@@ -262,6 +263,7 @@ export default function HomeScreen() {
           <Text style={styles.inlineLinkText}>(904) 316-7608</Text>
         </TouchableOpacity>
       </View>
+      <PoweredBy />
     </ScrollView>
   );
 }

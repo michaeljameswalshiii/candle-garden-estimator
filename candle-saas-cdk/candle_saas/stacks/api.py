@@ -11,6 +11,10 @@ from aws_cdk import (
     aws_s3 as s3,
     aws_rds as rds,
     aws_cognito as cognito,
+    aws_dynamodb as dynamodb,
+    aws_events as events,
+    aws_events_targets as event_targets,
+    RemovalPolicy,
     Duration,
     Size,
     CfnOutput,
@@ -189,6 +193,18 @@ class APIStack(Stack):
         payment_processor_fn = self._create_payment_processor_function(
             lambda_execution_role, vpc, lambda_sg
         )
+        gift_cards_table = dynamodb.Table(
+            self, "GiftCardsTable", table_name="candle-garden-gift-cards",
+            partition_key=dynamodb.Attribute(name="id", type=dynamodb.AttributeType.STRING),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            encryption=dynamodb.TableEncryption.AWS_MANAGED,
+            point_in_time_recovery=True,
+            removal_policy=RemovalPolicy.RETAIN,
+        )
+        gift_cards_table.grant_read_write_data(payment_processor_fn)
+        payment_processor_fn.add_environment("GIFT_CARDS_TABLE", gift_cards_table.table_name)
+        events.Rule(self, "GiftCardDeliveryRetry", schedule=events.Schedule.rate(Duration.minutes(5)),
+            targets=[event_targets.LambdaFunction(payment_processor_fn)])
         
         ai_recommendations_fn = self._create_ai_recommendations_function(
             lambda_execution_role, vpc, lambda_sg, database
@@ -204,6 +220,16 @@ class APIStack(Stack):
         
         # Cognito user pool for The Candle Garden App (import existing Phase 1 pool when set)
         pool_id = self.node.try_get_context("cognitoUserPoolId") or "us-east-1_WTA7ZWxcr"
+        apple_challenge_fn = lambda_.Function(
+            self, "AppleAuthChallengeFunction",
+            code=lambda_.Code.from_asset(os.path.join(os.path.dirname(__file__), "..", "..", "lambda_functions", "apple_auth_challenge")),
+            handler="index.handler", runtime=lambda_.Runtime.PYTHON_3_10,
+            role=lambda_execution_role, timeout=Duration.seconds(10), memory_size=128,
+            log_retention=logs.RetentionDays.TWO_WEEKS,
+        )
+        apple_challenge_fn.add_permission("CognitoAppleAuth", principal=iam.ServicePrincipal("cognito-idp.amazonaws.com"),
+            source_arn=f"arn:aws:cognito-idp:{self.region}:{self.account}:userpool/{pool_id}", source_account=self.account)
+        CfnOutput(self, "AppleAuthChallengeArn", value=apple_challenge_fn.function_arn)
         user_pool = cognito.UserPool.from_user_pool_id(self, "CandleGardenUserPool", pool_id)
         cognito_authorizer = apigw.CognitoUserPoolsAuthorizer(
             self, "CandleGardenAuthorizer",
@@ -320,13 +346,16 @@ class APIStack(Stack):
                 "STRIPE_LIVE_ENABLED": "true" if self.node.try_get_context("stripeLiveEnabled") == "true" else "false",
                 "CLASS_CATALOG_URL": "https://candle-garden-web.vercel.app/api/mobile/classes",
                 "PRODUCT_CATALOG_URL": "https://candle-garden-web.vercel.app/api/mobile/catalog",
+                "PRICE_QUOTE_URL": "https://candle-garden-web.vercel.app/payments/quote",
+                "CLASS_SEAT_URL": "https://candle-garden-web.vercel.app/api/mobile/class-seat",
+                "GIFT_SERVICES_SECRET_ARN": self.node.try_get_context("giftServicesSecretArn") or "candlesaas/gift-card-services",
                 "SHIPPO_SECRET_ARN": self.node.try_get_context("shippoSecretArn")
                 or "arn:aws:secretsmanager:us-east-1:635449373837:secret:candlesaas/shippo-pYmbYV",
                 "UPS_SECRET_ARN": self.node.try_get_context("upsSecretArn")
                 or "arn:aws:secretsmanager:us-east-1:635449373837:secret:candlesaas/ups",
                 "UPS_ENABLED": "true" if self.node.try_get_context("upsEnabled") == "true" else "false",
             },
-            timeout=Duration.seconds(30),
+            timeout=Duration.seconds(120),
             memory_size=512,
             log_retention=logs.RetentionDays.TWO_WEEKS,
         )
@@ -456,6 +485,8 @@ class APIStack(Stack):
         refill_labels.add_method("POST", integration)
         webhook = payments.add_resource("webhook")
         webhook.add_method("POST", integration)
+        for action in ("balance", "cancel", "status"):
+            payments.add_resource("gift-card-" + action).add_method("POST", integration)
     
     def _setup_recommendations_endpoint(self, api: apigw.RestApi, function: lambda_.Function):
         """Setup /recommendations endpoint."""

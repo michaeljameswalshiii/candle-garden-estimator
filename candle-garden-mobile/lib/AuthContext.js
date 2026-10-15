@@ -319,9 +319,9 @@ export function AuthProvider({ children }) {
     return session.idToken;
   }, [tokens]);
 
-  const signInWithApple = useCallback(async () => {
+  const signInWithApple = useCallback(async (options) => {
     setBusy(true); setError(null);
-    try { return await applySession(await appleSignIn()); }
+    try { return await applySession(await appleSignIn(options)); }
     catch(error) { setError(error.message); throw error; }
     finally { setBusy(false); }
   },[applySession]);

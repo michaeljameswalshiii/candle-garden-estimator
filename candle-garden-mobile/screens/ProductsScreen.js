@@ -14,8 +14,11 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import ProductDetails from '../components/ProductDetails';
+import GiftCardPurchase from '../components/GiftCardPurchase';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 import { lifestyle } from '../lib/images';
+import PoweredBy from '../components/PoweredBy';
 import {
   SHOP_CATEGORIES,
   products as bundledProducts,
@@ -32,6 +35,7 @@ const CARD_W = (SCREEN_W - H_PAD * 2 - CARD_GAP) / 2;
 
 export default function ProductsScreen() {
   const [category, setCategory] = useState('all');
+  const [giftCardOpen, setGiftCardOpen] = useState(false);
   const [query,setQuery] = useState('');
   const [selectedProduct,setSelectedProduct] = useState(null);
   const [refreshing,setRefreshing] = useState(false);
@@ -169,6 +173,13 @@ export default function ProductsScreen() {
                 <Text style={styles.headerSubtitle}>Shop in the app. Checkout stays in Cart.</Text>
               </View>
             </View>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Give a gift card, $25 to $500"
+              style={styles.giftCard} onPress={() => setGiftCardOpen(true)} activeOpacity={0.85}>
+              <Ionicons name="gift-outline" size={28} color={colors.primary} />
+              <View style={{ flex: 1 }}><Text style={styles.giftTitle}>Give a gift card</Text>
+                <Text style={styles.giftCopy}>$25–$500 · Delivered by email</Text></View>
+              <Ionicons name="chevron-forward" size={22} color={colors.primary} />
+            </TouchableOpacity>
             {itemCount > 0 ? (
               <View style={styles.cartBanner}>
                 <Text style={styles.cartBannerText}>
@@ -207,14 +218,19 @@ export default function ProductsScreen() {
             <Text style={styles.emptyText}>No products in this collection</Text>
           </View>
         }
+        ListFooterComponent={<PoweredBy />}
       />
       <ProductDetails product={selectedProduct} onClose={()=>setSelectedProduct(null)} onAdd={(product,options)=>{addItem(product,{...options,quantity:1});setSelectedProduct(null);Alert.alert('Added to cart','Review your scent and size in Cart.');}} />
+      <GiftCardPurchase visible={giftCardOpen} onClose={() => setGiftCardOpen(false)} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.white },
+  giftCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, minHeight: 76, backgroundColor: colors.lightAccent, borderRadius: radii.md, marginBottom: spacing.md },
+  giftTitle: { fontFamily: fonts.heading, fontSize: 21, color: colors.primary },
+  giftCopy: { fontFamily: fonts.body, fontSize: 13, color: colors.textMuted, marginTop: 4 },
   inventoryStatus: { color: colors.textMuted, fontFamily: fonts.body, fontSize: 11, textAlign: 'center', paddingVertical: 4 },
   list: { paddingHorizontal: H_PAD, paddingBottom: 28 },
   row: { justifyContent: 'space-between', marginBottom: CARD_GAP },

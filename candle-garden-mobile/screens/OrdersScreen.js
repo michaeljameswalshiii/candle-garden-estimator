@@ -18,7 +18,14 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 import { useCart } from '../lib/cart';
 import { useAuth } from '../lib/AuthContext';
-import { createStripePaymentSheet, finalizeStripePayment, listOrders, trackEvent } from '../lib/apiClient';
+import { createStripePaymentSheet, finalizeStripePayment, cancelGiftCheckout, listOrders, trackEvent, validateShippingAddress, findShippingAddress } from '../lib/apiClient';
+import { getItemAsync, setItemAsync } from '../lib/clientStorage';
+import { profileShipping, previousShipping, fillEmptyShipping, applyProfileContact, displayPhone } from '../lib/checkoutAddress';
+import PoweredBy from '../components/PoweredBy';
+import PrintLabelButton from '../components/PrintLabelButton';
+import GiftCardRedeem from '../components/GiftCardRedeem';
+import RefillCartLine from '../components/RefillCartLine';
+import { loadGiftCheckout, saveGiftCheckout, clearGiftCheckout } from '../lib/giftCheckoutStorage';
 import { useStripe } from '../lib/stripeBridge';
 import { stripeTestMode, stripeConfigured } from '../lib/stripeConfig';
 import OrderHistoryCard from '../components/OrderHistoryCard';
@@ -79,10 +86,26 @@ function OrdersScreenCheckout() {
 function OrdersScreenBody({ stripe }) {
   const navigation = useNavigation();
   const [promoCode, setPromoCode] = useState("");
+  const [giftCardCode, setGiftCardCode] = useState('');
+  const [pendingGiftCheckout, setPendingGiftCheckout] = useState(null);
+  const [recoveringGiftCheckout, setRecoveringGiftCheckout] = useState(true);
+  const [giftRecoveryFailed, setGiftRecoveryFailed] = useState(false);
+  const checkoutLock = React.useRef(false);
+  useEffect(() => {
+    loadGiftCheckout('redemption').then(setPendingGiftCheckout)
+      .catch(() => { setGiftRecoveryFailed(true); Alert.alert('Checkout recovery unavailable', 'Restart the app before paying again.'); })
+      .finally(() => setRecoveringGiftCheckout(false));
+  }, []);
   const { lines, itemCount, subtotal, addItem, setQuantity, removeItem, clearCart } = useCart();
   const { isAuthenticated, signIn, busy: authBusy, user } = useAuth();
   const initPaymentSheet = stripe?.initPaymentSheet;
   const presentPaymentSheet = stripe?.presentPaymentSheet;
+  const shippingOwner = user?.sub || 'guest';
+  const shippingStorageKey = `cg_saved_shipping_v2_${shippingOwner}`;
+  const ownerRef = React.useRef(shippingOwner);
+  ownerRef.current = shippingOwner;
+  const [historyOwner, setHistoryOwner] = useState(null);
+  const [addressSearch, setAddressSearch] = useState('');
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState(null);
@@ -104,7 +127,125 @@ function OrdersScreenBody({ stripe }) {
     state: '',
     zip: '',
   });
+  const [addressBusy, setAddressBusy] = useState(false);
+  const [addressNote, setAddressNote] = useState('');
+  const shippingRef = React.useRef(shipping);
+  shippingRef.current = shipping;
+  const zipTouched = React.useRef(false);
+  const lookedUpZip = React.useRef('');
   const asGuest = checkoutStep === 'guest' || (!isAuthenticated && checkoutStep !== 'account');
+
+  const rememberShipping = (next) => {
+    const payload = {
+      name: String(next.name || '').trim().slice(0, 80),
+      email: String(next.email || '').trim().slice(0, 120),
+      phone: String(next.phone || '').trim().slice(0, 20),
+      address: String(next.address || '').trim().slice(0, 120),
+      city: String(next.city || '').trim().slice(0, 80),
+      state: String(next.state || '').trim().slice(0, 2).toUpperCase(),
+      zip: String(next.zip || '').replace(/\D/g, '').slice(0, 5),
+    };
+    setItemAsync(shippingStorageKey, JSON.stringify(payload)).catch(() => {});
+  };
+
+  const applyShipping = (updater) => {
+    setShipping((current) => {
+      const next = typeof updater === 'function' ? updater(current) : updater;
+      shippingRef.current = next;
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    let cancel = false;
+    applyShipping({ name: '', email: '', phone: '', address: '', city: '', state: '', zip: '' });
+    setAddressNote('');
+    setAddressSearch(typeof user?.address === 'string' && !profileShipping(user).address ? user.address : '');
+    lookedUpZip.current = '';
+    zipTouched.current = false;
+    getItemAsync(shippingStorageKey).then((raw) => {
+      if (cancel) return;
+      const saved = raw ? JSON.parse(raw) : {};
+      applyShipping(current => applyProfileContact(fillEmptyShipping(current, saved, profileShipping(user || {})), user || {}));
+    }).catch(() => {
+      if (!cancel) applyShipping(current => applyProfileContact(fillEmptyShipping(current, profileShipping(user || {})), user || {}));
+    });
+    return () => { cancel = true; };
+  }, [shippingStorageKey]);
+
+  useEffect(() => {
+    if (!isAuthenticated || historyOwner !== shippingOwner) return;
+    applyShipping(current => applyProfileContact(
+      fillEmptyShipping(current, profileShipping(user || {}), previousShipping(history)),
+      user,
+    ));
+  }, [user, history, historyOwner, shippingOwner, isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    applyShipping((current) => applyProfileContact(current, user));
+  }, [isAuthenticated, user?.email, user?.phone, user?.name]);
+
+  const lookupAddress = async () => {
+    if (addressBusy) return;
+    const owner = shippingOwner;
+    const before = JSON.stringify(shippingRef.current);
+    setAddressBusy(true);
+    setAddressNote('');
+    try {
+      const result = await findShippingAddress(addressSearch);
+      if (ownerRef.current !== owner || JSON.stringify(shippingRef.current) !== before) return;
+      if (!result.valid || !result.address) throw new Error(result.message || 'Check the full address and try again.');
+      const next = { ...shippingRef.current, address: result.address.street,
+        city: result.address.city, state: result.address.state, zip: result.address.zip };
+      lookedUpZip.current = next.zip;
+      zipTouched.current = false;
+      applyShipping(next);
+      rememberShipping(next);
+      setAddressNote('Address confirmed. Review the details below; you can still edit them.');
+    } catch (error) {
+      if (ownerRef.current === owner) setAddressNote(error.message || 'Address lookup is unavailable. Enter the fields below.');
+    } finally { setAddressBusy(false); }
+  };
+
+  useEffect(() => {
+    const zip = String(shipping.zip || '').replace(/\D/g, '').slice(0, 5);
+    if (zip.length !== 5 || zip === lookedUpZip.current) return;
+    const cityBlank = !String(shipping.city || '').trim();
+    const stateBlank = !String(shipping.state || '').trim();
+    if (!zipTouched.current && !cityBlank && !stateBlank) {
+      lookedUpZip.current = zip;
+      return;
+    }
+    lookedUpZip.current = zip;
+    zipTouched.current = false;
+    let cancel = false;
+    fetch(`https://api.zippopotam.us/us/${zip}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        const place = data?.places?.[0];
+        if (cancel) return;
+        if (!place) {
+          setAddressNote('That ZIP was not recognized. Check the five digits.');
+          return;
+        }
+        setAddressNote('');
+        applyShipping((current) => {
+          if (String(current.zip || '').replace(/\D/g, '').slice(0, 5) !== zip) return current;
+          const next = {
+            ...current,
+            city: place['place name'] || current.city,
+            state: place['state abbreviation'] || current.state,
+          };
+          rememberShipping(next);
+          return next;
+        });
+      })
+      .catch(() => {
+        if (!cancel) setAddressNote('ZIP lookup is unavailable. You can still type the city and state.');
+      });
+    return () => { cancel = true; };
+  }, [shipping.zip, shipping.city, shipping.state]);
 
   const needsShipping = lines.some((line) => {
     if (line.type === 'class') return false;
@@ -125,6 +266,8 @@ function OrdersScreenBody({ stripe }) {
     setHistoryError(null);
     try {
       const data = await listOrders();
+      if (ownerRef.current !== shippingOwner) return;
+      setHistoryOwner(shippingOwner);
       setHistory(Array.isArray(data) ? data : []);
     } catch (e) {
       setHistoryError(e.message || 'Could not load orders');
@@ -132,7 +275,7 @@ function OrdersScreenBody({ stripe }) {
     } finally {
       setHistoryLoading(false);
     }
-  }, []);
+  }, [shippingOwner]);
 
   useFocusEffect(
     useCallback(() => {
@@ -152,7 +295,7 @@ function OrdersScreenBody({ stripe }) {
   };
 
   const startGuestCheckout = () => {
-    if (!lines.length || checkingOut) return;
+    if ((!lines.length && !pendingGiftCheckout) || checkingOut || checkoutLock.current || recoveringGiftCheckout || giftRecoveryFailed) return;
     setCheckoutStep('guest');
   };
 
@@ -162,12 +305,7 @@ function OrdersScreenBody({ stripe }) {
       setCheckoutStep('account');
       return;
     }
-    setShipping((current) => ({
-      ...current,
-      email: current.email || user?.email || '',
-      name: current.name || user?.name || '',
-      phone: current.phone || user?.phone || '',
-    }));
+    applyShipping((current) => applyProfileContact(current, user));
     if (needsShipping) {
       setCheckoutStep('shipping');
       return;
@@ -183,9 +321,10 @@ function OrdersScreenBody({ stripe }) {
     try {
       const profile = await signIn({ email: accountEmail.trim(), password: accountPassword });
       setAccountPassword('');
-      setShipping((current) => ({
+      applyShipping((current) => ({
         ...current,
-        email: current.email || profile?.email || accountEmail.trim(),
+        email: profile?.email || current.email || accountEmail.trim(),
+        phone: profile?.phone || current.phone || '',
         name: current.name || profile?.name || '',
       }));
       if (needsShipping) {
@@ -197,7 +336,7 @@ function OrdersScreenBody({ stripe }) {
       if (String(error.message || '').includes('UserNotConfirmed')) {
         Alert.alert(
           'Confirm email',
-          'Open Profile and enter the verification code we emailed you, then come back to checkout.'
+          'Open Account and enter the verification code we emailed you, then come back to checkout.'
         );
         return;
       }
@@ -205,14 +344,19 @@ function OrdersScreenBody({ stripe }) {
     }
   };
 
-  const submitShippingAndPay = () => {
+  const submitShippingAndPay = async () => {
     const guest = checkoutStep === 'guest' || !isAuthenticated;
+    if (!guest) {
+      const locked = applyProfileContact(shippingRef.current, user);
+      shippingRef.current = locked;
+      applyShipping(locked);
+    }
     const required = needsShipping
       ? guest
         ? ['name', 'email', 'phone', 'address', 'city', 'state', 'zip']
         : ['name', 'phone', 'address', 'city', 'state', 'zip']
       : ['name', 'email', 'phone'];
-    const missing = required.filter((key) => !String(shipping[key] || '').trim());
+    const missing = required.filter((key) => !String(shippingRef.current[key] || '').trim());
     if (missing.length) {
       Alert.alert(
         needsShipping ? 'Shipping needed' : 'Contact needed',
@@ -222,13 +366,47 @@ function OrdersScreenBody({ stripe }) {
       );
       return;
     }
-    if (guest && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(shipping.email || '').trim())) {
+    if (guest && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(shippingRef.current.email || '').trim())) {
       Alert.alert('Email needed', 'A guest checkout needs an email address.');
       return;
     }
-    if (guest && String(shipping.phone || '').replace(/\D/g, '').length < 10) {
+    if (guest && String(shippingRef.current.phone || '').replace(/\D/g, '').length < 10) {
       Alert.alert('Phone needed', 'A guest checkout needs a phone number.');
       return;
+    }
+    if (needsShipping && String(shippingRef.current.state || '').trim().length !== 2) {
+      Alert.alert('State needed', 'Use the two-letter state abbreviation, such as FL.');
+      return;
+    }
+    if (needsShipping && String(shippingRef.current.zip || '').replace(/\D/g, '').length < 5) {
+      Alert.alert('ZIP needed', 'Enter a 5-digit ZIP code.');
+      return;
+    }
+    if (needsShipping) {
+      setAddressBusy(true);
+      try {
+        const result = await validateShippingAddress(shippingRef.current);
+        if (!result?.valid || !result.address) {
+          Alert.alert('Check this address', result?.message || 'That address could not be confirmed.');
+          return;
+        }
+        const next = {
+          ...shippingRef.current,
+          address: result.address.street || shippingRef.current.address,
+          city: result.address.city || shippingRef.current.city,
+          state: result.address.state || shippingRef.current.state,
+          zip: result.address.zip || shippingRef.current.zip,
+        };
+        applyShipping(next);
+        rememberShipping(next);
+      } catch (error) {
+        Alert.alert('Address check unavailable', error.message || 'We could not confirm this address. Try again in a moment.');
+        return;
+      } finally {
+        setAddressBusy(false);
+      }
+    } else {
+      rememberShipping(shippingRef.current);
     }
     void checkoutWithStripe({ saveOrder: checkoutStep !== 'guest' && (isAuthenticated || checkoutStep === 'shipping') });
   };
@@ -246,9 +424,12 @@ function OrdersScreenBody({ stripe }) {
       Alert.alert('Stripe test mode is not configured', 'Add the Stripe test publishable key to the app build, then try again.');
       return;
     }
+    const contact = isAuthenticated ? applyProfileContact(shippingRef.current, user) : shippingRef.current;
+    if (isAuthenticated) shippingRef.current = contact;
+    checkoutLock.current = true;
     setCheckingOut(true);
     try {
-      const sheet = await createStripePaymentSheet(
+      const sheet = pendingGiftCheckout || await createStripePaymentSheet(
         lines.map((line) => ({
           type: line.type || 'product',
           productId: line.productId,
@@ -257,7 +438,7 @@ function OrdersScreenBody({ stripe }) {
           variantId: line.variantId,
           ounces: line.ounces,
           boxKey: line.boxKey,
-          destZip: line.destZip || shipping.zip,
+          destZip: line.destZip || contact.zip,
           shippingMethod: line.shippingMethod || 'ship_own',
           speed: line.speed || 'standard',
           vesselCount: line.vesselCount,
@@ -265,15 +446,25 @@ function OrdersScreenBody({ stripe }) {
           scents: line.scents,
         })),
         {
-          email: shipping.email,
-          name: shipping.name,
-          zip: shipping.zip,
-          shipping,
+          email: contact.email,
+          name: contact.name,
+          zip: contact.zip,
+          shipping: contact,
           fulfillment,
           promoCode,
+          giftCardCode,
           packingAcknowledged: needsPackingAck && acknowledged,
         }
       );
+      if (sheet.checkoutToken && !pendingGiftCheckout) {
+        // Preserve the payment reference before opening Stripe. Never charge again to recover.
+        const saved = { ...sheet, cartItems: lines, customerName: contact.name, email: contact.email,
+          shipping: needsShipping ? { ...contact } : null };
+        setPendingGiftCheckout(saved);
+        await saveGiftCheckout('redemption', saved);
+      }
+      let finalized = sheet.checkoutToken ? await finalizeStripePayment(sheet.paymentIntentId, sheet) : null;
+      if (!finalized?.paid && !sheet.giftCardOnly) {
       const { error: initError } = await initPaymentSheet({
         merchantDisplayName: 'The Candle Garden',
         paymentIntentClientSecret: sheet.paymentIntentClientSecret,
@@ -285,10 +476,15 @@ function OrdersScreenBody({ stripe }) {
       const { error: paymentError } = await presentPaymentSheet();
       if (paymentError) {
         if (paymentError.code !== 'Canceled') throw paymentError;
-        return;
+        if (sheet.checkoutToken) {
+          const cancellation = await cancelGiftCheckout(sheet);
+          if (cancellation.paid) finalized = cancellation;
+          else { await clearGiftCheckout('redemption'); setPendingGiftCheckout(null); return; }
+        } else return;
       }
-      const paidTotal = Number(sheet.amount || 0) / 100;
-      const finalized = await finalizeStripePayment(sheet.paymentIntentId);
+      }
+      if (!finalized?.paid) finalized = await finalizeStripePayment(sheet.paymentIntentId, sheet);
+      const paidTotal = Number(sheet.totalCents ?? sheet.amount ?? 0) / 100;
       if (!finalized.paid) throw new Error('Payment is still pending. Refresh your order history before paying again.');
       trackEvent('payment_success');
       const printLabels = customerPrintLabels(finalized);
@@ -311,7 +507,7 @@ function OrdersScreenBody({ stripe }) {
         paymentIntentId: sheet.paymentIntentId,
         orderId: finalized?.orderId || sheet.orderId,
         total: paidTotal || subtotal,
-        items: lines.map((item) => ({
+        items: (sheet.cartItems || lines).map((item) => ({
           key: item.key,
           name: item.name,
           quantity: item.quantity,
@@ -319,23 +515,34 @@ function OrdersScreenBody({ stripe }) {
           vesselScents: item.vesselScents,
           lineTotal: Number(item.unitPrice) * Number(item.quantity),
         })),
-        customerName: shipping.name,
-        email: shipping.email,
-        shipping: needsShipping ? { ...shipping } : null,
+        customerName: sheet.customerName || contact.name,
+        email: sheet.email || contact.email,
+        phone: contact.phone || '',
+        shipping: sheet.shipping || (needsShipping ? { ...contact } : null),
+        giftCardCents: Number(sheet.giftCardCents || 0),
         labelNote: labelNote.trim(),
         labels: printLabels,
       };
       setLastCompletedOrder(completedOrder);
+      rememberShipping(contact);
+      if (sheet.checkoutToken) { await clearGiftCheckout('redemption'); setPendingGiftCheckout(null); }
+      setGiftCardCode('');
       setCheckoutStep('choice');
-      clearCart();
+      if (!sheet.cartItems || JSON.stringify(lines) === JSON.stringify(sheet.cartItems)) clearCart();
     } catch (error) {
       Alert.alert('Checkout unavailable', error.message || 'Stripe could not start checkout.');
     } finally {
+      checkoutLock.current = false;
       setCheckingOut(false);
     }
   };
 
-  const renderLine = ({ item }) => (
+  const renderLine = ({ item, index }) => {
+    const refillCount = lines.filter((line) => line.type === 'refill').length;
+    const refillNumber = lines.slice(0, index + 1).filter((line) => line.type === 'refill').length;
+    return item.type === 'refill' ? <RefillCartLine item={item}
+    label={refillCount > 1 ? `Refill Order ${refillNumber}` : 'Candle refill'}
+    onQuantity={quantity => setQuantity(item.key, quantity)} onRemove={() => removeItem(item.key)} /> : (
     <View style={styles.lineCard}>
       {item.image ? (
         <Image source={{ uri: item.image }} style={styles.thumb} resizeMode="cover" />
@@ -387,7 +594,8 @@ function OrdersScreenBody({ stripe }) {
         ${(item.unitPrice * item.quantity).toFixed(2)}
       </Text>
     </View>
-  );
+    );
+  };
 
   const reorderProduct = async (item) => {
     try {
@@ -414,6 +622,23 @@ function OrdersScreenBody({ stripe }) {
         keyExtractor={(item) => item.key}
         renderItem={renderLine}
         contentContainerStyle={styles.list}
+        ListHeaderComponent={pendingGiftCheckout ? <View style={styles.fulfillmentBox}>
+          <Text style={styles.shippingTitle}>Unfinished gift card payment</Text>
+          <Text style={styles.shippingHint}>Continue this checkout before paying for a new order. Your original items and payment are saved.</Text>
+          <TouchableOpacity accessibilityRole="button" disabled={checkingOut} style={styles.checkoutBtn}
+            onPress={() => checkoutWithStripe({ packingOk: true })}><Text style={styles.checkoutText}>Check payment / continue</Text></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" disabled={checkingOut} style={{ minHeight: 48, justifyContent: 'center' }} onPress={async () => {
+            if (checkoutLock.current) return;
+            checkoutLock.current = true; setCheckingOut(true);
+            try {
+              const result = await cancelGiftCheckout(pendingGiftCheckout);
+              if (result.paid) { Alert.alert('Already paid', 'This order is paid. Tap Check payment to complete it.'); return; }
+              await clearGiftCheckout('redemption'); setPendingGiftCheckout(null);
+            } catch (failure) { Alert.alert('Cancellation pending', failure.message); }
+            finally { checkoutLock.current = false; setCheckingOut(false); }
+          }}><Text style={styles.shippingHint}>Cancel and restore gift card balance</Text></TouchableOpacity>
+        </View> : !lines.length ? <GiftCardRedeem appliedCode={giftCardCode} onApply={setGiftCardCode}
+          disabled={checkingOut || recoveringGiftCheckout || giftRecoveryFailed} /> : null}
         refreshControl={
           <RefreshControl refreshing={historyLoading} onRefresh={loadHistory} />
         }
@@ -459,10 +684,16 @@ function OrdersScreenBody({ stripe }) {
                 <Text style={styles.successDetailValue}>
                   {lastCompletedOrder.paymentIntentId || 'Stripe test payment'}
                 </Text>
-                {lastCompletedOrder.email ? (
+                {(lastCompletedOrder.email || user?.email) ? (
                   <>
                     <Text style={styles.successDetailLabel}>Contact email</Text>
-                    <Text style={styles.successDetailValue}>{lastCompletedOrder.email}</Text>
+                    <Text style={styles.successDetailValue}>{lastCompletedOrder.email || user?.email}</Text>
+                  </>
+                ) : null}
+                {(lastCompletedOrder.phone || user?.phone) ? (
+                  <>
+                    <Text style={styles.successDetailLabel}>Phone</Text>
+                    <Text style={styles.successDetailValue}>{displayPhone(lastCompletedOrder.phone || user?.phone)}</Text>
                   </>
                 ) : null}
                 {lastCompletedOrder.shipping ? (
@@ -478,13 +709,10 @@ function OrdersScreenBody({ stripe }) {
                   <Text style={styles.successNote}>{lastCompletedOrder.labelNote}</Text>
                 ) : null}
                 {(lastCompletedOrder.labels || []).map((label) => (
-                  <TouchableOpacity
+                  <PrintLabelButton
                     key={label.trackingNumber || label.labelUrl}
-                    style={[styles.checkoutBtn, styles.successPrintBtn]}
                     onPress={() => void openLabel(label)}
-                  >
-                    <Text style={styles.checkoutText}>Print empties label to The Candle Garden</Text>
-                  </TouchableOpacity>
+                  />
                 ))}
               </View>
 
@@ -522,6 +750,7 @@ function OrdersScreenBody({ stripe }) {
                   />
                   <Text style={styles.historyMeta}>Valid promotions are applied securely at payment.</Text>
                 </View>
+                <GiftCardRedeem appliedCode={giftCardCode} onApply={setGiftCardCode} disabled={checkingOut || !!pendingGiftCheckout || recoveringGiftCheckout} />
                 {checkoutStep === 'account' && !isAuthenticated ? (
                   <View style={styles.shippingBox}>
                     <Text style={styles.shippingTitle}>I have an account</Text>
@@ -574,27 +803,63 @@ function OrdersScreenBody({ stripe }) {
                           ? 'One address for this whole order. Refill shipping uses the lowest-cost available carrier, priced for this address.'
                           : 'Add a way to reach you. In-store drop-off has no shipping charge.'}
                     </Text>
+                    {needsShipping ? <View>
+                      {isAuthenticated ? <Text style={styles.shippingHint}>Your saved account or previous order address fills in when available. You can change the address.</Text> : null}
+                      {isAuthenticated && historyOwner === shippingOwner && previousShipping(history) ?
+                        <TouchableOpacity style={styles.secondaryBtn} onPress={() => {
+                          applyShipping(current => applyProfileContact({ ...current, ...fillEmptyShipping({}, previousShipping(history)) }, user));
+                          setAddressNote('Previous order address selected. Review or edit it below.');
+                        }}><Text style={styles.secondaryText}>Use previous order address</Text></TouchableOpacity> : null}
+                      <TextInput style={styles.shippingInput} accessibilityLabel="Full US address lookup"
+                        placeholder="Paste full address, city, state, ZIP" placeholderTextColor={colors.textFaint}
+                        value={addressSearch} onChangeText={setAddressSearch} autoComplete="street-address"
+                        autoCorrect={false} maxLength={300} />
+                      <TouchableOpacity style={styles.secondaryBtn} onPress={lookupAddress}
+                        disabled={addressBusy || addressSearch.trim().length < 10} accessibilityRole="button">
+                        <Text style={styles.secondaryText}>{addressBusy ? 'Checking address?' : 'Find and check address'}</Text>
+                      </TouchableOpacity>
+                    </View> : null}
+                    {isAuthenticated && (user?.email || user?.phone) ? (
+                      <View style={styles.accountContact}>
+                        <Text style={styles.shippingHint}>Checkout uses the email and phone saved on your profile.</Text>
+                        {user?.email ? <Text style={styles.accountContactLine}>Email · {user.email}</Text> : null}
+                        {user?.phone ? <Text style={styles.accountContactLine}>Phone · {displayPhone(user.phone)}</Text> : null}
+                      </View>
+                    ) : null}
                     {(needsShipping
                       ? asGuest
-                        ? [['name', 'Name'], ['email', 'Email'], ['phone', 'Phone'], ['address', 'Street address'], ['city', 'City'], ['state', 'State'], ['zip', 'ZIP']]
-                        : [['name', 'Name'], ['phone', 'Phone'], ['address', 'Street address'], ['city', 'City'], ['state', 'State'], ['zip', 'ZIP']]
+                        ? [['name', 'Name'], ['email', 'Email'], ['phone', 'Phone'], ['zip', 'ZIP'], ['address', 'Street address'], ['city', 'City'], ['state', 'State']]
+                        : [['name', 'Name'], ['phone', 'Phone'], ['zip', 'ZIP'], ['address', 'Street address'], ['city', 'City'], ['state', 'State']]
                       : [['name', 'Name'], ['email', 'Email'], ['phone', 'Phone']]
-                    ).map(([key, label]) => (
+                    ).filter(([key]) => !(isAuthenticated && ((key === 'email' && user?.email) || (key === 'phone' && user?.phone)))).map(([key, label]) => (
                       <TextInput
                         key={key}
                         style={styles.shippingInput}
                         placeholder={label}
                         placeholderTextColor={colors.textFaint}
                         value={shipping[key]}
-                        onChangeText={(value) => setShipping((current) => ({ ...current, [key]: value }))}
-                        autoCapitalize={key === 'email' ? 'none' : key === 'state' || key === 'zip' ? 'characters' : 'words'}
-                        autoCorrect={key !== 'email'}
-                        keyboardType={key === 'email' ? 'email-address' : key === 'phone' || key === 'zip' ? 'numbers-and-punctuation' : 'default'}
+                        onChangeText={(value) => {
+                          setAddressNote('');
+                          if (key === 'zip') zipTouched.current = true;
+                          const nextValue = key === 'state' ? value.slice(0, 2).toUpperCase() : value;
+                          applyShipping((current) => {
+                            const next = { ...current, [key]: nextValue };
+                            rememberShipping(next);
+                            return next;
+                          });
+                        }}
+                        autoComplete={{name:'name',email:'email',phone:'tel',address:'street-address',city:'address-level2',state:'address-level1',zip:'postal-code'}[key]}
+                        autoCapitalize={key === 'email' ? 'none' : key === 'state' ? 'characters' : key === 'zip' ? 'none' : 'words'}
+                        autoCorrect={key !== 'email' && key !== 'zip'}
+                        keyboardType={key === 'email' ? 'email-address' : key === 'phone' ? 'phone-pad' : key === 'zip' ? 'number-pad' : 'default'}
+                        maxLength={key === 'state' ? 2 : key === 'zip' ? 10 : undefined}
                       />
                     ))}
-                    <TouchableOpacity style={styles.checkoutBtn} onPress={submitShippingAndPay} disabled={checkingOut}>
+                    {needsShipping ? <Text style={styles.shippingHint}>Enter the ZIP first. City and state fill in when the ZIP is recognized. We confirm the street before payment.</Text> : null}
+                    {addressNote ? <Text style={styles.historyError}>{addressNote}</Text> : null}
+                    <TouchableOpacity style={styles.checkoutBtn} onPress={submitShippingAndPay} disabled={checkingOut || addressBusy}>
                       <Text style={styles.checkoutText}>
-                        {checkingOut ? 'Opening secure checkout…' : 'Continue to payment'}
+                        {addressBusy ? 'Checking address…' : checkingOut ? 'Opening secure checkout…' : 'Continue to payment'}
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.secondaryBtn} onPress={backToChoice}>
@@ -622,7 +887,7 @@ function OrdersScreenBody({ stripe }) {
                           onPress={() => navigation.navigate('Profile', { intent: 'signup' })}
                           disabled={checkingOut}
                         >
-                          <Text style={styles.secondaryText}>Sign up for an account</Text>
+                          <Text style={styles.secondaryText}>Become a member</Text>
                         </TouchableOpacity>
                       </>
                     )}
@@ -649,6 +914,7 @@ function OrdersScreenBody({ stripe }) {
                 ))
               )}
             </View>
+            <PoweredBy />
           </View>
         }
       />
@@ -969,10 +1235,14 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 12,
   },
-  successPrintBtn: {
-    alignSelf: 'stretch',
-    marginTop: 12,
-    marginBottom: 0,
+  accountContact: {
+    marginBottom: 8,
+  },
+  accountContactLine: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.text,
+    marginTop: 4,
   },
   footer: {
     marginTop: 8,

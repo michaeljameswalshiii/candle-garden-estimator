@@ -3,6 +3,7 @@ import React, { Suspense, lazy } from 'react';
 import { ActivityIndicator, View, Text, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import * as Updates from 'expo-updates';
@@ -13,6 +14,8 @@ import ProductsScreen from './screens/ProductsScreen';
 import OrdersScreen from './screens/OrdersScreen';
 import ClassScheduleScreen from './screens/ClassScheduleScreen';
 import ProfileScreen from './screens/ProfileScreen';
+import LegalScreen from './screens/LegalScreen';
+import SupportScreen from './screens/SupportScreen';
 import { colors, navigationTheme, fonts } from './lib/theme';
 import { CartProvider, useCart } from './lib/cart';
 import { AuthProvider, useAuth } from './lib/AuthContext';
@@ -22,6 +25,7 @@ import { STRIPE_PUBLISHABLE_KEY, APPLE_MERCHANT_IDENTIFIER } from './lib/stripeC
 const EstimatorScreen = lazy(() => import('./screens/EstimatorScreen'));
 
 const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator();
 
 function EstimatorSuspense() {
   return (
@@ -116,7 +120,7 @@ function MainTabs() {
         name="Profile"
         component={ProfileScreen}
         options={{
-          title: 'Profile',
+          title: 'Account',
           tabBarBadge: isAuthenticated ? undefined : '!',
           tabBarBadgeStyle: {
             backgroundColor: colors.warning,
@@ -150,7 +154,18 @@ function AppTree() {
             }}
           >
             <StatusBar style="dark" />
-            <MainTabs />
+            <Stack.Navigator>
+              <Stack.Screen name="Tabs" component={MainTabs} options={{ headerShown: false }} />
+              <Stack.Screen
+                name="Legal"
+                component={LegalScreen}
+                options={({ route }) => ({
+                  title: route.params?.kind === 'terms' ? 'Terms' : 'Privacy',
+                  headerBackTitle: 'Back',
+                })}
+              />
+              <Stack.Screen name="Support" component={SupportScreen} options={{ title: 'Contact us', headerBackTitle: 'Back' }} />
+            </Stack.Navigator>
           </NavigationContainer>
         </CartProvider>
       </AuthTokenBridge>

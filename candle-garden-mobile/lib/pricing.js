@@ -131,6 +131,7 @@ export function calculateCost(ounces, options = {}) {
     needs_zip: !!quote.needsZip,
     quote_reason: quote.reason || '',
     legs: quote.legs || [],
+    materialsUsd: quote.materialsUsd || 0,
     customer_note: quote.customerNote || '',
     total_cost: total.toFixed(2),
     wax_cost_num: waxCost,

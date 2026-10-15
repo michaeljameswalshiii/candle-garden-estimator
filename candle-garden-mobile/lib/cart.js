@@ -10,7 +10,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from './clientStorage';
 import { isGiftCard } from './shopCatalog';
 import { refillScentKey } from '../../packages/catalog/refillScents';
 
@@ -34,7 +34,9 @@ async function loadPersistedLines() {
     const raw = await SecureStore.getItemAsync(CART_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter(item => !isGiftCard(item)) : [];
+    return Array.isArray(parsed) ? parsed.filter(item => !isGiftCard(item)).map(item => ({
+      ...item, type: ['refill', 'class'].includes(item.type) ? item.type : 'product',
+    })) : [];
   } catch {
     return [];
   }
@@ -81,7 +83,8 @@ export function CartProvider({ children }) {
 
   const addItem = useCallback((product, options = {}) => {
     if (isGiftCard(product) || isGiftCard({ type: options.type })) return;
-    const type = options.type || product.type || 'product';
+    const requestedType = options.type || product.type || 'product';
+    const type = ['refill', 'class'].includes(requestedType) ? requestedType : 'product';
     const size =
       options.size ||
       product.scheduleLabel ||

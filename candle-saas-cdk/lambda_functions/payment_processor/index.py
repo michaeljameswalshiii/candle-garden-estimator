@@ -11,6 +11,8 @@ import json
 import os
 import time
 import uuid
+import secrets
+import gift_cards
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -33,6 +35,21 @@ _catalog_cache = None
 _catalog_cache_expires = 0
 _classes_cache = None
 _classes_cache_expires = 0
+_service_secret_cache = {"value": {}, "expires": 0}
+
+
+def _service_secret(name):
+    direct = os.environ.get(name)
+    if direct:
+        return direct
+    arn = os.environ.get("GIFT_SERVICES_SECRET_ARN")
+    if not arn:
+        return ""
+    if _service_secret_cache["expires"] <= time.time():
+        import boto3
+        raw = boto3.client("secretsmanager").get_secret_value(SecretId=arn).get("SecretString", "{}")
+        _service_secret_cache.update({"value": json.loads(raw), "expires": time.time() + 300})
+    return str(_service_secret_cache["value"].get(name) or "")
 
 
 def _headers():
@@ -288,6 +305,8 @@ def _price_refill(item):
         "size": size,
         "quantity": qty,
         "unitCents": unit,
+        "shippingCents": int(quote.get("shipping_cents") or 0),
+        "waxCents": int(quote.get("wax_cents") or 0),
         "ounces": ounces,
         "boxKey": quote["box_key"],
         "destZip": _zip_or_none(dest_zip),
@@ -340,9 +359,13 @@ def amount_from_catalog(items):
         raise ValueError("Your cart is empty")
     total = 0
     priced = []
+    if any(str(item.get("type") or item.get("kind") or "").lower() == "gift_card" for item in items) and len(items) != 1:
+        raise ValueError("Purchase gift cards separately from other items.")
     for item in items:
         kind = str(item.get("type") or item.get("kind") or "product").lower()
-        if kind == "refill":
+        if kind == "gift_card":
+            line, row = gift_cards.price(item)
+        elif kind == "refill":
             line, row = _price_refill(item)
         elif kind == "class":
             line, row = _price_class(item)
@@ -391,6 +414,7 @@ def _stripe_request(path, values):
         headers={
             "Authorization": "Basic " + base64.b64encode(f"{key}:".encode()).decode(),
             "Content-Type": "application/x-www-form-urlencoded",
+            "Idempotency-Key": str(values.get("metadata[candle_garden_order_id]") or uuid.uuid4()),
         },
     )
     try:
@@ -459,7 +483,8 @@ def guest_contact_error(claims, body):
     phone = _phone_digits(shipping.get("phone") or body.get("phone"))
     if not _looks_like_email(email):
         return "A guest checkout needs an email address."
-    if len(phone) < 10:
+    gift_only = isinstance(body.get("items"), list) and len(body["items"]) == 1 and str(body["items"][0].get("type") or body["items"][0].get("kind") or "").lower() == "gift_card"
+    if len(phone) < 10 and not gift_only:
         return "A guest checkout needs a phone number."
     return None
 
@@ -549,6 +574,8 @@ def _order_items_for_store(priced, amount):
             "size": row.get("size"),
             "quantity": qty,
             "price": round(unit / 100.0, 2),
+            "shippingCents": row.get("shippingCents"),
+            "waxCents": row.get("waxCents"),
             "ounces": row.get("ounces"),
             "boxKey": row.get("boxKey"),
             "shippingMethod": row.get("shippingMethod"),
@@ -556,6 +583,8 @@ def _order_items_for_store(priced, amount):
             "vesselCount": row.get("vesselCount"),
             "variantId": row.get("variantId"),
             "scents": row.get("scents"),
+            "delivery": row.get("delivery"),
+            "vesselScents": row.get("vesselScents"),
         }
         rows.append({key: value for key, value in stored.items() if value is not None})
     return rows
@@ -568,7 +597,7 @@ def _put_checkout_order(order):
 def _get_order(order_id):
     if not order_id:
         return None
-    resp = _orders().get_item(Key={"id": order_id})
+    resp = _orders().get_item(Key={"id": order_id}, ConsistentRead=True)
     return resp.get("Item")
 
 
@@ -594,11 +623,17 @@ def _update_order(order_id, patch):
         names[f"#{key}"] = key
         values[f":{key}"] = _ddb_value(value)
         sets.append(f"#{key} = :{key}")
+    conditions = {}
+    if patch.get("status") in ("paid", "paid_test", "processing", "shipped", "completed", "ready_for_pickup", "refilling", "refill_returning", "refill_received", "ready_for_fulfillment"):
+        values[":refunded"] = "refunded"
+        values[":partial"] = "partially_refunded"
+        conditions["ConditionExpression"] = "attribute_exists(id) AND #status <> :refunded AND #status <> :partial"
     _orders().update_item(
         Key={"id": order_id},
         UpdateExpression="SET " + ", ".join(sets),
         ExpressionAttributeNames=names,
         ExpressionAttributeValues=values,
+        **conditions,
     )
 
 
@@ -736,6 +771,8 @@ def _create_payment_sheet(event):
     claims = _claims(event)
     headers = event.get("headers") or {}
     body = _body(event)
+    if body.get("giftCardCode") or any(str(item.get("type") or item.get("kind") or "").lower() == "gift_card" for item in (body.get("items") or []) if isinstance(item, dict)):
+        return _gift_checkout(event, body)
     device = headers.get("X-Device-Id") or headers.get("x-device-id") or "unknown"
     customer_id = claims.get("sub") or claims.get("cognito:username") or f"guest:{device}"
     shipping_form = body.get("shipping") if isinstance(body.get("shipping"), dict) else {}
@@ -820,7 +857,7 @@ def _create_payment_sheet(event):
 
 
 def _verify_webhook(event):
-    secret = os.environ.get("STRIPE_WEBHOOK_SECRET")
+    secret = _service_secret("STRIPE_WEBHOOK_SECRET")
     headers = event.get("headers") or {}
     signature = headers.get("Stripe-Signature") or headers.get("stripe-signature")
     raw = event.get("body") or ""
@@ -1049,6 +1086,8 @@ def _confirmation_text(order):
             f"Mail the empty vessels to {STUDIO_ADDRESS}. Postage for that trip is yours. "
             "We ship the refilled candles back to you. You do not need a label from us for the empties."
         )
+    elif any(item.get("type") == "gift_card" for item in order.get("items", [])):
+        lines.append("Your gift card will arrive in a separate email at the delivery address you selected. That email contains the redemption code for Candle Garden app checkout.")
     else:
         lines.append("We will follow up when your order is ready.")
     lines.extend(["", "Thank you,", "The Candle Garden"])
@@ -1056,6 +1095,9 @@ def _confirmation_text(order):
 
 
 def _ses():
+    if os.environ.get("EMAIL_PROVIDER") == "resend":
+        from resend_mail import ResendMailClient
+        return ResendMailClient(_service_secret("RESEND_API_KEY"))
     import boto3
     return boto3.client("ses", region_name=os.environ.get("AWS_REGION", "us-east-1"))
 
@@ -1097,7 +1139,7 @@ def _book_class_seats(order):
     if not lines:
         return None
     url = str(os.environ.get("CLASS_SEAT_URL") or "").strip()
-    secret = str(os.environ.get("CLASS_SEAT_SECRET") or "").strip()
+    secret = _service_secret("CLASS_SEAT_SECRET").strip()
     if not url or not secret:
         raise RuntimeError("Class seat booking is not configured")
     shipping = order.get("shipping") if isinstance(order.get("shipping"), dict) else {}
@@ -1141,6 +1183,7 @@ def _send_order_confirmation(order):
     if not email:
         return False
     subject, text = _confirmation_text(order)
+    provider_options = {"IdempotencyKey": "order-receipt:" + str(order["id"])} if os.environ.get("EMAIL_PROVIDER") == "resend" else {}
     _ses().send_email(
         Source=ORDER_FROM_EMAIL,
         Destination={"ToAddresses": [email]},
@@ -1149,24 +1192,208 @@ def _send_order_confirmation(order):
             "Subject": {"Data": subject, "Charset": "UTF-8"},
             "Body": {"Text": {"Data": text, "Charset": "UTF-8"}},
         },
+        **provider_options,
     )
     return True
 
 
-def _finalize_payment(event):
+def _gift_checkout(event, body):
+    order_id = None
+    reserved = False
+    stripe_started = False
+    try:
+        claims = _claims(event)
+        contact_error = guest_contact_error(claims, body)
+        if contact_error:
+            raise ValueError(contact_error)
+        key = _stripe_secret() or ""
+        if not key:
+            raise RuntimeError("Stripe checkout is not configured.")
+        live = key.startswith("sk_live_")
+        if live and os.environ.get("STRIPE_LIVE_ENABLED") != "true":
+            raise RuntimeError("Live Stripe charges are disabled for this app")
+        items = body.get("items")
+        dest = body.get("shipping") or {}
+        if not isinstance(dest, dict):
+            raise ValueError("Delivery details are invalid.")
+        if isinstance(items, list):
+            items = [{**item, **({"dest": dest, "destZip": dest.get("zip") or body.get("destZip")}
+                if item.get("type") == "refill" else {})} for item in items]
+        is_gift_purchase = isinstance(items, list) and len(items) == 1 and str(items[0].get("type") or items[0].get("kind") or "").lower() == "gift_card"
+        if body.get("giftCardCode") and body.get("promoCode"):
+            raise ValueError("Use a gift card or a promotion code for this order. Remove the promotion code to use your gift card.")
+        quote_url = os.environ.get("PRICE_QUOTE_URL")
+        if quote_url and not is_gift_purchase:
+            request = urllib.request.Request(quote_url, data=json.dumps({"items": items, "shipping": dest}).encode(),
+                method="POST", headers={"Content-Type": "application/json", "Accept": "application/json"})
+            try:
+                with urllib.request.urlopen(request, timeout=15) as response:
+                    quote = json.loads(response.read().decode())
+            except urllib.error.HTTPError as error:
+                detail = json.loads(error.read().decode()).get("error") or "Could not verify prices."
+                raise ValueError(detail) from error
+            total, priced = quote["total"], quote["items"]
+            if not isinstance(total, int) or total < 50 or total > 250000 or not isinstance(priced, list) or not priced:
+                raise ValueError("Could not verify current prices.")
+        else:
+            total, priced = amount_from_catalog(items)
+        is_purchase = priced[0]["type"] == "gift_card"
+        if is_purchase and os.environ.get("GIFT_CARD_EMAIL_READY") == "false":
+            raise RuntimeError("Gift card email delivery is being set up. Please try again later.")
+        if quote_url and any(item.get("type") == "class" for item in priced):
+            if not os.environ.get("CLASS_SEAT_URL") or not _service_secret("CLASS_SEAT_SECRET"):
+                raise RuntimeError("Class gift card checkout is not configured yet. Please contact the shop.")
+        if is_purchase and body.get("giftCardCode"):
+            raise ValueError("Gift cards cannot be used to buy another gift card.")
+        if not is_purchase and any(item.get("type") not in ("product", "class", "refill") for item in priced):
+            raise ValueError("Gift cards cover candles, refills, and classes.")
+        # Subscription renewals require a separate payment flow.
+        if not is_purchase and any(item.get("type") == "product" and _load_catalog().get(item["productId"], {}).get("isSubscribable") for item in priced):
+            raise ValueError("Gift cards cannot be used for subscriptions.")
+        order_id = str(uuid.uuid4())
+        token = secrets.token_urlsafe(32)
+        headers = event.get("headers") or {}
+        device = headers.get("X-Device-Id") or headers.get("x-device-id") or "unknown"
+        email = str(body.get("email") or dest.get("email") or claims.get("email") or "").strip()
+        if not _looks_like_email(email):
+            raise ValueError("Enter your email for the receipt.")
+        order = {"id": order_id, "customer_id": claims.get("sub") or f"guest:{device}",
+            "customer_email": email, "total_amount": total / 100, "status": "payment_pending",
+            "source": "mobile", "payment_provider": "stripe", "items": _order_items_for_store(priced, total),
+            "shipping": dest, "live": live, "gift_checkout": True,
+            "fulfillment_method": body.get("fulfillment") or "shipping",
+            "checkout_token_hash": hashlib.sha256(token.encode()).hexdigest(),
+            "created_at": _now_iso(), "updated_at": _now_iso()}
+        if packing_acknowledged(body):
+            order["packing_acknowledged"] = True
+        _put_checkout_order(order)  # Fail closed: never charge an untracked gift order.
+        gift_amount = 0
+        if body.get("giftCardCode"):
+            gift_amount = gift_cards.reserve(body["giftCardCode"], order_id, total, live)
+            reserved = True
+        amount = total - gift_amount
+        _update_order(order_id, {"gift_card_cents": gift_amount, "stripe_amount_cents": amount})
+        if not amount:
+            _update_order(order_id, {"payment_provider": "gift_card"})
+            return _response(200, {"orderId": order_id, "checkoutToken": token,
+                "giftCardCents": gift_amount, "amount": 0, "totalCents": total, "giftCardOnly": True})
+        payload = {"amount": amount, "currency": "usd", "automatic_payment_methods[enabled]": "true",
+            "metadata[candle_garden_order_id]": order_id, "metadata[candle_garden_mode]": "live" if live else "test",
+            "metadata[customer_id]": order["customer_id"], "receipt_email": email}
+        _update_order(order_id, {"stripe_create_payload": payload})
+        stripe_started = True
+        intent = _stripe_request("payment_intents", payload)
+        _update_order(order_id, {"payment_intent_id": intent["id"]})
+        return _response(200, {"orderId": order_id, "checkoutToken": token, "amount": amount,
+            "totalCents": total, "giftCardCents": gift_amount, "paymentIntentId": intent["id"],
+            "paymentIntentClientSecret": intent["client_secret"]})
+    except (ValueError, RuntimeError) as error:
+        rejected_before_creation = isinstance(error.__cause__, urllib.error.HTTPError) and 400 <= error.__cause__.code < 500 and error.__cause__.code != 429
+        if reserved and (not stripe_started or rejected_before_creation):
+            gift_cards.release(order_id)
+            _update_order(order_id, {"status": "cancelled"})
+        return _response(400, {"error": str(error)})
+    except Exception:
+        if reserved and not stripe_started:
+            gift_cards.release(order_id)
+        return _response(502, {"error": "Checkout could not start. Any pending gift balance will be restored after payment is cancelled."})
+
+
+def _authorized_checkout(body):
+    order = _get_order(str(body.get("orderId") or ""))
+    supplied = hashlib.sha256(str(body.get("checkoutToken") or "").encode()).hexdigest()
+    if not order or not order.get("checkout_token_hash") or not hmac.compare_digest(supplied, order["checkout_token_hash"]):
+        raise ValueError("This checkout reference is invalid.")
+    return order
+
+
+def _gift_action(event, action):
+    try:
+        body = _body(event)
+        if action == "balance":
+            live = str(_stripe_secret() or "").startswith("sk_live_")
+            card = gift_cards.get(body.get("code"), live)
+            return _response(200, {"balanceCents": int(card["balanceCents"])})
+        order = _authorized_checkout(body)
+        if action == "cancel":
+            if order.get("payment_provider") == "gift_card":
+                # Commit/release is conditional; simultaneous completion cannot overspend.
+                if not gift_cards.release(order["id"]):
+                    return _finalize_payment({}, trusted_order=order)
+            else:
+                pi = order.get("payment_intent_id")
+                if not pi and order.get("stripe_create_payload"):
+                    pi = _stripe_request("payment_intents", order["stripe_create_payload"])["id"]
+                    _update_order(order["id"], {"payment_intent_id": pi})
+                if pi:
+                    intent = _stripe_get(f"payment_intents/{pi}")
+                    if intent.get("status") == "succeeded":
+                        return _finalize_payment({"body": {"paymentIntentId": pi}}, trusted_payment=True)
+                    if intent.get("status") != "canceled":
+                        intent = _stripe_request(f"payment_intents/{pi}/cancel", {})
+                    if intent.get("status") != "canceled":
+                        raise RuntimeError("Payment cancellation is still pending.")
+                gift_cards.release(order["id"])
+            _update_order(order["id"], {"status": "cancelled"})
+            return _response(200, {"cancelled": True})
+        row = gift_cards.table().get_item(Key={"id": "delivery:" + order["id"]}, ConsistentRead=True).get("Item")
+        return _response(200, {"emailSent": bool(row and row.get("state") == "sent"),
+            "paid": order.get("status") in ("paid", "paid_test"), "orderId": order["id"]})
+    except (ValueError, RuntimeError) as error:
+        return _response(400, {"error": str(error)})
+    except Exception:
+        return _response(502, {"error": "Could not update gift card checkout. Please try again."})
+
+
+def _finalize_payment(event, trusted_order=None, trusted_payment=False):
     try:
         body = _body(event)
         payment_intent_id = str(body.get("paymentIntentId") or "").strip()
-        if not payment_intent_id.startswith("pi_"):
-            raise ValueError("A Stripe payment reference is required")
-        intent = _stripe_get(f"payment_intents/{urllib.parse.quote(payment_intent_id)}")
+        if trusted_order or (body.get("orderId") and not payment_intent_id):
+            order = trusted_order or _authorized_checkout(body)
+            if order.get("payment_provider") != "gift_card" or int(order.get("stripe_amount_cents", -1)) != 0:
+                raise ValueError("A Stripe payment reference is required")
+            reservation = gift_cards.reservation(order["id"])
+            if not reservation or reservation["state"] not in ("reserved", "redeemed"):
+                raise ValueError("This gift card payment was cancelled.")
+            intent = {"status": "succeeded", "livemode": bool(order.get("live")),
+                "metadata": {"candle_garden_order_id": order["id"]}}
+        else:
+            if not payment_intent_id.startswith("pi_"):
+                raise ValueError("A Stripe payment reference is required")
+            intent = _stripe_get(f"payment_intents/{urllib.parse.quote(payment_intent_id)}")
         paid = intent.get("status") == "succeeded"
         status = "paid" if paid and intent.get("livemode") else "paid_test" if paid else f"payment_{intent.get('status')}"
         metadata = intent.get("metadata") or {}
         order = _get_order(metadata.get("candle_garden_order_id")) or _find_order_by_payment_intent(payment_intent_id)
+        if paid and order and order.get("status") in ("processing", "shipped", "completed", "ready_for_pickup", "refilling", "refill_returning", "refill_received", "ready_for_fulfillment"):
+            status = order["status"]
+        if order and order.get("gift_checkout") and not paid:
+            status = "payment_pending"
+            if intent.get("status") == "canceled":
+                gift_cards.release(order["id"])
+                status = "cancelled"
         customer_labels = []
         shipping_labels = []
         if order:
+            if order.get("gift_checkout") and payment_intent_id and not trusted_payment:
+                authorized = _authorized_checkout(body)
+                if authorized["id"] != order["id"]:
+                    raise ValueError("Payment does not match this checkout.")
+            if paid and order.get("gift_checkout"):
+                if order.get("gift_refund_review") or order.get("status") in ("refunded", "partially_refunded"):
+                    raise ValueError("This payment has been refunded. Contact the shop for assistance.")
+                if order.get("payment_intent_id") and order["payment_intent_id"] != payment_intent_id:
+                    raise ValueError("Payment does not match this order.")
+                if payment_intent_id and (int(intent.get("amount_received", -1)) != int(order["stripe_amount_cents"]) or intent.get("currency") != "usd" or bool(intent.get("livemode")) != bool(order.get("live"))):
+                    raise ValueError("Payment amount does not match this order.")
+                if order.get("gift_card_cents"):
+                    gift_cards.commit(order["id"])
+                delivery = gift_cards.issue(order, bool(intent.get("livemode")), ORDERS_TABLE)
+                try:
+                    gift_cards.deliver(delivery, _ses(), ORDER_FROM_EMAIL, ORDER_REPLY_TO)
+                except Exception:
+                    print("Gift card delivery queued", order["id"])
             patch = {"status": status}
             if paid:
                 try:
@@ -1196,6 +1423,8 @@ def _finalize_payment(event):
                 _update_order(order["id"], patch)
             except Exception as error:
                 print(f"finalize order update failed: {error}")
+                if order.get("gift_checkout"):
+                    raise
             if paid and not order.get("confirmation_sent_at"):
                 try:
                     notice = dict(order)
@@ -1215,6 +1444,8 @@ def _finalize_payment(event):
             "orderId": order.get("id") if order else metadata.get("candle_garden_order_id"),
             "labels": customer_labels,
             "shipping_labels": [_public_label({**row, "imageBase64": None}) for row in shipping_labels],
+            "giftCardCents": int((order or {}).get("gift_card_cents", 0)),
+            "giftEmailSent": bool(order and order.get("gift_checkout") and 'delivery' in locals() and delivery and delivery.get("state") == "sent"),
         })
     except (ValueError, RuntimeError) as error:
         return _response(400, {"error": str(error)})
@@ -1223,6 +1454,51 @@ def _finalize_payment(event):
 
 
 def handler(event, context):
+    if event.get("source") == "aws.events":
+        # Recover abandoned checkouts only after confirming/cancelling their Stripe intent.
+        result = _orders().scan(FilterExpression="gift_checkout = :yes AND #s = :pending",
+            ExpressionAttributeNames={"#s": "status"},
+            ExpressionAttributeValues={":yes": True, ":pending": "payment_pending"})
+        while True:
+            for order in result.get("Items", []):
+                try:
+                    pi = order.get("payment_intent_id")
+                    created = datetime.fromisoformat(order["created_at"].replace("Z", "+00:00")).timestamp()
+                    if pi:
+                        intent = _stripe_get(f"payment_intents/{pi}")
+                        if intent.get("status") == "succeeded":
+                            response = _finalize_payment({"body": {"paymentIntentId": pi}}, trusted_payment=True)
+                            if response["statusCode"] != 200:
+                                print("Gift checkout recovery will retry", order["id"])
+                            continue
+                    if time.time() - created < 3600:
+                        continue
+                    if not pi and order.get("stripe_create_payload"):
+                        pi = _stripe_request("payment_intents", order["stripe_create_payload"])["id"]
+                        _update_order(order["id"], {"payment_intent_id": pi})
+                    if pi:
+                        intent = _stripe_get(f"payment_intents/{pi}")
+                        if intent.get("status") == "succeeded":
+                            _finalize_payment({"body": {"paymentIntentId": pi}}, trusted_payment=True)
+                            continue
+                        if intent.get("status") != "canceled":
+                            intent = _stripe_request(f"payment_intents/{pi}/cancel", {})
+                        if intent.get("status") != "canceled":
+                            continue
+                    if not gift_cards.release(order["id"]):
+                        _finalize_payment({}, trusted_order=order)
+                        continue
+                    _update_order(order["id"], {"status": "cancelled"})
+                except Exception:
+                    print("Gift checkout recovery will retry", order["id"])
+            cursor = result.get("LastEvaluatedKey")
+            if not cursor:
+                break
+            result = _orders().scan(FilterExpression="gift_checkout = :yes AND #s = :pending",
+                ExpressionAttributeNames={"#s": "status"},
+                ExpressionAttributeValues={":yes": True, ":pending": "payment_pending"}, ExclusiveStartKey=cursor)
+        gift_cards.retry_deliveries(_ses(), ORDER_FROM_EMAIL, ORDER_REPLY_TO)
+        return {"ok": True}
     method = (event.get("httpMethod") or "").upper()
     path = (event.get("path") or event.get("resource") or "").rstrip("/")
     if method == "OPTIONS":
@@ -1231,14 +1507,46 @@ def handler(event, context):
         return _create_payment_sheet(event)
     if method == "POST" and path.endswith("/payments/finalize"):
         return _finalize_payment(event)
+    for action in ("balance", "cancel", "status"):
+        if method == "POST" and path.endswith("/payments/gift-card-" + action):
+            return _gift_action(event, action)
     if method == "POST" and path.endswith("/payments/shipping-quote"):
         return _shipping_quote(event)
     if method == "POST" and path.endswith("/payments/refill-labels"):
         return _refill_labels(event)
     if method == "POST" and path.endswith("/payments/webhook"):
-        if not os.environ.get("STRIPE_WEBHOOK_SECRET"):
+        if not _service_secret("STRIPE_WEBHOOK_SECRET"):
             return _response(503, {"error": "Stripe webhook is not configured"})
         if not _verify_webhook(event):
             return _response(400, {"error": "Invalid Stripe signature"})
+        payload = _body(event)
+        kind = payload.get("type")
+        intent = (payload.get("data") or {}).get("object") or {}
+        if kind == "payment_intent.succeeded":
+            return _finalize_payment({"body": {"paymentIntentId": intent.get("id")}}, trusted_payment=True)
+        if kind == "payment_intent.canceled":
+            order_id = (intent.get("metadata") or {}).get("candle_garden_order_id")
+            if order_id:
+                try:
+                    order = _get_order(order_id)
+                    if order and order.get("gift_checkout"):
+                        gift_cards.release(order_id)
+                        _update_order(order_id, {"status": "cancelled"})
+                except Exception:
+                    return _response(502, {"error": "Cancellation will retry"})
+        if kind == "charge.refunded":
+            try:
+                pi = _stripe_get(f"payment_intents/{intent['payment_intent']}")
+                order = _get_order((pi.get("metadata") or {}).get("candle_garden_order_id"))
+                if order and order.get("gift_checkout"):
+                    # Retrieve current charge to defeat out-of-order refund events.
+                    charge = _stripe_get(f"charges/{intent['id']}")
+                    if any(item.get("type") == "gift_card" for item in order.get("items", [])):
+                        gift_cards.disable_refunded_purchase(order["id"])
+                        _update_order(order["id"], {"gift_refund_review": True})
+                    else:
+                        gift_cards.refund_redemption(order["id"], int(charge.get("amount_refunded", 0)), int(round(float(order["total_amount"]) * 100)))
+            except Exception:
+                return _response(502, {"error": "Gift card refund will retry"})
         return _response(200, {"received": True})
     return _response(404, {"error": "Not found"})

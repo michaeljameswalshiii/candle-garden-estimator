@@ -14,6 +14,9 @@ import {
   normalizeZip,
   formatUsd,
 } from './upsRates';
+import packingPrices from '../../packages/catalog/refill-packing.json';
+
+export const packingMaterialsUsd = boxKey => (packingPrices.materialsCents[boxKey] || packingPrices.materialsCents.ups_medium) / 100;
 
 export { RATES_AS_OF, ORIGIN_ZIP, ORIGIN_CITY, SERVICE_NAME, isValidDestZip, normalizeZip };
 
@@ -551,7 +554,8 @@ export function quoteShippingMethod({
     return { ok: false, method, box, packedWeight, recommendation, reason: out.reason, shippingCostUsd: 0, legs };
   }
 
-  const shippingCostUsd = money(legs.reduce((s, l) => s + l.totalUsd, 0));
+  const materialsUsd = method.key === 'kit_roundtrip' ? packingMaterialsUsd(box.key) : 0;
+  const shippingCostUsd = money(legs.reduce((s, l) => s + l.totalUsd, 0) + materialsUsd);
   const chargeWord = method.chargeCount === 1 ? 'trip' : 'trips';
 
   return {
@@ -564,6 +568,7 @@ export function quoteShippingMethod({
     zone: legs[0]?.zone,
     legs,
     shippingCostUsd,
+    materialsUsd,
     shippingLabel:
       method.key === 'ship_own'
         ? `${SERVICE_NAME} · return shipping to you · ${formatUsd(shippingCostUsd)}`

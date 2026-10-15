@@ -39,6 +39,66 @@ export function shippoConfigured() {
   return Boolean(process.env.SHIPPO_API_TOKEN?.trim());
 }
 
+export async function findUsAddress(fullAddress: string) {
+  const input = String(fullAddress || "").trim();
+  if (input.length < 10 || input.length > 300) {
+    return { valid: false, message: "Enter your full US street address, city, state, and ZIP." };
+  }
+  const parsed = await shippo<any>(`/v2/addresses/parse?address=${encodeURIComponent(input)}`);
+  if (parsed.country_code && parsed.country_code !== "US") {
+    return { valid: false, message: "Please enter a US shipping address." };
+  }
+  return validateUsAddress({
+    address: [parsed.address_line_1, parsed.address_line_2].filter(Boolean).join(", "),
+    city: parsed.city_locality,
+    state: parsed.state_province,
+    zip: parsed.postal_code,
+  });
+}
+
+export async function validateUsAddress(raw: Partial<Party> & { street?: string }) {
+  const street = String(raw.address || raw.street || "").trim();
+  const city = String(raw.city || "").trim();
+  const state = String(raw.state || "").trim().slice(0, 2).toUpperCase();
+  const zip = String(raw.zip || "").replace(/\D/g, "").slice(0, 5);
+  if (street.length < 3 || !city || state.length !== 2 || zip.length !== 5) {
+    return { valid: false, message: "Enter a street, city, two-letter state, and 5-digit ZIP." };
+  }
+  const payload = await shippo<any>("/addresses/", {
+    ...addr({
+      name: raw.name || "Customer",
+      address: street,
+      city,
+      state,
+      zip,
+      phone: raw.phone,
+      email: raw.email,
+      address2: raw.address2,
+    }),
+    validate: true,
+  });
+  const results = payload?.validation_results;
+  if (results?.is_valid !== true) {
+    const text = (results?.messages || [])
+      .map((row: { text?: string; message?: string }) => row.text || row.message)
+      .filter(Boolean)
+      .join(" ");
+    return {
+      valid: false,
+      message: text || "That address could not be confirmed. Check the street, city, state, and ZIP.",
+    };
+  }
+  return {
+    valid: true,
+    address: {
+      street: [String(payload.street1 || street), payload.street2].filter(Boolean).join(", "),
+      city: String(payload.city || city),
+      state: String(payload.state || state).slice(0, 2).toUpperCase(),
+      zip: String(payload.zip || zip).replace(/\D/g, "").slice(0, 5),
+    },
+  };
+}
+
 function allowUps() {
   return ["1", "true", "yes", "on"].includes(String(process.env.SHIPPO_ALLOW_UPS || "").toLowerCase());
 }

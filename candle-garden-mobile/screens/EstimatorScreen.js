@@ -19,9 +19,9 @@ import { STORE } from '../lib/storeInfo';
 import { prepareImageForDetect, isImageManipulatorAvailable } from '../lib/prepareImage';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 import { postDetect, postShippingQuote } from '../lib/apiClient';
-import { useAuth } from '../lib/AuthContext';
 import { useCart } from '../lib/cart';
 import RefillScentSelector from '../components/RefillScentSelector';
+import PoweredBy from '../components/PoweredBy';
 import { estimateVessels, refillScents, vesselScentChoices } from '../../packages/catalog/refillScents';
 import { products } from '../lib/shopCatalog';
 
@@ -63,7 +63,6 @@ function CustomButton({ title, onPress, disabled, color, compact }) {
 export default function EstimatorScreen() {
   const navigation = useNavigation();
   const route = useRoute();
-  const { isAuthenticated } = useAuth();
   const { addItem } = useCart();
   const [image, setImage] = useState(null);
   const [result, setResult] = useState(null);
@@ -440,9 +439,6 @@ export default function EstimatorScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Refill Estimator</Text>
-      <Text style={styles.buildTag}>
-        build: ups-ground-saver-v1 {'·'} {isAuthenticated ? 'signed in' : 'guest'}
-      </Text>
       <View style={styles.stepsCard}>
         <Text style={styles.stepsHeading}>How to photograph</Text>
         {PHOTO_STEPS.map((step, index) => (
@@ -580,9 +576,13 @@ export default function EstimatorScreen() {
                 {methodKey === 'ship_own' && refillSpeed === 'expedited' ? (
                   <Text style={styles.methodWarn}>Send empties UPS 2nd Day Air so Expedited timing can start when they arrive.</Text>
                 ) : null}
-                {methodCost.quote_ok && methodCost.legs?.length ? methodCost.legs.map((leg) => (
-                  <Text key={leg.key} style={styles.legLine}>{'•'} {leg.title}: ${leg.totalUsd.toFixed(2)} ({leg.billedLb} lb, zone {leg.zone})</Text>
+                {live?.legs?.length ? live.legs.map(leg => (
+                  <Text key={leg.key} style={styles.legLine}>{leg.title}: ${(leg.cents / 100).toFixed(2)} · {leg.provider} {leg.service}</Text>
+                )) : methodCost.quote_ok && methodCost.legs?.length ? methodCost.legs.map((leg) => (
+                  <Text key={leg.key} style={styles.legLine}>{leg.title}: ${leg.totalUsd.toFixed(2)} (estimate · {leg.billedLb} lb)</Text>
                 )) : null}
+                {methodKey === 'kit_roundtrip' && (live?.materials_cents || methodCost.materialsUsd) ?
+                  <Text style={styles.legLine}>Carton, protective wrap & packing: ${((live?.materials_cents ?? methodCost.materialsUsd * 100) / 100).toFixed(2)}</Text> : null}
                 {!methodCost.quote_ok && methodCost.quote_reason && !methodCost.needs_zip ? (
                   <Text style={styles.methodWarn}>{methodCost.quote_reason}</Text>
                 ) : null}
@@ -650,6 +650,7 @@ export default function EstimatorScreen() {
           <CustomButton title="Add refill to cart" onPress={addEstimateToCart} disabled={!cost.quote_ok || !refillSpeed} />
         </View>
       )}
+      <PoweredBy />
     </ScrollView>
   );
 }
@@ -657,7 +658,7 @@ export default function EstimatorScreen() {
 const styles = StyleSheet.create({
   container: { flexGrow: 1, backgroundColor: colors.white, alignItems: 'center', padding: spacing.md + 4, paddingBottom: 28 },
   title: { fontFamily: fonts.heading, fontSize: 26, fontWeight: '400', marginBottom: 2, color: colors.primary, textAlign: 'center' },
-  buildTag: { fontFamily: fonts.body, fontSize: 11, color: colors.textFaint, marginBottom: 8, textAlign: 'center' },
+
   stepsCard: { width: '100%', backgroundColor: colors.surface, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 12 },
   stepsHeading: { fontFamily: fonts.heading, fontSize: 16, color: colors.primary, marginBottom: 8, textAlign: 'center' },
   stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 10 },
@@ -713,7 +714,7 @@ const styles = StyleSheet.create({
   methodMeta: { fontFamily: fonts.body, fontSize: 12, color: colors.primaryMid, marginTop: 2, textAlign: 'center' },
   methodBody: { fontFamily: fonts.body, fontSize: 12, color: colors.textSecondary, lineHeight: 17, marginTop: 4, textAlign: 'center' },
   methodWarn: { fontFamily: fonts.body, fontSize: 12, color: colors.danger, marginTop: 4, textAlign: 'center' },
-  legLine: { fontFamily: fonts.body, fontSize: 11, color: colors.textMuted, marginTop: 3, textAlign: 'center' },
+  legLine: { fontFamily: fonts.body, fontSize: 12, lineHeight: 18, color: colors.textMuted, marginTop: 6, textAlign: 'left' },
   boxOption: { width: '100%', padding: 10, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radii.sm, marginBottom: 8, backgroundColor: colors.white, alignItems: 'center' },
   boxOptionSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   boxName: { fontFamily: fonts.body, fontSize: 14, fontWeight: '700', color: colors.text, textAlign: 'center' },

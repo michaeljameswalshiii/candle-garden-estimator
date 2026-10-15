@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { candleGardenOrigin, lowestRate, shippoConfigured, type Party } from "@/lib/shippo";
+import { refillPackagePlan, packingMaterialsCents } from "@/lib/refill-pricing";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 type Method = "store_dropoff" | "ship_own" | "kit_roundtrip" | "prepaid_labels";
 const boxes: Record<string, [number, number, number, number]> = {
@@ -66,25 +67,33 @@ export async function POST(request: NextRequest) {
         note: dropoff.length ? "In-store drop-off has no shipping. Enter a 5-digit ZIP to estimate the other methods." : "Enter a 5-digit ZIP to estimate shipping.",
       });
     }
-    const plan = packagePlan(body);
+    const plan = refillPackagePlan(Number(body.ounces), Number(body.quantity || 1), Number(body.vesselCount || 1), String(body.boxKey || ''));
     const origin = candleGardenOrigin();
     const [out, inbound, kit] = await Promise.all([
       lowestRate(origin, destination, plan.refills, plan.dims),
-      lowestRate(destination, origin, plan.empties, plan.dims, true),
+      lowestRate(destination, origin, plan.empties, plan.dims, false),
       lowestRate(origin, destination, plan.kit, [12, 10, 2]),
     ]);
     const quotes = [
       ...dropoff,
       ...requested.filter((method) => ["ship_own", "kit_roundtrip", "prepaid_labels"].includes(method)).map((method) => {
-      const legs = method === "kit_roundtrip" ? [kit, inbound, out] : method === "prepaid_labels" ? [inbound, out] : [out];
-      const shipping_cents = legs.reduce((total, rate) => total + rate.cents, 0);
+      const multiplier = body.speed === 'expedited' ? 2.2 : 1;
+      const definitions = { kit_out: { rate: kit, title: 'Packing kit to you', weight: plan.kit },
+        empties_in: { rate: inbound, title: 'Empties to The Candle Garden', weight: plan.empties },
+        refills_out: { rate: out, title: 'Refills back to you', weight: plan.refills } };
+      const keys = method === 'kit_roundtrip' ? ['kit_out', 'empties_in', 'refills_out'] as const : method === 'prepaid_labels' ? ['empties_in', 'refills_out'] as const : ['refills_out'] as const;
+      const legs = keys.map(key => ({ key, title: definitions[key].title, cents: Math.round(definitions[key].rate.cents * multiplier),
+        service: definitions[key].rate.service, provider: definitions[key].rate.provider, billedLb: definitions[key].weight }));
+      const materials_cents = method === 'kit_roundtrip' ? packingMaterialsCents(String(body.boxKey || '')) : 0;
+      const shipping_cents = legs.reduce((total, leg) => total + leg.cents, 0) + materials_cents;
       return {
         method,
         shipping_cents,
         total_cents: shipping_cents,
+        materials_cents,
         rate_source: "shippo",
         service_summary: legs.map((rate) => `${rate.provider} ${rate.service}`).join(" + "),
-        legs: legs.map((rate) => ({ cents: rate.cents, service: rate.service, provider: rate.provider })),
+        legs,
       };
       }),
     ];

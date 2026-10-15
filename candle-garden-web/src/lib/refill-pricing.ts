@@ -1,4 +1,9 @@
 import { candleGardenOrigin, lowestRate, type Party } from "@/lib/shippo";
+import packing from "../../../packages/catalog/refill-packing.json";
+
+export function packingMaterialsCents(boxKey?: string) {
+  return packing.materialsCents[boxKey as keyof typeof packing.materialsCents] || packing.materialsCents.ups_medium;
+}
 
 const boxes: Record<string, [number, number, number, number]> = {
   ups_small: [10, 8, 6, 8], ups_medium: [12, 10, 8, 12], ups_large: [14, 12, 10, 16],
@@ -10,7 +15,7 @@ export function checkoutParty(raw: any): Party {
   return { name: String(raw.name || "Customer"), address: String(raw.address), address2: String(raw.address2 || raw.street2 || ""), city: String(raw.city), state: String(raw.state).slice(0, 2).toUpperCase(), zip, phone: String(raw.phone || ""), email: String(raw.email || ""), residential: true };
 }
 
-function plan(ounces: number, quantity: number, vessels: number, boxKey?: string) {
+export function refillPackagePlan(ounces: number, quantity: number, vessels: number, boxKey?: string) {
   const [length, width, height, tare] = boxes[String(boxKey || "")] || boxes.ups_medium;
   const wax = ounces * quantity;
   const count = Math.max(1, vessels || quantity);
@@ -28,7 +33,7 @@ export async function priceRefillShipping(item: any, destination: Party) {
   if (method === "store_dropoff") {
     return { shippingCents: 0, serviceSummary: "In-store drop-off", legs: [] };
   }
-  const shipment = plan(ounces, quantity, Number(item.vesselCount || quantity), item.boxKey);
+  const shipment = refillPackagePlan(ounces, quantity, Number(item.vesselCount || quantity), item.boxKey);
   const origin = candleGardenOrigin();
   if (item.shippingMethod === "local_dropoff") return {shippingCents:0, serviceSummary:"Local drop-off & pickup at Atlantic Beach", legs:[]};
   const outbound = await lowestRate(origin, destination, shipment.refills, shipment.dims);
@@ -42,5 +47,8 @@ export async function priceRefillShipping(item: any, destination: Party) {
     const rate = await lowestRate(origin, destination, shipment.kit, dims);
     legs.unshift({ key: "kit_out", from: origin, to: destination, weight: shipment.kit, dims, rate, description: "Candle Garden packing kit", returnLabel: false });
   }
-  return { shippingCents: legs.reduce((sum, leg) => sum + leg.rate.cents, 0), serviceSummary: legs.map((leg) => `${leg.rate.provider} ${leg.rate.service}`).join(" + "), legs };
+  const materialsCents = method === "kit_roundtrip" ? packingMaterialsCents(item.boxKey) : 0;
+  const multiplier = item.speed === "expedited" ? 2.2 : 1;
+  return { shippingCents: legs.reduce((sum, leg) => sum + Math.round(leg.rate.cents * multiplier), 0) + materialsCents,
+    materialsCents, serviceSummary: legs.map((leg) => `${leg.rate.provider} ${leg.rate.service}`).join(" + "), legs };
 }

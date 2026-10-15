@@ -15,6 +15,9 @@ ios/
 /candle-saas-cdk/
 /.github/
 /.vercel/
+/test-results/
+/tests/
+cdk.out/
 *.msi
 *.zip
 Screenshot*.png

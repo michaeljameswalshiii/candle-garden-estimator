@@ -88,6 +88,7 @@ export async function apiFetch(path, options = {}) {
     requireAuth = false,
     headers: extraHeaders,
     preferAccessToken = false,
+    usePaymentsAPI = false,
   } = options;
   const headers = await authHeaders(extraHeaders, { preferAccessToken });
 
@@ -99,7 +100,7 @@ export async function apiFetch(path, options = {}) {
 
   let res;
   try {
-    const base = /^\/(orders(?:\/|$)|payments\/(?:payment-sheet|finalize|shipping-quote)$|account\/push-token$|auth\/)/.test(path) ? COMMERCE_BASE : API_BASE;
+    const base = usePaymentsAPI ? API_BASE : /^\/(orders(?:\/|$)|payments\/(?:payment-sheet|finalize|shipping-quote|validate-address)$|account\/push-token$|auth\/)/.test(path) ? COMMERCE_BASE : API_BASE;
     res = await fetch(`${base}${path}`, {
       method,
       headers,
@@ -156,20 +157,37 @@ export async function createStripePaymentSheet(items, contact = {}) {
   if (contact.shipping) body.shipping = contact.shipping;
   body.fulfillment = contact.fulfillment || "shipping";
   if (contact.promoCode) body.promoCode = contact.promoCode.trim();
+  if (contact.giftCardCode) body.giftCardCode = contact.giftCardCode.trim();
   if (contact.packingAcknowledged) body.packingAcknowledged = true;
   return apiFetch('/payments/payment-sheet', {
     method: 'POST',
     body,
     requireAuth: false,
+    usePaymentsAPI: Boolean(contact.giftCardCode || items.some(item => item.type === 'gift_card')),
   });
 }
 
-export async function finalizeStripePayment(paymentIntentId) {
+export async function finalizeStripePayment(paymentIntentId, checkout = {}) {
   return apiFetch('/payments/finalize', {
     method: 'POST',
-    body: { paymentIntentId },
+    body: { paymentIntentId, orderId: checkout.orderId, checkoutToken: checkout.checkoutToken },
     requireAuth: false,
+    usePaymentsAPI: Boolean(checkout.checkoutToken),
   });
+}
+
+export async function giftCardBalance(code) {
+  return apiFetch('/payments/gift-card-balance', { method: 'POST', body: { code }, requireAuth: false });
+}
+
+export async function cancelGiftCheckout(checkout) {
+  return apiFetch('/payments/gift-card-cancel', { method: 'POST',
+    body: { orderId: checkout.orderId, checkoutToken: checkout.checkoutToken }, requireAuth: false });
+}
+
+export async function giftCheckoutStatus(checkout) {
+  return apiFetch('/payments/gift-card-status', { method: 'POST',
+    body: { orderId: checkout.orderId, checkoutToken: checkout.checkoutToken }, requireAuth: false });
 }
 
 export async function trackEvent(name, properties = {}) {
@@ -178,6 +196,18 @@ export async function trackEvent(name, properties = {}) {
   } catch {
     return null;
   }
+}
+
+export async function findShippingAddress(fullAddress) {
+  return apiFetch('/payments/validate-address', { method: 'POST', body: { fullAddress } });
+}
+
+export async function validateShippingAddress(shipping) {
+  return apiFetch('/payments/validate-address', {
+    method: 'POST',
+    body: { shipping },
+    requireAuth: false,
+  });
 }
 
 export async function postShippingQuote(payload) {

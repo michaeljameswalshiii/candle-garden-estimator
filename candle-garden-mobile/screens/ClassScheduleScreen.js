@@ -14,6 +14,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { classes as bundledClasses, fetchLatestClasses, getUpcomingClasses } from '../lib/classesCatalog';
 import { useCart } from '../lib/cart';
 import { colors, fonts, radii, spacing } from '../lib/theme';
+import PoweredBy from '../components/PoweredBy';
 
 export default function ClassScheduleScreen() {
   const navigation = useNavigation();
@@ -124,6 +125,7 @@ export default function ClassScheduleScreen() {
             );
           })
         )}
+        <PoweredBy />
       </ScrollView>
     </View>
   );

@@ -3,6 +3,9 @@ import { View, Text, TouchableOpacity, StyleSheet, Linking } from 'react-native'
 import { colors, fonts, radii } from '../lib/theme';
 import { STORE } from '../lib/storeInfo';
 import { scentSummary } from '../../packages/catalog/refillScents';
+import { quoteShippingMethod } from '../lib/shippingConfig';
+import PrintLabelButton from './PrintLabelButton';
+import { displayPhone } from '../lib/checkoutAddress';
 
 const STATUS_COPY = {
   payment_pending: ['Awaiting payment', 'Payment has not been confirmed.', -1],
@@ -24,6 +27,10 @@ const STATUS_COPY = {
 export function orderStatus(order) {
   const raw = String(order.status || 'payment_pending').toLowerCase();
   const status = raw === 'paid_test' ? 'paid' : raw;
+  if (status === 'paid' && (order.items || []).some(item => item.type === 'gift_card')) {
+    return { status, local: false, test: raw === 'paid_test', title: 'Gift card purchased',
+      description: 'Your gift card is delivered in a separate email with the code for app checkout.', phase: -1 };
+  }
   const local = order.fulfillment_method === 'pickup'
     || (order.items || []).some((item) => item.shippingMethod === 'local_dropoff');
   const copy = STATUS_COPY[status] || ['Update pending', 'Pull down to check the latest update from our team.', -1];
@@ -33,10 +40,35 @@ export function orderStatus(order) {
   return { status, local, test: raw === 'paid_test', title: copy[0], description: copy[1], phase: copy[2] };
 }
 
-function itemKind(item) {
-  if (item.type === 'refill') return 'Refill';
+function itemKind(item, refillNumber, refillCount) {
+  if (item.type === 'refill') return refillCount > 1 ? `Refill Order ${refillNumber}` : 'Refill';
   if (item.type === 'class') return 'Class';
+  if (item.type === 'gift_card') return 'Gift card';
   return 'Shop';
+}
+
+function refillNumberOf(items, item) {
+  return items.slice(0, items.indexOf(item) + 1).filter((row) => row.type === 'refill').length;
+}
+
+function lineShippingUsd(item, order) {
+  if (item.type !== 'refill') return null;
+  const method = item.shippingMethod || item.shipping_method;
+  if (method === 'store_dropoff' || method === 'local_dropoff') return 0;
+  const stored = Number(item.shippingCents);
+  if (Number.isFinite(stored)) return stored / 100;
+  const ounces = Number(item.ounces);
+  const zip = String(item.destZip || order.shipping?.zip || '').replace(/\D/g, '').slice(0, 5);
+  if (!ounces || zip.length !== 5) return null;
+  const quote = quoteShippingMethod({
+    destZip: zip,
+    methodKey: method || 'ship_own',
+    totalWaxOz: ounces * Number(item.quantity || 1),
+    vesselCount: Number(item.vesselCount || item.quantity || 1),
+    boxKey: item.boxKey,
+    speed: item.speed || 'standard',
+  });
+  return quote.ok ? quote.shippingCostUsd : null;
 }
 
 function itemDetail(item) {
@@ -53,6 +85,7 @@ function itemDetail(item) {
     return [ounces, vessels, method].filter(Boolean).join(' · ');
   }
   if (item.type === 'class') return item.size || item.scheduleLabel || 'Class reservation';
+  if (item.type === 'gift_card') return 'Delivered by email';
   return item.size || 'Shop item';
 }
 
@@ -75,7 +108,8 @@ export default function OrderHistoryCard({ order, onPrintLabel, onReorderProduct
   const progress = ['Received', 'Preparing', local ? 'Ready to collect' : 'On the way', 'Complete'];
   const visibleItems = expanded ? items : items.slice(0, 3);
   const refillItems = items.filter((item) => item.type === 'refill');
-  const productItems = items.filter((item) => !['refill', 'class'].includes(item.type));
+  const refillCount = refillItems.length;
+  const productItems = items.filter((item) => !['refill', 'class', 'gift_card'].includes(item.type));
 
   return (
     <View style={styles.card}>
@@ -111,19 +145,23 @@ export default function OrderHistoryCard({ order, onPrintLabel, onReorderProduct
         </View>
       ) : null}
 
-      {visibleItems.map((item, index) => (
+      {visibleItems.map((item, index) => {
+        const shippingUsd = lineShippingUsd(item, order);
+        return (
         <View style={styles.item} key={`${item.productId || item.name}-${index}`}>
           <View style={styles.itemCopy}>
-            <Text style={styles.kind}>{itemKind(item)}</Text>
+            <Text style={styles.kind}>{itemKind(item, refillNumberOf(items, item), refillCount)}</Text>
             <Text style={styles.itemTitle}>{item.quantity || 1} × {item.name || 'Candle Garden item'}</Text>
             <Text style={styles.meta}>{itemDetail(item)}</Text>
+            {shippingUsd != null ? <Text style={styles.meta}>Shipping ${shippingUsd.toFixed(2)}</Text> : null}
             {item.vesselScents?.length ? <Text style={styles.meta}>{scentSummary(item.vesselScents)}</Text> : null}
           </View>
           {item.price != null ? (
             <Text style={styles.amount}>${(Number(item.price) * Number(item.quantity || 1)).toFixed(2)}</Text>
           ) : null}
         </View>
-      ))}
+        );
+      })}
       {items.length > visibleItems.length ? (
         <Text style={styles.meta}>+ {items.length - visibleItems.length} more items</Text>
       ) : null}
@@ -138,9 +176,7 @@ export default function OrderHistoryCard({ order, onPrintLabel, onReorderProduct
             <Text style={styles.meta}>Label recipient: {label.recipient}</Text>
           ) : null}
           <Text style={styles.meta}>Tape this prepaid label to the box. The package must be addressed to The Candle Garden, not to you.</Text>
-          <TouchableOpacity onPress={() => onPrintLabel(label)} accessibilityRole="button" style={styles.printBtn}>
-            <Text style={styles.printText}>Print prepaid empties label</Text>
-          </TouchableOpacity>
+          <PrintLabelButton onPress={() => onPrintLabel(label)} />
         </View>
       ))}
 
@@ -183,7 +219,7 @@ export default function OrderHistoryCard({ order, onPrintLabel, onReorderProduct
 
       {refillItems.map((item, index) => (
         <TouchableOpacity key={`refill-${index}`} style={styles.reorder} onPress={() => onReorderRefill(item)}>
-          <Text style={styles.reorderText}>Refill the same vessels again</Text>
+          <Text style={styles.reorderText}>{refillItems.length > 1 ? `Refill Order ${index + 1}` : 'Refill the same vessels again'}</Text>
           <Text style={styles.meta}>Review today’s refill price and return option</Text>
         </TouchableOpacity>
       ))}
@@ -203,6 +239,7 @@ export default function OrderHistoryCard({ order, onPrintLabel, onReorderProduct
           <Text style={styles.itemTitle}>Receipt</Text>
           <Text selectable style={styles.meta}>Reference: {order.id}</Text>
           {order.customer_email ? <Text style={styles.meta}>Receipt email: {order.customer_email}</Text> : null}
+          {(order.shipping?.phone || order.phone) ? <Text style={styles.meta}>Phone: {displayPhone(order.shipping?.phone || order.phone)}</Text> : null}
           {order.promotion_code ? <Text style={styles.meta}>Promo code: {order.promotion_code}</Text> : null}
           {subtotal > 0 ? <Text style={styles.meta}>Subtotal: ${subtotal.toFixed(2)}</Text> : null}
           {discount > 0 ? <Text style={styles.meta}>Promotion: −${discount.toFixed(2)}</Text> : null}
@@ -362,14 +399,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 4,
   },
-  printBtn: {
-    marginTop: 10,
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  printText: { color: colors.white, fontWeight: '700', fontSize: 14 },
+
   pickupBox: {
     padding: 12,
     backgroundColor: colors.surface,

@@ -19,6 +19,8 @@ import {
   pushAvailable,
 } from '../lib/notifications';
 import { AppleAuthentication, appleSignInAvailable } from '../lib/appleSignIn';
+import Constants from 'expo-constants';
+import PoweredBy from '../components/PoweredBy';
 
 function CustomSwitch({ value, onValueChange }) {
   const isOn = Boolean(value);
@@ -67,6 +69,7 @@ export default function ProfileScreen() {
   const [appleAvailable,setAppleAvailable] = useState(false);
   React.useEffect(()=>{appleSignInAvailable().then(setAppleAvailable).catch(()=>{});},[]);
   const [mode, setMode] = useState('signin');
+  const [joinStep, setJoinStep] = useState(1);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
@@ -181,7 +184,7 @@ export default function ProfileScreen() {
   const onSaveProfile = async () => {
     try {
       await updateProfile({ name: name.trim(), phone: cognitoPhone(phone), address: address.trim(), marketingOptIn });
-      Alert.alert('Profile updated', 'Your contact details and communication preference were saved.');
+      Alert.alert('Saved', 'Checkout will use this phone and address.');
     } catch (e) {
       Alert.alert('Could not update profile', e.message || 'Try again');
     }
@@ -281,48 +284,79 @@ export default function ProfileScreen() {
     );
   }
 
+  const onAppleSignIn = async (options) => {
+    if (busy) return;
+    try { await signInWithApple(options); }
+    catch (error) {
+      if (error.data?.code === 'APPLE_LINK_REQUIRED') {
+        Alert.alert('Link your account?', 'Apple verified the email on your existing Candle Garden account. Link Apple sign-in to keep your orders and email password?', [
+          { text: 'Cancel', style: 'cancel' }, { text: 'Link Apple', onPress: () => onAppleSignIn({ linkExisting: true }) },
+        ]);
+      } else if (error.code !== 'ERR_REQUEST_CANCELED') Alert.alert('Sign-in unavailable', error.message);
+    }
+  };
+
   if (!isAuthenticated) {
     return (
       <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>Account</Text>
         <Text style={styles.lead}>
-          Sign in to save orders and attach refill quotes to your profile. You can still browse Shop and Classes as a guest.
+          Become a member to keep your orders, phone, and shipping address together. You can still shop and check out as a guest.
         </Text>
-        {appleAvailable && AppleAuthentication ? <View style={styles.section}><AppleAuthentication.AppleAuthenticationButton buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN} buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK} cornerRadius={8} style={{width:'100%',height:48}} onPress={async()=>{try{await signInWithApple();}catch(error){if(error.code!=='ERR_REQUEST_CANCELED')Alert.alert('Sign-in unavailable',error.message);}}}/><Text style={styles.hint}>Create an account or sign in without a password. Apple can keep your email private.</Text></View>:null}
+        <View style={styles.modeRow}>
+          {[{ id: 'signin', label: 'Sign in' }, { id: 'signup', label: 'Become a member' }].map((m) => {
+            const memberPath = mode === 'signup' || mode === 'confirm';
+            const on = m.id === 'signup' ? memberPath : !memberPath;
+            return (
+            <TouchableOpacity
+              key={m.id}
+              style={[styles.modeChip, on && styles.modeChipOn]}
+              onPress={() => { setMode(m.id); if (m.id === 'signup') setJoinStep(1); }}
+            >
+              <Text style={[styles.modeChipText, on && styles.modeChipTextOn]}>{m.label}</Text>
+            </TouchableOpacity>
+            );
+          })}
+        </View>
+        {appleAvailable && AppleAuthentication ? <View style={styles.section}><AppleAuthentication.AppleAuthenticationButton buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN} buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK} cornerRadius={8} style={{width:'100%',height:48,opacity:busy?0.6:1}} onPress={()=>onAppleSignIn()}/><Text style={styles.hint}>Members can also continue with Apple. Apple can keep your email private.</Text></View>:null}
         <View style={styles.section}>
-          <View style={styles.modeRow}>
-            {[{ id: 'signin', label: 'Sign in' }, { id: 'signup', label: 'Create' }, { id: 'confirm', label: 'Confirm' }, { id: 'forgot', label: 'Forgot' }].map((m) => (
-              <TouchableOpacity
-                key={m.id}
-                style={[styles.modeChip, (mode === m.id || (m.id === 'forgot' && mode === 'reset')) && styles.modeChipOn]}
-                onPress={() => setMode(m.id === 'forgot' ? 'forgot' : m.id)}
-              >
-                <Text style={[styles.modeChipText, (mode === m.id || (m.id === 'forgot' && mode === 'reset')) && styles.modeChipTextOn]}>{m.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          {mode === 'signup' ? (
+          {mode !== 'signin' ? (
+            <Text style={styles.stepKicker}>
+              {mode === 'confirm' ? 'Step 3 of 3 · Confirm your email' : mode === 'forgot' || mode === 'reset' ? 'Reset your password' : joinStep === 1 ? 'Step 1 of 3 · How we reach you' : 'Step 2 of 3 · Choose a password'}
+            </Text>
+          ) : null}
+          {mode === 'signup' && joinStep === 1 ? (
+            <Text style={styles.hint}>Checkout uses this phone and address. Your email is the sign-in name.</Text>
+          ) : null}
+          {mode === 'signup' && joinStep === 1 ? (
             <>
               <View style={styles.inputGroup}><Text style={styles.label}>Name</Text><TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Your name" placeholderTextColor={colors.textFaint} autoCapitalize="words" /></View>
               <View style={styles.inputGroup}><Text style={styles.label}>Phone</Text><TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="+1 904 555 0123" placeholderTextColor={colors.textFaint} keyboardType="phone-pad" autoComplete="tel" /></View>
               <View style={styles.inputGroup}><Text style={styles.label}>Mailing address</Text><TextInput style={[styles.input, styles.multiline]} value={address} onChangeText={setAddress} placeholder="Street, city, state, ZIP" placeholderTextColor={colors.textFaint} autoComplete="street-address" multiline /></View>
-              <TouchableOpacity style={styles.consentRow} onPress={() => setMarketingOptIn((value) => !value)} accessibilityRole="checkbox" accessibilityState={{ checked: marketingOptIn }}>
-                <View style={[styles.checkbox, marketingOptIn && styles.checkboxOn]}>{marketingOptIn ? <Text style={styles.checkmark}>✓</Text> : null}</View>
-                <Text style={styles.consentText}>Yes, send me Candle Garden news, product updates, classes, and occasional offers. I can unsubscribe at any time.</Text>
-              </TouchableOpacity>
             </>
           ) : null}
+          {mode === 'signup' && joinStep === 2 ? (
+            <Text style={styles.hint}>Membership email: {email.trim()}</Text>
+          ) : null}
+          {mode === 'signup' && joinStep === 2 ? (
+            <TouchableOpacity style={styles.consentRow} onPress={() => setMarketingOptIn((value) => !value)} accessibilityRole="checkbox" accessibilityState={{ checked: marketingOptIn }}>
+              <View style={[styles.checkbox, marketingOptIn && styles.checkboxOn]}>{marketingOptIn ? <Text style={styles.checkmark}>✓</Text> : null}</View>
+              <Text style={styles.consentText}>Yes, send me Candle Garden news, product updates, classes, and occasional offers. I can turn this off later.</Text>
+            </TouchableOpacity>
+          ) : null}
+          {mode !== 'signup' || joinStep === 1 ? (
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Email</Text>
             <TextInput style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} placeholder="you@example.com" placeholderTextColor={colors.textFaint} />
           </View>
+          ) : null}
           {(mode === 'confirm' || mode === 'reset') && (
             <View style={styles.inputGroup}>
               <Text style={styles.label}>{mode === 'reset' ? 'Reset code' : 'Confirmation code'}</Text>
               <TextInput style={styles.input} value={code} onChangeText={setCode} keyboardType="number-pad" placeholder="Code from email" placeholderTextColor={colors.textFaint} />
             </View>
           )}
-          {mode !== 'confirm' && mode !== 'forgot' ? (
+          {(mode === 'signin' || mode === 'reset' || (mode === 'signup' && joinStep === 2)) ? (
             <View style={styles.inputGroup}>
               <Text style={styles.label}>{mode === 'reset' ? 'New password' : 'Password'}</Text>
               <TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry placeholder="Min 8 chars, upper, lower, number" placeholderTextColor={colors.textFaint} />
@@ -336,40 +370,64 @@ export default function ProfileScreen() {
           ) : null}
           <TouchableOpacity
             style={[styles.button, busy && styles.buttonDisabled]}
-            onPress={mode === 'signin' ? onSignIn : mode === 'signup' ? onSignUp : mode === 'confirm' ? onConfirm : mode === 'forgot' ? onForgot : onResetPassword}
+            onPress={() => {
+              if (mode === 'signup' && joinStep === 1) {
+                if (!email.trim() || !phone.trim() || !address.trim()) {
+                  Alert.alert('Add contact details', 'Email, phone, and a mailing address are how a membership stays ready for checkout.');
+                  return;
+                }
+                setJoinStep(2);
+                return;
+              }
+              if (mode === 'signin') return onSignIn();
+              if (mode === 'signup') return onSignUp();
+              if (mode === 'confirm') return onConfirm();
+              if (mode === 'forgot') return onForgot();
+              return onResetPassword();
+            }}
             disabled={busy}
             activeOpacity={0.8}
           >
             {busy ? <ActivityIndicator color={colors.white} /> : (
               <Text style={styles.buttonText}>
-                {mode === 'signin' ? 'Sign in' : mode === 'signup' ? 'Create account' : mode === 'confirm' ? 'Confirm & sign in' : mode === 'forgot' ? 'Send reset code' : 'Set new password'}
+                {mode === 'signin' ? 'Sign in' : mode === 'signup' && joinStep === 1 ? 'Continue' : mode === 'signup' ? 'Create membership' : mode === 'confirm' ? 'Confirm & sign in' : mode === 'forgot' ? 'Send reset code' : 'Set new password'}
               </Text>
             )}
           </TouchableOpacity>
+          {mode === 'signup' && joinStep === 2 ? <TouchableOpacity style={styles.linkBtn} onPress={() => setJoinStep(1)} disabled={busy}><Text style={styles.linkText}>Back to your details</Text></TouchableOpacity> : null}
           {mode === 'confirm' ? <TouchableOpacity style={styles.linkBtn} onPress={onResend} disabled={busy}><Text style={styles.linkText}>Resend code</Text></TouchableOpacity> : null}
           {mode === 'signin' ? <TouchableOpacity style={styles.linkBtn} onPress={() => setMode('forgot')} disabled={busy}><Text style={styles.linkText}>Forgot password?</Text></TouchableOpacity> : null}
         </View>
-        <Text style={styles.version}>Version 1.1.0 (16) {'·'} The Candle Garden App</Text>
+        <Text style={styles.version}>Version {Constants.expoConfig?.version} ({Constants.platform?.ios?.buildNumber || Constants.expoConfig?.ios?.buildNumber}) {'·'} The Candle Garden App</Text>
+        <PoweredBy />
       </ScrollView>
     );
   }
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.title}>Profile</Text>
+      <Text style={styles.title}>Account</Text>
+      <Text style={styles.lead}>You’re a Candle Garden member. Checkout uses the email and phone saved here.</Text>
       <View style={styles.avatarContainer}>
         <View style={styles.avatar}><Text style={styles.avatarText}>{(user?.name || user?.email || '?').charAt(0).toUpperCase()}</Text></View>
-        <Text style={styles.avatarName}>{user?.name || 'Customer'}</Text>
+        <Text style={styles.avatarName}>{user?.name || 'Member'}</Text>
         <Text style={styles.muted}>{user?.email}</Text>
       </View>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Account</Text>
-        <Text style={styles.infoLine}>Email: {user?.email}</Text>
-        {user?.sub ? <Text style={styles.infoLine} numberOfLines={1}>ID: {user.sub}</Text> : null}
-        <Text style={styles.hint}>Orders API calls use your secure session. Refill detect still works as guest when signed out.</Text>
+        <Text style={styles.sectionTitle}>Your membership</Text>
+        {[
+          ['Signed in', true],
+          ['Phone and address for checkout', Boolean(String(user?.phone || '').trim() && String(user?.address || '').trim())],
+          ['Order alerts', notificationsEnabled],
+        ].map(([label, done]) => (
+          <Text key={label} style={styles.infoLine}>{done ? '✓' : '○'}  {label}{label === 'Order alerts' ? ' · optional' : ''}</Text>
+        ))}
+        {!String(user?.phone || '').trim() || !String(user?.address || '').trim() ? (
+          <Text style={styles.hint}>Add a phone and mailing address below. Checkout keeps those instead of an older order.</Text>
+        ) : null}
       </View>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Preferences</Text>
+        <Text style={styles.sectionTitle}>Contact for checkout</Text>
         <View style={styles.inputGroup}><Text style={styles.label}>Name</Text><TextInput style={styles.input} value={name} onChangeText={setName} autoCapitalize="words" /></View>
         <View style={styles.inputGroup}><Text style={styles.label}>Phone</Text><TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" autoComplete="tel" /></View>
         <View style={styles.inputGroup}><Text style={styles.label}>Mailing address</Text><TextInput style={[styles.input, styles.multiline]} value={address} onChangeText={setAddress} multiline autoComplete="street-address" /></View>
@@ -377,7 +435,7 @@ export default function ProfileScreen() {
           <View style={[styles.checkbox, marketingOptIn && styles.checkboxOn]}>{marketingOptIn ? <Text style={styles.checkmark}>✓</Text> : null}</View>
           <Text style={styles.consentText}>Receive Candle Garden news, product updates, classes, and occasional offers.</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.button, busy && styles.buttonDisabled]} onPress={onSaveProfile} disabled={busy || !phone.trim() || !address.trim()}><Text style={styles.buttonText}>Save profile</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.button, busy && styles.buttonDisabled]} onPress={onSaveProfile} disabled={busy || !phone.trim() || !address.trim()}><Text style={styles.buttonText}>Save contact details</Text></TouchableOpacity>
         {pushAvailable ? (
         <View style={styles.settingRow}>
           <View style={{ flex: 1, paddingRight: 8 }}>
@@ -390,14 +448,16 @@ export default function ProfileScreen() {
         {pushToken ? <Text style={styles.hint} numberOfLines={2}>Push linked{isAuthenticated ? ' to your account' : ' on this device only'}</Text> : null}
       </View>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Change password</Text>
+        <Text style={styles.sectionTitle}>Security</Text>
+        <Text style={styles.hint}>Use this when you sign in with a password. Apple sign-in does not use this password.</Text>
         <View style={styles.inputGroup}><Text style={styles.label}>Current password</Text><TextInput style={styles.input} value={oldPassword} onChangeText={setOldPassword} secureTextEntry placeholderTextColor={colors.textFaint} placeholder="Current password" /></View>
         <View style={styles.inputGroup}><Text style={styles.label}>New password</Text><TextInput style={styles.input} value={newPassword} onChangeText={setNewPassword} secureTextEntry placeholderTextColor={colors.textFaint} placeholder="Min 8 chars, upper, lower, number" /></View>
         <TouchableOpacity style={[styles.button, busy && styles.buttonDisabled]} onPress={onChangePassword} disabled={busy || !oldPassword || !newPassword}><Text style={styles.buttonText}>Update password</Text></TouchableOpacity>
       </View>
       <TouchableOpacity style={[styles.button, styles.logoutButton]} onPress={handleLogout} activeOpacity={0.8} disabled={busy}><Text style={[styles.buttonText, styles.logoutText]}>Sign out</Text></TouchableOpacity>
       <TouchableOpacity style={styles.deleteBtn} onPress={handleDeleteAccount} activeOpacity={0.8} disabled={busy}><Text style={styles.deleteText}>Delete account</Text></TouchableOpacity>
-      <Text style={styles.version}>Version 1.1.0 (16) {'·'} The Candle Garden App</Text>
+      <Text style={styles.version}>Version {Constants.expoConfig?.version} ({Constants.platform?.ios?.buildNumber || Constants.expoConfig?.ios?.buildNumber}) {'·'} The Candle Garden App</Text>
+      <PoweredBy />
     </ScrollView>
   );
 }
@@ -407,6 +467,7 @@ const styles = StyleSheet.create({
   centered: { justifyContent: 'center', alignItems: 'center' },
   title: { fontFamily: fonts.heading, fontSize: 26, fontWeight: '400', textAlign: 'center', marginBottom: 12, marginTop: 10, color: colors.primary },
   lead: { fontFamily: fonts.body, fontSize: 14, color: colors.textMuted, textAlign: 'center', marginBottom: 16, lineHeight: 20 },
+  stepKicker: { fontFamily: fonts.body, fontSize: 13, fontWeight: '700', color: colors.primary, marginBottom: 8 },
   muted: { fontFamily: fonts.body, fontSize: 13, color: colors.textMuted, marginTop: 4 },
   avatarContainer: { alignItems: 'center', marginBottom: 24 },
   avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: colors.lightAccent, justifyContent: 'center', alignItems: 'center', marginBottom: 10, borderWidth: 2, borderColor: colors.primary },
