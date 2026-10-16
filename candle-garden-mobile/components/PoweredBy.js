@@ -76,8 +76,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   creditLogo: {
-    width: 54,
-    height: 14,
+    width: 81,
+    height: 21,
   },
   credit: {
     flexShrink: 1,

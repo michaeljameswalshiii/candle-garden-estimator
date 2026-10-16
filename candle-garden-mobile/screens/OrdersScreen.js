@@ -827,33 +827,39 @@ function OrdersScreenBody({ stripe }) {
                       </View>
                     ) : null}
                     {(needsShipping
-                      ? asGuest
-                        ? [['name', 'Name'], ['email', 'Email'], ['phone', 'Phone'], ['zip', 'ZIP'], ['address', 'Street address'], ['city', 'City'], ['state', 'State']]
-                        : [['name', 'Name'], ['phone', 'Phone'], ['zip', 'ZIP'], ['address', 'Street address'], ['city', 'City'], ['state', 'State']]
+                      ? [['name', 'Name'], ['email', 'Email'], ['phone', 'Phone'], ['zip', 'ZIP'], ['address', 'Street address'], ['city', 'City'], ['state', 'State']]
                       : [['name', 'Name'], ['email', 'Email'], ['phone', 'Phone']]
-                    ).filter(([key]) => !(isAuthenticated && ((key === 'email' && user?.email) || (key === 'phone' && user?.phone)))).map(([key, label]) => (
-                      <TextInput
-                        key={key}
-                        style={styles.shippingInput}
-                        placeholder={label}
-                        placeholderTextColor={colors.textFaint}
-                        value={shipping[key]}
-                        onChangeText={(value) => {
-                          setAddressNote('');
-                          if (key === 'zip') zipTouched.current = true;
-                          const nextValue = key === 'state' ? value.slice(0, 2).toUpperCase() : value;
-                          applyShipping((current) => {
-                            const next = { ...current, [key]: nextValue };
-                            rememberShipping(next);
-                            return next;
-                          });
-                        }}
-                        autoComplete={{name:'name',email:'email',phone:'tel',address:'street-address',city:'address-level2',state:'address-level1',zip:'postal-code'}[key]}
-                        autoCapitalize={key === 'email' ? 'none' : key === 'state' ? 'characters' : key === 'zip' ? 'none' : 'words'}
-                        autoCorrect={key !== 'email' && key !== 'zip'}
-                        keyboardType={key === 'email' ? 'email-address' : key === 'phone' ? 'phone-pad' : key === 'zip' ? 'number-pad' : 'default'}
-                        maxLength={key === 'state' ? 2 : key === 'zip' ? 10 : undefined}
-                      />
+                    ).filter(([key]) => {
+                      if (key === 'email') return asGuest || !user?.email;
+                      if (key === 'phone') return !(isAuthenticated && user?.phone);
+                      return true;
+                    }).map(([key, label]) => (
+                      <View key={key}>
+                        {key === 'email' ? <Text style={styles.fieldLabel}>Email</Text> : null}
+                        <TextInput
+                          style={styles.shippingInput}
+                          placeholder={key === 'email' ? 'you@example.com' : label}
+                          placeholderTextColor={colors.textFaint}
+                          accessibilityLabel={key === 'email' ? 'Email address' : label}
+                          value={shipping[key]}
+                          onChangeText={(value) => {
+                            setAddressNote('');
+                            if (key === 'zip') zipTouched.current = true;
+                            const nextValue = key === 'state' ? value.slice(0, 2).toUpperCase() : value;
+                            applyShipping((current) => {
+                              const next = { ...current, [key]: nextValue };
+                              rememberShipping(next);
+                              return next;
+                            });
+                          }}
+                          autoComplete={{name:'name',email:'email',phone:'tel',address:'street-address',city:'address-level2',state:'address-level1',zip:'postal-code'}[key]}
+                          autoCapitalize={key === 'email' ? 'none' : key === 'state' ? 'characters' : key === 'zip' ? 'none' : 'words'}
+                          autoCorrect={key !== 'email' && key !== 'zip'}
+                          keyboardType={key === 'email' ? 'email-address' : key === 'phone' ? 'phone-pad' : key === 'zip' ? 'number-pad' : 'default'}
+                          maxLength={key === 'email' ? 120 : key === 'state' ? 2 : key === 'zip' ? 10 : undefined}
+                          textContentType={key === 'email' ? 'emailAddress' : undefined}
+                        />
+                      </View>
                     ))}
                     {needsShipping ? <Text style={styles.shippingHint}>Enter the ZIP first. City and state fill in when the ZIP is recognized. We confirm the street before payment.</Text> : null}
                     {addressNote ? <Text style={styles.historyError}>{addressNote}</Text> : null}
@@ -1357,6 +1363,13 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginBottom: 10,
     lineHeight: 18,
+  },
+  fieldLabel: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 4,
   },
   shippingInput: {
     fontFamily: fonts.body,

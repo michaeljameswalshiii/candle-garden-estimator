@@ -30,6 +30,11 @@ test("checkout saves refill labels and mobile admin can reprint them", () => {
   assert.match(source, /finalizeStripePayment/);
   assert.match(source, /A guest checkout needs an email address/);
   assert.match(source, /A guest checkout needs a phone number/);
+  assert.match(source, /accessibilityLabel=\{key === 'email' \? 'Email address' : label\}/);
+  assert.match(source, /if \(key === 'email'\) return asGuest \|\| !user\?\.email/);
+  const credit = fs.readFileSync(path.join(mobile, "components", "PoweredBy.js"), "utf8");
+  assert.match(credit, /width: 81/);
+  assert.match(credit, /height: 21/);
   assert.match(source, /OrderHistoryCard/);
   assert.match(source, /empties_in/);
   const history = fs.readFileSync(path.join(mobile, "components", "OrderHistoryCard.js"), "utf8");
