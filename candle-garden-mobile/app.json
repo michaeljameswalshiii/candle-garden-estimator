@@ -34,7 +34,7 @@
       "entitlements": {
         "aps-environment": "production"
       },
-      "buildNumber": "48",
+      "buildNumber": "49",
       "usesAppleSignIn": true
     },
     "android": {
