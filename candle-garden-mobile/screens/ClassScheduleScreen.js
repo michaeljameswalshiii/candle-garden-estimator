@@ -82,22 +82,22 @@ export default function ClassScheduleScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <ScrollView
+        style={styles.scroller}
+        contentContainerStyle={styles.list}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={refreshClasses} />}
+      >
         <Image
           source={lifestyle.classLavender}
           style={styles.heroImage}
           resizeMode="cover"
           accessibilityLabel="Measuring lavender fragrance oil for a candle pour"
         />
-        <View style={styles.headerCopy}>
-          <Text style={styles.title}>Book a class</Text>
-          <Text style={styles.subtitle}>
-            Add a seat to your app cart and check out in Cart. Payment reserves that seat on the class.
-          </Text>
-          <Text style={styles.liveStatus}>{status}</Text>
-        </View>
-      </View>
-      <ScrollView contentContainerStyle={styles.list} refreshControl={<RefreshControl refreshing={loading} onRefresh={refreshClasses} />}>
+        <Text style={styles.title}>Book a class</Text>
+        <Text style={styles.subtitle}>
+          Add a seat to your app cart and check out in Cart. Payment reserves that seat on the class.
+        </Text>
+        <Text style={styles.liveStatus}>{status}</Text>
         {error ? <Text style={styles.emptyText}>{error} Pull down or tap Retry to refresh.</Text> : null}
         {!upcoming.length ? (
           <View style={styles.empty}>
@@ -111,7 +111,9 @@ export default function ClassScheduleScreen() {
             return (
               <View key={course.id} style={styles.classCard}>
                 {course.image ? (
-                  <Image source={{ uri: course.image }} style={styles.classImage} resizeMode="contain" />
+                  <View style={styles.classImageWrap}>
+                    <Image source={{ uri: course.image }} style={styles.classImage} resizeMode="cover" />
+                  </View>
                 ) : null}
                 <View style={styles.classBody}>
                   <Text style={styles.classTitle} numberOfLines={2}>
@@ -142,19 +144,17 @@ export default function ClassScheduleScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.white },
-  header: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  heroImage: { width: '100%', aspectRatio: 1400 / 790 },
-  headerCopy: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+  scroller: { flex: 1 },
+  heroImage: {
+    width: '100%',
+    height: 132,
+    borderRadius: radii.md || 10,
+    marginBottom: 4,
+    backgroundColor: colors.border,
   },
   title: { color: colors.primary, fontFamily: fonts.heading, fontSize: 19 },
   subtitle: { color: colors.textMuted, fontFamily: fonts.body, fontSize: 12, marginTop: 2 },
-  liveStatus: { color: colors.primary, fontFamily: fonts.body, fontSize: 10, fontWeight: '600', marginTop: 4 },
+  liveStatus: { color: colors.primary, fontFamily: fonts.body, fontSize: 10, fontWeight: '600', marginTop: 4, marginBottom: 4 },
   list: { padding: spacing.md, gap: 12, paddingBottom: 32 },
   empty: { paddingVertical: 40, alignItems: 'center', gap: 10 },
   emptyText: { color: colors.textMuted, fontFamily: fonts.body },
@@ -167,7 +167,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     gap: 10,
   },
-  classImage: { width: 88, height: 88, borderRadius: 8, backgroundColor: colors.border },
+  classImageWrap: {
+    width: 88,
+    height: 88,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: colors.border,
+  },
+  classImage: { width: 88, height: 88 },
   classBody: { flex: 1 },
   classTitle: { color: colors.primary, fontFamily: fonts.heading, fontSize: 16 },
   classMeta: { color: colors.textMuted, fontFamily: fonts.body, fontSize: 12, marginTop: 4 },
