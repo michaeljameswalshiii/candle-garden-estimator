@@ -11,6 +11,11 @@ export const lifestyle = {
   classMelt: require('../assets/lifestyle/class-melt.jpg'),
   scentMoment: require('../assets/lifestyle/scent-moment.jpg'),
   redCurrant: require('../assets/lifestyle/red-currant.jpg'),
+  shoreCandle: require('../assets/lifestyle/shore-candle.jpg'),
+  shorePig: require('../assets/lifestyle/shore-pig.jpg'),
+  classLavender: require('../assets/lifestyle/class-lavender.jpg'),
+  scentAlmond: require('../assets/lifestyle/scent-almond.jpg'),
+  seasonPumpkin: require('../assets/lifestyle/season-pumpkin.jpg'),
 };
 
 /** Ordered gallery for Home horizontal strip */
@@ -53,12 +58,12 @@ export const homeGallery = [
   },
 ];
 
-export const classHero = lifestyle.classPourSmile;
+export const classHero = lifestyle.classLavender;
 export const classStrip = [
+  lifestyle.classLavender,
   lifestyle.classTeaching,
   lifestyle.classFragrance,
   lifestyle.classMelt,
-  lifestyle.pouringWax,
 ];
 
 export default lifestyle;

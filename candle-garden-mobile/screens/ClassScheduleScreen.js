@@ -14,6 +14,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { classes as bundledClasses, fetchLatestClasses, getUpcomingClasses } from '../lib/classesCatalog';
 import { useCart } from '../lib/cart';
 import { colors, fonts, radii, spacing } from '../lib/theme';
+import { lifestyle } from '../lib/images';
 import PoweredBy from '../components/PoweredBy';
 
 export default function ClassScheduleScreen() {
@@ -82,11 +83,19 @@ export default function ClassScheduleScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Book a class</Text>
-        <Text style={styles.subtitle}>
-          Add a seat to your app cart and check out in Cart. Payment reserves that seat on the class.
-        </Text>
-        <Text style={styles.liveStatus}>{status}</Text>
+        <Image
+          source={lifestyle.classLavender}
+          style={styles.heroImage}
+          resizeMode="cover"
+          accessibilityLabel="Measuring lavender fragrance oil for a candle pour"
+        />
+        <View style={styles.headerCopy}>
+          <Text style={styles.title}>Book a class</Text>
+          <Text style={styles.subtitle}>
+            Add a seat to your app cart and check out in Cart. Payment reserves that seat on the class.
+          </Text>
+          <Text style={styles.liveStatus}>{status}</Text>
+        </View>
       </View>
       <ScrollView contentContainerStyle={styles.list} refreshControl={<RefreshControl refreshing={loading} onRefresh={refreshClasses} />}>
         {error ? <Text style={styles.emptyText}>{error} Pull down or tap Retry to refresh.</Text> : null}
@@ -134,11 +143,14 @@ export default function ClassScheduleScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.white },
   header: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     backgroundColor: colors.surface,
+  },
+  heroImage: { width: '100%', aspectRatio: 1400 / 790 },
+  headerCopy: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   title: { color: colors.primary, fontFamily: fonts.heading, fontSize: 19 },
   subtitle: { color: colors.textMuted, fontFamily: fonts.body, fontSize: 12, marginTop: 2 },

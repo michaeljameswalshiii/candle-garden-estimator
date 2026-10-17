@@ -24,10 +24,10 @@ const HERO_H = Math.round(HERO_W * 1.15);
 
 const HERO_SLIDES = [
   {
-    key: 'gift',
-    source: lifestyle.giftCandle,
-    title: 'From our hands\nto your home',
-    subtitle: 'Hand-poured soy · Atlantic Beach',
+    key: 'season',
+    source: lifestyle.seasonPumpkin,
+    title: 'Fall, poured\nin glass',
+    subtitle: 'Seasonal candles · Atlantic Beach',
   },
   {
     key: 'scent',
@@ -153,16 +153,16 @@ export default function HomeScreen() {
       {/* Featured product moment */}
       <View style={styles.featureBlock}>
         <Image
-          source={lifestyle.scentMoment}
+          source={lifestyle.shoreCandle}
           style={styles.featureImage}
           resizeMode="cover"
+          accessibilityLabel="A Candle Garden jar with the gold flying pig, sitting in the surf"
         />
         <View style={styles.featureCopy}>
-          <Text style={styles.featureKicker}>Signature scents</Text>
-          <Text style={styles.featureHeading}>Voyages in a jar</Text>
+          <Text style={styles.featureKicker}>Atlantic Beach</Text>
+          <Text style={styles.featureHeading}>From the shore</Text>
           <Text style={styles.featureBody}>
-            Every candle is designed to match a mood, a moment, or a memory —
-            from Atlantic Beach to Red Currant.
+            The jars we pour in the shop, set where the water meets the sand.
           </Text>
           <TouchableOpacity
             style={styles.inlineLink}
@@ -199,9 +199,10 @@ export default function HomeScreen() {
       {/* Why the pig */}
       <View style={styles.infoContainer}>
         <Image
-          source={lifestyle.redCurrant}
-          style={styles.infoThumb}
+          source={lifestyle.shorePig}
+          style={styles.pigPhoto}
           resizeMode="cover"
+          accessibilityLabel="Gold flying pig on a candle jar in the sea foam"
         />
         <Text style={styles.infoHeading}>Why the flying pig?</Text>
         <Text style={styles.infoText}>
@@ -515,13 +516,11 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
     alignItems: 'center',
   },
-  infoThumb: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+  pigPhoto: {
+    width: '100%',
+    height: 168,
+    borderRadius: radii.md,
     marginBottom: spacing.sm,
-    borderWidth: 2,
-    borderColor: colors.white,
   },
   infoHeading: {
     fontFamily: fonts.heading,
