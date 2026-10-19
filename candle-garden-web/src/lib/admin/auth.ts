@@ -4,7 +4,13 @@ import { cookies } from "next/headers";
 const COOKIE = "cg_admin_session";
 const MAX_AGE_SEC = 60 * 60 * 12;
 const HASH_PEPPER = "candle-garden-admin-v1";
-const SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || HASH_PEPPER;
+
+function sessionSecret(): string {
+  const configured = process.env.OFFICE_SESSION_SECRET || process.env.ADMIN_SESSION_SECRET || "";
+  if (configured.length >= 16) return configured;
+  if (process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production") return "";
+  return HASH_PEPPER;
+}
 
 export type AdminUser = {
   id: string;
@@ -34,7 +40,9 @@ export function safeEqual(a: string, b: string): boolean {
 }
 
 function sign(payload: string): string {
-  return createHmac("sha256", SESSION_SECRET).update(payload).digest("base64url");
+  const secret = sessionSecret();
+  if (!secret) return "";
+  return createHmac("sha256", secret).update(payload).digest("base64url");
 }
 
 function normalizeId(value: string): string {
@@ -132,6 +140,7 @@ export async function requireAdmin() {
 }
 
 export function createSessionToken(id: string): string {
+  if (!sessionSecret()) throw new Error("Staff session secret is not configured");
   const exp = Date.now() + MAX_AGE_SEC * 1000;
   const safeId = normalizeId(id).replace(/\|/g, "");
   const body = `admin|${safeId}|${exp}`;
@@ -149,7 +158,8 @@ export function validateSessionToken(token: string | undefined | null): {
   if (kind !== "admin" || !id || !exp || !signature) return { ok: false };
   if (Number(exp) < Date.now()) return { ok: false };
   const body = `${kind}|${id}|${exp}`;
-  if (!safeEqual(signature, sign(body))) return { ok: false };
+  const signatureCheck = sign(body);
+  if (!signatureCheck || !safeEqual(signature, signatureCheck)) return { ok: false };
   return { ok: true, id };
 }
 

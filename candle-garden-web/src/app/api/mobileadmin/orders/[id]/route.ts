@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/admin/auth";
 import { getMobileOrder, updateMobileOrder } from "@/lib/mobileadmin/data";
 import { purchaseOrderLegs } from "@/lib/purchase-refill-labels";
 import { labelStatusFrom } from "@/lib/shipping-labels";
+import { succeededRefundCents } from "@/lib/stripe-refunds";
 import { resendGiftCard, disableGiftCard, restoreGiftPayment } from "@/lib/mobileadmin/gift-cards";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +37,14 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       return NextResponse.json({ ok: true, message: body.action === "resend_gift_card" ? "Gift card email queued. Delivery runs within five minutes." : "Gift card disabled." });
     }
     if (body.action === "create_labels" || body.action === "print_leg") {
+      if (order.status === "refunded" || order.status === "partially_refunded") throw new Error("Refunded orders do not get new postage.");
       if (!String(order.status || "").startsWith("paid")) throw new Error("Verify payment before purchasing shipping labels.");
+      const stripeKey = process.env.STRIPE_SECRET_KEY || "";
+      if (order.payment_intent_id && stripeKey) {
+        const refundedCents = await succeededRefundCents(order.payment_intent_id, stripeKey);
+        const orderCents = Math.round(Number(order.total_amount || 0) * 100);
+        if (refundedCents > 0 && refundedCents >= orderCents) throw new Error("Refunded orders do not get new postage.");
+      }
       const refills = (order.items || []).filter((item) => item.type === "refill");
       if (!refills.length) throw new Error("This order does not contain refill shipping.");
       const keys = body.leg ? [String(body.leg)] : Array.isArray(body.legs) ? body.legs.map(String) : undefined;

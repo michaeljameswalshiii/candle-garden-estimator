@@ -21,7 +21,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
   }
 
-  const token = createSessionToken(result.id);
+  let token: string;
+  try {
+    token = createSessionToken(result.id);
+  } catch {
+    return NextResponse.json({ error: "Staff sign-in is not configured." }, { status: 503 });
+  }
   const res = NextResponse.json({ ok: true, id: result.id });
   const cookie = sessionCookieOptions(token);
   res.cookies.set(cookie.name, cookie.value, {

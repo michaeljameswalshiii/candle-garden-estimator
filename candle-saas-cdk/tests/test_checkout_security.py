@@ -93,6 +93,18 @@ def test_unowned_payment_cannot_finalize_or_buy_labels(checkout, headers):
     processor._update_order.assert_not_called()
 
 
+def test_refunded_order_is_not_marked_paid_or_labeled(checkout):
+    processor, order, _ = checkout
+    order["status"] = "refunded"
+    result = finalize(processor, {"X-Device-Id": "dev_testdevice123"})
+    body = json.loads(result["body"])
+    assert result["statusCode"] == 200
+    assert body["paid"] is False
+    assert body["status"] == "refunded"
+    processor._apply_paid_labels.assert_not_called()
+    processor._update_order.assert_not_called()
+
+
 def test_guest_test_payment_keeps_working_on_original_device(checkout):
     processor, order, _ = checkout
     result = finalize(processor, {"X-Device-Id": "dev_testdevice123"})
@@ -275,3 +287,24 @@ def test_api_packages_verifier_and_protects_purge(tmp_path):
     purge = next(key for key, row in template.items() if row["Type"] == "AWS::ApiGateway::Resource" and row["Properties"]["PathPart"] == "purge")
     method = next(row for row in template.values() if row["Type"] == "AWS::ApiGateway::Method" and row["Properties"]["ResourceId"] == {"Ref": purge} and row["Properties"]["HttpMethod"] == "POST")
     assert method["Properties"]["AuthorizationType"] == "COGNITO_USER_POOLS"
+    blob = json.dumps(template)
+    assert "aws-marketplace:Unsubscribe" not in blob
+    assert "arn:aws:logs:*:*:*" not in blob
+    assert "bedrock:InvokeModelWithResponseStream" not in blob
+
+    def method(resource_id, verb):
+        return next(row for row in template.values() if row["Type"] == "AWS::ApiGateway::Method" and row["Properties"].get("ResourceId") == {"Ref": resource_id} and row["Properties"]["HttpMethod"] == verb)
+
+    def resource(part, parent=None):
+        return next(key for key, row in template.items() if row["Type"] == "AWS::ApiGateway::Resource" and row["Properties"]["PathPart"] == part and (parent is None or row["Properties"].get("ParentId") == {"Ref": parent}))
+
+    products = resource("products")
+    product_item = resource("{id}", products)
+    images = resource("images")
+    image_item = resource("{id}", images)
+    recommendations = resource("recommendations")
+    assert method(products, "GET")["Properties"]["AuthorizationType"] == "NONE"
+    assert method(product_item, "GET")["Properties"]["AuthorizationType"] == "NONE"
+    assert method(image_item, "GET")["Properties"]["AuthorizationType"] == "NONE"
+    for resource_id, verb in ((products, "POST"), (product_item, "PUT"), (product_item, "DELETE"), (images, "POST"), (image_item, "DELETE"), (recommendations, "POST")):
+        assert method(resource_id, verb)["Properties"]["AuthorizationType"] == "COGNITO_USER_POOLS"

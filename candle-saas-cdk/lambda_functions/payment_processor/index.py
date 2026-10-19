@@ -441,6 +441,20 @@ def _stripe_request(path, values):
         raise RuntimeError(message) from error
 
 
+def _refunded_cents(payment_intent_id):
+    if not payment_intent_id:
+        return 0
+    try:
+        payload = _stripe_get("refunds?payment_intent=" + urllib.parse.quote(payment_intent_id) + "&limit=100")
+    except Exception:
+        return 0
+    total = 0
+    for row in payload.get("data") or []:
+        if row.get("status") in ("succeeded", "pending"):
+            total += int(row.get("amount") or 0)
+    return total
+
+
 def _stripe_get(path):
     key = _stripe_secret()
     if not key:
@@ -731,7 +745,41 @@ def _merge_labels(existing, updates):
     return list(by_key.values())
 
 
-def _purchase_item_legs(item, dest, keys, existing):
+def _claim_name(key):
+    return "label_claim_" + "".join(ch for ch in str(key) if ch.isalnum() or ch == "_")
+
+
+def _claim_shipping_leg(order_id, key):
+    if not order_id:
+        return True
+    from botocore.exceptions import ClientError
+    now = int(time.time() * 1000)
+    try:
+        _orders().update_item(
+            Key={"id": order_id},
+            UpdateExpression="SET #claim = :until",
+            ConditionExpression="attribute_not_exists(#claim) OR #claim < :now",
+            ExpressionAttributeNames={"#claim": _claim_name(key)},
+            ExpressionAttributeValues={":until": now + 120000, ":now": now},
+        )
+        return True
+    except ClientError as error:
+        if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+            return False
+        raise
+
+
+def _release_shipping_leg(order_id, key):
+    if not order_id:
+        return
+    _orders().update_item(
+        Key={"id": order_id},
+        UpdateExpression="REMOVE #claim",
+        ExpressionAttributeNames={"#claim": _claim_name(key)},
+    )
+
+
+def _purchase_item_legs(item, dest, keys, existing, order_id=""):
     purchased = []
     errors = []
     already = {
@@ -744,12 +792,31 @@ def _purchase_item_legs(item, dest, keys, existing):
         if key in already and already[key].get("labelUrl"):
             purchased.append(already[key])
             continue
+        if not _claim_shipping_leg(order_id, key):
+            errors.append({"key": key, "title": LEG_TITLES.get(key, key), "status": "queued", "error": "Label purchase already in progress"})
+            continue
         try:
+            fresh = _get_order(order_id) if order_id else None
+            if fresh and fresh.get("status") in ("refunded", "partially_refunded"):
+                raise RuntimeError("Refunded orders do not get new postage.")
+            fresh_labels = {
+                row.get("key"): row
+                for row in (fresh or {}).get("shipping_labels") or []
+                if isinstance(row, dict) and row.get("status") == "purchased" and row.get("labelUrl")
+            }
+            if key in fresh_labels:
+                purchased.append(fresh_labels[key])
+                continue
             if quote is None:
                 quote = _quote_for_item(item, dest)
             purchased.append(_print_one_leg(quote, dest, key))
         except Exception as error:
             errors.append({"key": key, "title": LEG_TITLES.get(key, key), "status": "queued", "error": str(error)})
+        finally:
+            try:
+                _release_shipping_leg(order_id, key)
+            except Exception:
+                pass
     return purchased, errors
 
 
@@ -767,7 +834,7 @@ def _apply_paid_labels(order):
         plan = label_purchase_plan(method)
         stubs = _stub_labels(method)
         queued = _merge_labels(queued, stubs)
-        now_rows, errors = _purchase_item_legs(item, dest, plan["legs"], queued)
+        now_rows, errors = _purchase_item_legs(item, dest, plan["legs"], queued, order.get("id") or "")
         purchased.extend(now_rows)
         queued = _merge_labels(queued, now_rows + errors)
     tracking = [row.get("trackingNumber") for row in queued if row.get("trackingNumber")]
@@ -1356,6 +1423,24 @@ def _finalize_payment(event, trusted_order=None, trusted_payment=False):
             _verify_order_payment(order, intent)
         if not trusted_payment and not trusted_order and not order.get("gift_checkout"):
             _authorize_order(event, order)
+        if order:
+            refund_status = order.get("status") if order.get("status") in ("refunded", "partially_refunded") else ""
+            refunded_cents = _refunded_cents(payment_intent_id) if payment_intent_id and not refund_status else 0
+            if refunded_cents:
+                order_cents = int(round(float(order.get("total_amount") or 0) * 100))
+                refund_status = "refunded" if refunded_cents >= order_cents and refunded_cents > 0 else "partially_refunded"
+            if refund_status:
+                if order.get("status") != refund_status:
+                    try:
+                        _update_order(order["id"], {"status": refund_status})
+                    except Exception:
+                        pass
+                saved = [_public_label({**row, "imageBase64": None}) for row in (order.get("shipping_labels") or []) if isinstance(row, dict)]
+                return _response(200, {
+                    "ok": True, "paid": False, "status": refund_status,
+                    "paymentIntentId": payment_intent_id, "orderId": order.get("id"),
+                    "labels": [], "shipping_labels": saved,
+                })
         if paid and order and order.get("status") in ("processing", "shipped", "completed", "ready_for_pickup", "refilling", "refill_returning", "refill_received", "ready_for_fulfillment"):
             status = order["status"]
         if order and order.get("gift_checkout") and not paid:

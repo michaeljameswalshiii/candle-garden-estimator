@@ -91,7 +91,6 @@ class APIStack(Stack):
             iam.PolicyStatement(
                 actions=[
                     "bedrock:InvokeModel",
-                    "bedrock:InvokeModelWithResponseStream",
                 ],
                 resources=[
                     # Foundation models (any region account-less ARN)
@@ -105,30 +104,18 @@ class APIStack(Stack):
                 ],
             )
         )
-        # Newer Claude models require marketplace subscribe/view for first-time enablement
+        # Newer Claude models require marketplace subscribe/view for first-time enablement.
+        # Unsubscribe is not used by any function.
         lambda_execution_role.add_to_policy(
             iam.PolicyStatement(
                 actions=[
                     "aws-marketplace:ViewSubscriptions",
                     "aws-marketplace:Subscribe",
-                    "aws-marketplace:Unsubscribe",
                 ],
                 resources=["*"],
             )
         )
-        
-        # Add permissions for CloudWatch Logs
-        lambda_execution_role.add_to_policy(
-            iam.PolicyStatement(
-                actions=[
-                    "logs:CreateLogGroup",
-                    "logs:CreateLogStream",
-                    "logs:PutLogEvents",
-                ],
-                resources=["arn:aws:logs:*:*:*"],
-            )
-        )
-        
+
         lambda_execution_role.add_to_policy(
             iam.PolicyStatement(
                 actions=["ses:SendEmail", "ses:SendRawEmail"],
@@ -268,14 +255,14 @@ class APIStack(Stack):
         )
         
         # Add API resources and integrations
-        self._setup_products_endpoint(api, product_manager_fn)
+        self._setup_products_endpoint(api, product_manager_fn, auth_opts)
         self._setup_orders_endpoint(api, order_processor_fn, auth_opts)
         account = api.root.add_resource("account")
         account.add_resource("purge").add_method("POST", apigw.LambdaIntegration(order_processor_fn),
             authorization_type=auth_opts.authorization_type, authorizer=auth_opts.authorizer)
         self._setup_payments_endpoint(api, payment_processor_fn, auth_opts)
-        self._setup_recommendations_endpoint(api, ai_recommendations_fn)
-        self._setup_images_endpoint(api, image_processor_fn)
+        self._setup_recommendations_endpoint(api, ai_recommendations_fn, auth_opts)
+        self._setup_images_endpoint(api, image_processor_fn, auth_opts)
         # Detect stays public for guest estimator; client may still send JWT
         self._setup_detect_endpoint(api, container_detector_fn)
 
@@ -445,18 +432,22 @@ class APIStack(Stack):
         )
         return fn
     
-    def _setup_products_endpoint(self, api: apigw.RestApi, function: lambda_.Function):
-        """Setup /products endpoint."""
+    def _setup_products_endpoint(self, api: apigw.RestApi, function: lambda_.Function, auth_opts):
+        """Catalog reads stay open. Mutations require a Cognito staff or customer token."""
         products = api.root.add_resource("products")
         integration = apigw.LambdaIntegration(function)
+        protected = {
+            "authorization_type": auth_opts.authorization_type,
+            "authorizer": auth_opts.authorizer,
+        }
         
         products.add_method("GET", integration)
-        products.add_method("POST", integration)
+        products.add_method("POST", integration, **protected)
         
         product = products.add_resource("{id}")
         product.add_method("GET", integration)
-        product.add_method("PUT", integration)
-        product.add_method("DELETE", integration)
+        product.add_method("PUT", integration, **protected)
+        product.add_method("DELETE", integration, **protected)
     
     def _setup_orders_endpoint(
         self,
@@ -501,23 +492,31 @@ class APIStack(Stack):
         for action in ("balance", "cancel", "status"):
             payments.add_resource("gift-card-" + action).add_method("POST", integration)
     
-    def _setup_recommendations_endpoint(self, api: apigw.RestApi, function: lambda_.Function):
-        """Setup /recommendations endpoint."""
+    def _setup_recommendations_endpoint(self, api: apigw.RestApi, function: lambda_.Function, auth_opts):
+        """Recommendations invoke Bedrock and are not used by the app."""
         recommendations = api.root.add_resource("recommendations")
         integration = apigw.LambdaIntegration(function)
         
-        recommendations.add_method("POST", integration)
+        recommendations.add_method(
+            "POST", integration,
+            authorization_type=auth_opts.authorization_type,
+            authorizer=auth_opts.authorizer,
+        )
     
-    def _setup_images_endpoint(self, api: apigw.RestApi, function: lambda_.Function):
-        """Setup /images endpoint."""
+    def _setup_images_endpoint(self, api: apigw.RestApi, function: lambda_.Function, auth_opts):
+        """Image reads stay open. Upload and delete require Cognito."""
         images = api.root.add_resource("images")
         integration = apigw.LambdaIntegration(function)
+        protected = {
+            "authorization_type": auth_opts.authorization_type,
+            "authorizer": auth_opts.authorizer,
+        }
         
-        images.add_method("POST", integration)
+        images.add_method("POST", integration, **protected)
         
         image = images.add_resource("{id}")
         image.add_method("GET", integration)
-        image.add_method("DELETE", integration)
+        image.add_method("DELETE", integration, **protected)
     
     def _setup_detect_endpoint(self, api: apigw.RestApi, function: lambda_.Function):
         """Setup /detect endpoint for container detection."""

@@ -66,6 +66,7 @@ test('local finalize API smoke preserves valid guest and signed-in test payments
         '@/lib/mobileadmin/data': { findOrderByPaymentIntent: async () => order, updateMobileOrder: async () => { updates++; } },
         '@/lib/purchase-refill-labels': { purchaseOrderLegs: async () => { labels++; return { labels: [], printed: [] }; } },
         '@/lib/shipping-labels': { labelStatusFrom: () => 'none' },
+        '@/lib/stripe-refunds': { succeededRefundCents: async () => 0 },
       }, async () => response.json(intent));
       const result = await api.POST(new Request('https://local.test/payments/finalize', { method: 'POST', body: JSON.stringify({ paymentIntentId: 'pi_one' }) }));
       assert.equal(result.status, mutation ? 400 : 200, `${customer}/${mutation}`);
@@ -74,6 +75,51 @@ test('local finalize API smoke preserves valid guest and signed-in test payments
       if (!mutation) assert.equal((await result.json()).status, 'paid_test');
     }
   }
+});
+
+test('finalize leaves a refunded order refunded and does not buy labels', async () => {
+  let labels = 0;
+  const order = { id: 'order-one', customer_id: 'user-one', payment_intent_id: 'pi_one', total_amount: 35, status: 'refunded', items: [{ type: 'refill' }], shipping_labels: [] };
+  const intent = { id: 'pi_one', amount: 3500, amount_received: 3500, currency: 'usd', status: 'succeeded', livemode: false, metadata: { candle_garden_order_id: 'order-one' } };
+  const api = route('app/payments/finalize/route.ts', {
+    'next/server': { NextResponse: response },
+    '@/lib/mobile-auth': { mobileCustomerId: async () => 'user-one' },
+    '@/lib/mobileadmin/data': { findOrderByPaymentIntent: async () => order, updateMobileOrder: async () => { throw new Error('must not update'); } },
+    '@/lib/purchase-refill-labels': { purchaseOrderLegs: async () => { labels++; return { labels: [], printed: [] }; } },
+    '@/lib/shipping-labels': { labelStatusFrom: () => 'none' },
+    '@/lib/stripe-refunds': { succeededRefundCents: async () => 3500 },
+  }, async () => response.json(intent));
+  const result = await api.POST(new Request('https://local.test/payments/finalize', { method: 'POST', body: JSON.stringify({ paymentIntentId: 'pi_one' }) }));
+  assert.equal(result.status, 200);
+  const body = await result.json();
+  assert.equal(body.status, 'refunded');
+  assert.equal(body.paid, false);
+  assert.equal(labels, 0);
+});
+
+test('production staff sessions use the office secret and reject the built-in pepper', () => {
+  const source = fs.readFileSync(path.join(ROOT, 'candle-garden-web/src/lib/admin/auth.ts'), 'utf8');
+  const code = ts.transpile(source, { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 });
+  function load(env) {
+    const context = { exports: {}, process: { env }, Buffer, URL, Date, Math,
+      require: id => {
+        if (id === 'crypto') return require('crypto');
+        if (id === 'next/headers') return { cookies: async () => ({ get() {} }) };
+        throw new Error(`Unstubbed ${id}`);
+      } };
+    vm.runInNewContext(code, context);
+    return context.exports;
+  }
+  const office = load({ NODE_ENV: 'production', VERCEL_ENV: 'production', OFFICE_SESSION_SECRET: 'office-secret-value' });
+  const token = office.createSessionToken('GardenAdmin');
+  assert.equal(office.validateSessionToken(token).ok, true);
+  const exp = Date.now() + 60000;
+  const body = `admin|GardenAdmin|${exp}`;
+  const pepper = require('crypto').createHmac('sha256', 'candle-garden-admin-v1').update(body).digest('base64url');
+  assert.equal(office.validateSessionToken(`${body}|${pepper}`).ok, false);
+  const missing = load({ NODE_ENV: 'production', VERCEL_ENV: 'production' });
+  assert.throws(() => missing.createSessionToken('GardenAdmin'), /not configured/);
+  assert.equal(missing.validateSessionToken(`${body}|${pepper}`).ok, false);
 });
 
 test('WebView allows real booking/payment domains and rejects deceptive URLs and HTTP', () => {

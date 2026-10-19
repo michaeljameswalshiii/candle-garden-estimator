@@ -60,6 +60,41 @@ export function orderChannel(order: MobileOrder) {
   return order.source === "mobile" ? "Signed-in app" : order.source || "Mobile app";
 }
 
+const REFUND_LOCKED = new Set(["paid", "paid_test", "processing", "shipped", "completed", "ready_for_pickup", "ready_for_fulfillment", "refill_received", "refilling", "refill_returning"]);
+
+export function claimAttribute(legKey: string) {
+  const safe = String(legKey || "").replace(/[^A-Za-z0-9_]/g, "");
+  if (!safe) throw new Error("Unknown shipping leg");
+  return `label_claim_${safe}`;
+}
+
+export async function claimShippingLeg(orderId: string, legKey: string): Promise<boolean> {
+  const now = Date.now();
+  try {
+    await client.send(new UpdateCommand({
+      TableName: ordersTable,
+      Key: { id: orderId },
+      UpdateExpression: "SET #claim = :until",
+      ConditionExpression: "attribute_not_exists(#claim) OR #claim < :now",
+      ExpressionAttributeNames: { "#claim": claimAttribute(legKey) },
+      ExpressionAttributeValues: { ":until": now + 120000, ":now": now },
+    }));
+    return true;
+  } catch (error) {
+    if (error && typeof error === "object" && (error as { name?: string }).name === "ConditionalCheckFailedException") return false;
+    throw error;
+  }
+}
+
+export async function releaseShippingLeg(orderId: string, legKey: string) {
+  await client.send(new UpdateCommand({
+    TableName: ordersTable,
+    Key: { id: orderId },
+    UpdateExpression: "REMOVE #claim",
+    ExpressionAttributeNames: { "#claim": claimAttribute(legKey) },
+  }));
+}
+
 export async function updateMobileOrder(id: string, patch: { status?: string; total_amount?: number; refund_id?: string; refunded_amount?: number; label_status?: string; tracking_numbers?: string[]; shipping_labels?: MobileOrder["shipping_labels"] }) {
   const prior = patch.status ? await getMobileOrder(id) : undefined;
   const names: Record<string, string> = { "#updated": "updated_at" };
@@ -71,7 +106,28 @@ export async function updateMobileOrder(id: string, patch: { status?: string; to
     values[`:${key}`] = value;
     sets.push(`#${key} = :${key}`);
   }
-  await client.send(new UpdateCommand({ TableName: ordersTable, Key: { id }, UpdateExpression: `SET ${sets.join(", ")}`, ExpressionAttributeNames: names, ExpressionAttributeValues: values }));
+  let condition: string | undefined;
+  if (patch.status && REFUND_LOCKED.has(patch.status)) {
+    names["#status"] = "status";
+    values[":refunded"] = "refunded";
+    values[":partial"] = "partially_refunded";
+    condition = "attribute_not_exists(#status) OR (#status <> :refunded AND #status <> :partial)";
+  }
+  try {
+    await client.send(new UpdateCommand({
+      TableName: ordersTable,
+      Key: { id },
+      UpdateExpression: `SET ${sets.join(", ")}`,
+      ExpressionAttributeNames: names,
+      ExpressionAttributeValues: values,
+      ...(condition ? { ConditionExpression: condition } : {}),
+    }));
+  } catch (error) {
+    if (error && typeof error === "object" && (error as { name?: string }).name === "ConditionalCheckFailedException") {
+      throw new Error("Refunded orders stay refunded.");
+    }
+    throw error;
+  }
   if(patch.status && prior?.customer_id && prior.status!==patch.status) {
     try { await notifyOrderStatus(prior.customer_id,id,patch.status); } catch { /* Delivery failures do not undo fulfillment updates. */ }
   }

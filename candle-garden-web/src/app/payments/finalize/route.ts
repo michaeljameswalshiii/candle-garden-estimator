@@ -3,6 +3,9 @@ import { findOrderByPaymentIntent, updateMobileOrder } from "@/lib/mobileadmin/d
 import { purchaseOrderLegs } from "@/lib/purchase-refill-labels";
 import { mobileCustomerId } from "@/lib/mobile-auth";
 import { labelStatusFrom } from "@/lib/shipping-labels";
+import { succeededRefundCents } from "@/lib/stripe-refunds";
+
+const REFUND_STATUSES = new Set(["refunded", "partially_refunded"]);
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +25,26 @@ export async function POST(request: NextRequest) {
     if (intent.status === "succeeded" && Number(intent.amount_received) !== Math.round(Number(order.total_amount)*100)) throw new Error("Payment amount does not match the order.");
     if (Number(intent.amount) !== Math.round(Number(order.total_amount)*100) || intent.currency !== "usd")throw new Error("Payment amount does not match the order.");
     const paid = intent.status === "succeeded";
+    const refundedCents = paid ? await succeededRefundCents(paymentIntentId, key) : 0;
+    const orderCents = Math.round(Number(order.total_amount) * 100);
+    const refundStatus = REFUND_STATUSES.has(String(order.status))
+      ? String(order.status)
+      : refundedCents >= orderCents && refundedCents > 0
+        ? "refunded"
+        : refundedCents > 0
+          ? "partially_refunded"
+          : "";
+    if (refundStatus) {
+      if (refundStatus !== order.status) await updateMobileOrder(order.id, { status: refundStatus });
+      return NextResponse.json({
+        ok: true,
+        orderId: order.id,
+        status: refundStatus,
+        paid: false,
+        labels: [],
+        shipping_labels: order.shipping_labels || [],
+      });
+    }
     const status = paid && ["processing","shipped","completed","ready_for_pickup","refill_returning"].includes(String(order.status)) ? order.status : paid ? (intent.livemode ? "paid" : "paid_test") : `payment_${intent.status}`;
     const patch: Record<string, unknown> = { status };
     let printed: Awaited<ReturnType<typeof purchaseOrderLegs>>["printed"] = [];
