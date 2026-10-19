@@ -36,3 +36,11 @@ playwright/.cache/
 
 # Local Vercel project metadata
 .vercel/
+
+# Python / CDK build artifacts (never commit vendored dependencies)
+__pycache__/
+*.pyc
+.pytest_cache/
+cdk.out/
+candle-saas-cdk/.build/
+dist-security-review/

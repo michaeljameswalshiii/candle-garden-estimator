@@ -31,6 +31,7 @@ NOVA_MODEL_ID = os.environ.get("NOVA_MODEL_ID", "amazon.nova-pro-v1:0")
 MIN_CONFIDENCE = float(os.environ.get("MIN_CONFIDENCE", "0.5"))
 RATE_LIMIT_TABLE = os.environ.get("RATE_LIMIT_TABLE", "candle-garden-detect-rate-limits")
 GUEST_DETECT_LIMIT = int(os.environ.get("GUEST_DETECT_LIMIT", "20"))
+GUEST_IP_DETECT_LIMIT = int(os.environ.get("GUEST_IP_DETECT_LIMIT", "200"))
 AUTH_DETECT_LIMIT = int(os.environ.get("AUTH_DETECT_LIMIT", "80"))
 RATE_WINDOW_SECONDS = int(os.environ.get("RATE_WINDOW_SECONDS", "3600"))
 
@@ -577,9 +578,6 @@ def _headers_lower(event):
 
 def _client_ip(event):
     lower = _headers_lower(event)
-    xff = lower.get("x-forwarded-for") or ""
-    if xff:
-        return xff.split(",")[0].strip()
     req = event.get("requestContext") or {}
     identity = req.get("identity") or {}
     return identity.get("sourceIp") or "unknown"
@@ -603,39 +601,13 @@ def _bearer_token(event):
     return auth.split(" ", 1)[1].strip() or None
 
 
-def _optional_jwt_claims(event):
-    """Decode JWT payload without verify (fallback only)."""
-    token = _bearer_token(event)
-    if not token:
-        return {}
-    parts = token.split(".")
-    if len(parts) < 2:
-        return {}
-    try:
-        pad = "=" * (-len(parts[1]) % 4)
-        raw = base64.urlsafe_b64decode(parts[1] + pad)
-        data = json.loads(raw.decode("utf-8"))
-        return data if isinstance(data, dict) else {}
-    except Exception:
-        return {}
-
-
 def _resolve_user_context(event):
-    """
-    Rate-limit attribution from JWT claims only.
-    Skip Cognito GetUser on this hot path — it added hundreds of ms per estimate.
-    Access tokens still get the signed-in bucket; id tokens stay unverified.
-    """
-    claims = _optional_jwt_claims(event)
+    from cognito_identity import verified_claims
+    claims = verified_claims(event)
     if claims.get("sub"):
-        token_use = claims.get("token_use") or "unknown"
-        return {
-            "sub": claims.get("sub"),
-            "email": claims.get("email"),
+        return {"sub": claims["sub"], "email": claims.get("email"),
             "username": claims.get("cognito:username") or claims.get("username"),
-            "verified": token_use == "access",
-            "token_use": token_use,
-        }
+            "verified": True, "token_use": claims.get("token_use")}
     return {"verified": False}
 
 
@@ -677,7 +649,10 @@ def handler(event, context):
         if (event.get("httpMethod") or event.get("requestContext", {}).get("http", {}).get("method", "")).upper() == "OPTIONS":
             return _json_response(200, {"ok": True})
 
-        user_ctx = _resolve_user_context(event)
+        try:
+            user_ctx = _resolve_user_context(event)
+        except ValueError:
+            return _json_response(401, {"success": False, "error": "Please sign in again."})
         user_sub = user_ctx.get("sub")
         user_email = user_ctx.get("email")
         is_authenticated = bool(user_sub)
@@ -685,7 +660,7 @@ def handler(event, context):
 
         ip = _client_ip(event)
         device_id = _device_id(event)
-        # Only use user bucket when token was verified with Cognito GetUser
+        # Signed users have verified JWTs; guests share a server-derived IP budget.
         if is_authenticated and token_verified:
             bucket = f"user:{user_sub}"
             limit = AUTH_DETECT_LIMIT
@@ -696,6 +671,14 @@ def handler(event, context):
             bucket = f"ip:{ip}"
             limit = GUEST_DETECT_LIMIT
 
+        # Retain the existing per-device testing allowance, with an aggregate
+        # server-IP budget so rotating device identifiers cannot bypass limits.
+        if not token_verified and device_id:
+            ip_allowed, _, _ = _rate_limit_check(f"guest-ip:{ip}", GUEST_IP_DETECT_LIMIT)
+            if not ip_allowed:
+                return _json_response(429, {"success": False, "error": "rate_limited",
+                    "message": "Too many estimate requests. Please try again later.",
+                    "limit": GUEST_IP_DETECT_LIMIT, "remaining": 0, "window_seconds": RATE_WINDOW_SECONDS})
         allowed, remaining, lim = _rate_limit_check(bucket, limit)
         if not allowed:
             return _json_response(429, {

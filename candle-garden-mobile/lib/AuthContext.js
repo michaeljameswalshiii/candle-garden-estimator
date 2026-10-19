@@ -41,9 +41,9 @@ export function AuthProvider({ children }) {
   const [error, setError] = useState(null);
 
   const applySession = useCallback(async (sessionTokens) => {
-    await saveTokens(sessionTokens);
-    setTokens(sessionTokens);
-    const raw = await getUser(sessionTokens.accessToken);
+    const session = await saveTokens(sessionTokens);
+    setTokens(session);
+    const raw = await getUser(session.accessToken);
     const profile = attributesToObject(raw);
     await saveProfile(profile);
     setUser(profile);
@@ -70,7 +70,7 @@ export function AuthProvider({ children }) {
           return;
         }
         session = await refreshSession(stored.refreshToken);
-        await saveTokens(session);
+        session = await saveTokens(session);
       }
 
       setTokens(session);
@@ -208,12 +208,8 @@ export function AuthProvider({ children }) {
         throw new Error('Not signed in');
       }
       // Purge server-side data while JWT still valid, then delete Cognito user
-      try {
-        await purgeAccountData();
-      } catch (purgeErr) {
-        // Continue with Cognito delete even if purge soft-fails
-        console.warn('Account purge warning:', purgeErr?.message);
-      }
+      // A failed purge must leave the account available so cleanup can be retried.
+      await purgeAccountData();
       await cognitoDeleteUser(access);
       await clearTokens();
       setTokens(null);
@@ -289,7 +285,7 @@ export function AuthProvider({ children }) {
       if (!session.refreshToken) return null;
       try {
         session = await refreshSession(session.refreshToken);
-        await saveTokens(session);
+        session = await saveTokens(session);
         setTokens(session);
       } catch {
         await clearTokens();
@@ -310,7 +306,7 @@ export function AuthProvider({ children }) {
       if (!session.refreshToken) return null;
       try {
         session = await refreshSession(session.refreshToken);
-        await saveTokens(session);
+        session = await saveTokens(session);
         setTokens(session);
       } catch {
         return null;

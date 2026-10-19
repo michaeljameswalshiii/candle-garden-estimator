@@ -65,23 +65,38 @@ def _response(status, body):
 
 
 def _claims(event):
-    authorizer = ((event.get("requestContext") or {}).get("authorizer") or {})
-    claims = authorizer.get("claims") or authorizer
-    if isinstance(claims, dict) and claims.get("sub"):
-        return claims
-    headers = event.get("headers") or {}
-    auth = headers.get("Authorization") or headers.get("authorization") or ""
-    if auth.lower().startswith("bearer "):
-        token = auth.split(" ", 1)[1].strip()
-        try:
-            payload = token.split(".")[1]
-            payload += "=" * (-len(payload) % 4)
-            data = json.loads(base64.urlsafe_b64decode(payload.encode()).decode("utf-8"))
-            if isinstance(data, dict) and data.get("sub"):
-                return data
-        except (ValueError, IndexError, json.JSONDecodeError, UnicodeDecodeError):
-            pass
-    return claims if isinstance(claims, dict) else {}
+    from cognito_identity import verified_claims
+    return verified_claims(event)
+
+
+def _guest_device(event):
+    headers = {str(k).lower(): str(v) for k, v in (event.get("headers") or {}).items()}
+    device = headers.get("x-device-id", "")
+    if not 8 <= len(device) <= 128 or not device.isascii() or not device.replace("_", "").replace("-", "").isalnum():
+        raise ValueError("A valid device identity is required for guest checkout.")
+    return device
+
+
+def _authorize_order(event, order):
+    if not order or order.get("status") == "deleted":
+        raise ValueError("Order not found")
+    claims = _claims(event)
+    customer = claims.get("sub") or f"guest:{_guest_device(event)}"
+    if not customer or order.get("customer_id") != customer:
+        raise ValueError("Order not found")
+
+
+def _verify_order_payment(order, intent):
+    if (intent.get("id") != order.get("payment_intent_id")
+            or (intent.get("metadata") or {}).get("candle_garden_order_id") != order.get("id")):
+        raise ValueError("Payment does not match this order.")
+    amount = int(order.get("stripe_amount_cents", round(float(order.get("total_amount", 0)) * 100)))
+    if intent.get("currency") != "usd" or int(intent.get("amount", -1)) != amount:
+        raise ValueError("Payment amount does not match this order.")
+    if intent.get("status") == "succeeded" and int(intent.get("amount_received", -1)) != amount:
+        raise ValueError("Payment amount does not match this order.")
+    if bool(intent.get("livemode")) != bool(str(_stripe_secret() or "").startswith("sk_live_")):
+        raise ValueError("Payment mode does not match this checkout.")
 
 
 def _load_catalog():
@@ -768,17 +783,19 @@ def _apply_paid_labels(order):
 
 
 def _create_payment_sheet(event):
-    claims = _claims(event)
+    try:
+        claims = _claims(event)
+    except ValueError as error:
+        return _response(401, {"error": str(error)})
     headers = event.get("headers") or {}
     body = _body(event)
     if body.get("giftCardCode") or any(str(item.get("type") or item.get("kind") or "").lower() == "gift_card" for item in (body.get("items") or []) if isinstance(item, dict)):
         return _gift_checkout(event, body)
-    device = headers.get("X-Device-Id") or headers.get("x-device-id") or "unknown"
-    customer_id = claims.get("sub") or claims.get("cognito:username") or f"guest:{device}"
     shipping_form = body.get("shipping") if isinstance(body.get("shipping"), dict) else {}
     email = body.get("email") or shipping_form.get("email") or claims.get("email")
     name = body.get("name") or shipping_form.get("name") or claims.get("name")
     try:
+        customer_id = claims.get("sub") or f"guest:{_guest_device(event)}"
         contact_error = guest_contact_error(claims, body)
         if contact_error:
             return _response(400, {"error": contact_error})
@@ -942,61 +959,28 @@ def _print_label(ship_from, ship_to, weight_lb, length, width, height, descripti
 
 
 def _refill_labels(event):
-    if not shippo_client.configured() and not ups_client.configured():
-        return _response(503, {"error": "Shipping labels are not configured yet"})
-    body = _body(event)
+    """Retry labels for an owned, provider-verified checkout.
+
+    Destination, items and allowed legs always come from the saved checkout.
+    Client-supplied leg selections cannot change the saved checkout's plan.
+    """
     try:
-        order = None
-        order_id = str(body.get("orderId") or body.get("order_id") or "").strip()
-        if order_id:
-            order = _get_order(order_id)
-        dest = body.get("dest") or body.get("shipping") or (order.get("shipping") if order else None)
-        if not isinstance(dest, dict) or not dest.get("zip") or not dest.get("address"):
-            raise ValueError("A full ship-to address is required to print labels")
-        requested = body.get("legs") or body.get("leg")
-        if isinstance(requested, str):
-            requested = [requested]
-        items = body.get("items") or (order.get("items") if order else None)
-        if not items:
-            items = [{
-                "type": "refill",
-                "ounces": body.get("ounces"),
-                "quantity": body.get("quantity") or 1,
-                "boxKey": body.get("boxKey"),
-                "shippingMethod": body.get("shippingMethod") or "ship_own",
-                "vesselCount": body.get("vesselCount"),
-                "speed": body.get("speed"),
-            }]
-        existing = list((order or {}).get("shipping_labels") or [])
-        printed = []
-        for item in items:
-            if str(item.get("type") or "refill").lower() != "refill":
-                continue
-            method = item.get("shippingMethod") or item.get("shipping_method") or "ship_own"
-            plan = label_purchase_plan(method)
-            keys = list(requested) if requested else plan["queued"]
-            keys = [key for key in keys if key in plan["legs"]]
-            rows, errors = _purchase_item_legs(item, dest, keys, existing)
-            printed.extend(rows)
-            existing = _merge_labels(existing, _stub_labels(method) + rows + errors)
-        tracking = [row.get("trackingNumber") for row in existing if row.get("trackingNumber")]
-        if order_id:
-            has_purchased = any(row.get("status") == "purchased" for row in existing)
-            has_queued = any(row.get("status") != "purchased" for row in existing)
-            label_status = "partial" if has_purchased and has_queued else "created" if has_purchased else "queued"
-            patch = {"shipping_labels": existing, "label_status": label_status, "tracking_numbers": tracking}
-            if any(row.get("key") == "refills_out" and row.get("status") == "purchased" for row in existing):
-                patch["status"] = "ready_for_fulfillment"
-            _update_order(order_id, patch)
-        return _response(200, {
-            "ok": True,
-            "labels": [_public_label(row) for row in printed],
-            "shipping_labels": [_public_label({**row, "imageBase64": None}) for row in existing],
-        })
-    except (ValueError, RuntimeError) as error:
+        body = _body(event)
+        order = _get_order(str(body.get("orderId") or body.get("order_id") or ""))
+        if order and order.get("gift_checkout"):
+            authorized = _authorized_checkout(body)
+            if authorized["id"] != order["id"]:
+                raise ValueError("Order not found")
+        else:
+            _authorize_order(event, order)
+        response = _finalize_payment({**event, "body": {
+            "paymentIntentId": order.get("payment_intent_id"),
+            "orderId": order["id"], "checkoutToken": body.get("checkoutToken"),
+        }})
+        return response
+    except ValueError as error:
         return _response(400, {"error": str(error)})
-    except Exception:
-        return _response(502, {"error": "Could not create shipping labels"})
+
 
 
 ORDER_FROM_EMAIL = os.environ.get(
@@ -1253,7 +1237,7 @@ def _gift_checkout(event, body):
         order_id = str(uuid.uuid4())
         token = secrets.token_urlsafe(32)
         headers = event.get("headers") or {}
-        device = headers.get("X-Device-Id") or headers.get("x-device-id") or "unknown"
+        device = _guest_device(event) if not claims.get("sub") else ""
         email = str(body.get("email") or dest.get("email") or claims.get("email") or "").strip()
         if not _looks_like_email(email):
             raise ValueError("Enter your email for the receipt.")
@@ -1366,6 +1350,12 @@ def _finalize_payment(event, trusted_order=None, trusted_payment=False):
         status = "paid" if paid and intent.get("livemode") else "paid_test" if paid else f"payment_{intent.get('status')}"
         metadata = intent.get("metadata") or {}
         order = _get_order(metadata.get("candle_garden_order_id")) or _find_order_by_payment_intent(payment_intent_id)
+        if not order or order.get("status") == "deleted":
+            raise ValueError("Order not found")
+        if payment_intent_id:
+            _verify_order_payment(order, intent)
+        if not trusted_payment and not trusted_order and not order.get("gift_checkout"):
+            _authorize_order(event, order)
         if paid and order and order.get("status") in ("processing", "shipped", "completed", "ready_for_pickup", "refilling", "refill_returning", "refill_received", "ready_for_fulfillment"):
             status = order["status"]
         if order and order.get("gift_checkout") and not paid:

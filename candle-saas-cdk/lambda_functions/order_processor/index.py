@@ -317,76 +317,49 @@ def ddb_update_order(order_id, customer_id, body):
     existing = orders_table.get_item(Key={"id": order_id}).get("Item")
     if not existing or existing.get("customer_id") != customer_id:
         return _json(404, {"error": "Order not found"})
-
-    status = body.get("status")
-    if not status:
-        return _json(400, {"error": "status is required"})
-
-    updated = _now_iso()
-    orders_table.update_item(
-        Key={"id": order_id},
-        UpdateExpression="SET #s = :s, updated_at = :u",
-        ExpressionAttributeNames={"#s": "status"},
-        ExpressionAttributeValues={":s": status, ":u": updated},
-    )
-
-    # Notify on status change
-    tokens = _list_push_tokens(customer_id)
-    send_expo_push(
-        tokens,
-        title="Order update",
-        body=f"Your Candle Garden order is now: {status}",
-        data={"orderId": order_id, "type": "order_status", "status": status},
-    )
-
-    return _json(200, {"id": order_id, "status": status, "updated_at": updated})
+    # Customer tokens never authorize payment or studio fulfillment transitions.
+    # The app's payment finalizer and authenticated staff routes own these states.
+    return _json(403, {"error": "Order status is managed by verified payments and the shop."})
 
 
 def purge_user_data(customer_id):
+    """Anonymize order receipts and remove push registrations; failures are retryable."""
     purged = {"rate_limit_keys": 0, "orders": 0, "push_tokens": 0, "store": "dynamodb"}
-
-    try:
-        table = dynamodb.Table(RATE_LIMIT_TABLE)
-        now = int(time.time())
-        window_id = now // int(os.environ.get("RATE_WINDOW_SECONDS", "3600"))
-        for wid in (window_id - 1, window_id, window_id + 1):
-            pk = f"user:{customer_id}#{wid}"
-            try:
-                table.delete_item(Key={"pk": pk})
-                purged["rate_limit_keys"] += 1
-            except Exception:
-                pass
-    except Exception as e:
-        logger.warning(f"Rate-limit purge failed: {e}")
-
-    try:
-        resp = orders_table.query(
-            IndexName="customer_id-created_at-index",
-            KeyConditionExpression=Key("customer_id").eq(customer_id),
-        )
+    cursor = None
+    while True:
+        args = {"IndexName": "customer_id-created_at-index",
+            "KeyConditionExpression": Key("customer_id").eq(customer_id)}
+        if cursor:
+            args["ExclusiveStartKey"] = cursor
+        resp = orders_table.query(**args)
         for item in resp.get("Items") or []:
-            orders_table.update_item(
-                Key={"id": item["id"]},
-                UpdateExpression="SET #s = :s, updated_at = :u",
-                ExpressionAttributeNames={"#s": "status"},
-                ExpressionAttributeValues={":s": "deleted", ":u": _now_iso()},
-            )
+            # Keep only accounting references, never contact data, addresses,
+            # gift recipients, item free text, or shipping-label links.
+            receipt = {key: item[key] for key in ("id", "payment_intent_id", "payment_provider",
+                "total_amount", "created_at", "refund_id", "refunded_amount") if key in item}
+            receipt.update(status="deleted", updated_at=_now_iso())
+            orders_table.put_item(Item=receipt)
             purged["orders"] += 1
-    except Exception as e:
-        logger.warning(f"Order purge failed: {e}")
-
-    try:
-        resp = push_table.query(
-            KeyConditionExpression=Key("customer_id").eq(customer_id)
-        )
+        cursor = resp.get("LastEvaluatedKey")
+        if not cursor:
+            break
+    cursor = None
+    while True:
+        args = {"KeyConditionExpression": Key("customer_id").eq(customer_id)}
+        if cursor:
+            args["ExclusiveStartKey"] = cursor
+        resp = push_table.query(**args)
         for item in resp.get("Items") or []:
-            push_table.delete_item(
-                Key={"customer_id": customer_id, "token": item["token"]}
-            )
+            push_table.delete_item(Key={"customer_id": customer_id, "token": item["token"]})
             purged["push_tokens"] += 1
-    except Exception as e:
-        logger.warning(f"Push token purge failed: {e}")
-
+        cursor = resp.get("LastEvaluatedKey")
+        if not cursor:
+            break
+    table = dynamodb.Table(RATE_LIMIT_TABLE)
+    window_id = int(time.time()) // RATE_WINDOW_SECONDS
+    for wid in (window_id - 1, window_id, window_id + 1):
+        table.delete_item(Key={"pk": f"user:{customer_id}#{wid}"})
+        purged["rate_limit_keys"] += 1
     return purged
 
 

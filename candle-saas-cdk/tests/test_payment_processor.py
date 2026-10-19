@@ -374,7 +374,7 @@ def test_guest_payment_sheet_does_not_require_signin(monkeypatch):
     assert "phone" in json.loads(missing["body"])["error"]
 
 
-def test_signed_in_jwt_is_still_tagged_without_api_authorizer(monkeypatch):
+def test_signed_in_jwt_is_still_tagged_without_api_authorizer(monkeypatch, signed_identity):
     import base64
     import json
 
@@ -387,8 +387,7 @@ def test_signed_in_jwt_is_still_tagged_without_api_authorizer(monkeypatch):
 
     processor._stripe_request = fake_stripe
     monkeypatch.setattr(processor, "_put_checkout_order", lambda order: None)
-    payload = base64.urlsafe_b64encode(json.dumps({"sub": "user-123"}).encode()).decode().rstrip("=")
-    token = f"header.{payload}.sig"
+    token = signed_identity()
     result = processor.handler(
         {
             "httpMethod": "POST",

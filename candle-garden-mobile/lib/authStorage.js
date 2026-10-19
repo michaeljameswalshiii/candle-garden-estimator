@@ -22,6 +22,7 @@ export async function saveTokens({ accessToken, idToken, refreshToken, expiresIn
   await setItem(KEYS.idToken, idToken);
   if (refreshToken) await setItem(KEYS.refreshToken, refreshToken);
   await setItem(KEYS.expiresAt, String(expiresAt));
+  return { accessToken, idToken, refreshToken, expiresIn, expiresAt };
 }
 
 export async function loadTokens() {

@@ -16,7 +16,10 @@ export async function POST(request: NextRequest) {
     const intent = await response.json() as any;
     if (!response.ok) throw new Error(intent?.error?.message || "Stripe verification failed");
     const order = await findOrderByPaymentIntent(paymentIntentId);
-    if (!order || order.customer_id !== await mobileCustomerId(request)) throw new Error("Order record not found");
+    if (!order || order.status === "deleted" || order.customer_id !== await mobileCustomerId(request)) throw new Error("Order record not found");
+    if (intent.id !== paymentIntentId || order.payment_intent_id !== intent.id || intent.metadata?.candle_garden_order_id !== order.id) throw new Error("Payment does not match this order.");
+    if (Boolean(intent.livemode) !== key.startsWith("sk_live_")) throw new Error("Payment mode does not match this checkout.");
+    if (intent.status === "succeeded" && Number(intent.amount_received) !== Math.round(Number(order.total_amount)*100)) throw new Error("Payment amount does not match the order.");
     if (Number(intent.amount) !== Math.round(Number(order.total_amount)*100) || intent.currency !== "usd")throw new Error("Payment amount does not match the order.");
     const paid = intent.status === "succeeded";
     const status = paid && ["processing","shipped","completed","ready_for_pickup","refill_returning"].includes(String(order.status)) ? order.status : paid ? (intent.livemode ? "paid" : "paid_test") : `payment_${intent.status}`;

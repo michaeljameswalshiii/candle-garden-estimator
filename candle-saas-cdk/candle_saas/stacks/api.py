@@ -217,6 +217,16 @@ class APIStack(Stack):
         container_detector_fn = self._create_container_detector_function(
             lambda_execution_role, vpc, lambda_sg
         )
+
+        # Build the portable verification dependency once; both public handlers
+        # accept the existing Cognito ID/access tokens without client changes.
+        from scripts.build_auth_layer import build as build_auth_layer
+        auth_layer = lambda_.LayerVersion(self, "CognitoVerificationLayer",
+            code=lambda_.Code.from_asset(str(build_auth_layer())),
+            compatible_runtimes=[lambda_.Runtime.PYTHON_3_10],
+            description="Pinned pure-Python Cognito RS256 verification")
+        payment_processor_fn.add_layers(auth_layer)
+        container_detector_fn.add_layers(auth_layer)
         
         # Cognito user pool for The Candle Garden App (import existing Phase 1 pool when set)
         pool_id = self.node.try_get_context("cognitoUserPoolId") or "us-east-1_WTA7ZWxcr"
@@ -260,6 +270,9 @@ class APIStack(Stack):
         # Add API resources and integrations
         self._setup_products_endpoint(api, product_manager_fn)
         self._setup_orders_endpoint(api, order_processor_fn, auth_opts)
+        account = api.root.add_resource("account")
+        account.add_resource("purge").add_method("POST", apigw.LambdaIntegration(order_processor_fn),
+            authorization_type=auth_opts.authorization_type, authorizer=auth_opts.authorizer)
         self._setup_payments_endpoint(api, payment_processor_fn, auth_opts)
         self._setup_recommendations_endpoint(api, ai_recommendations_fn)
         self._setup_images_endpoint(api, image_processor_fn)

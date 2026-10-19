@@ -1,7 +1,6 @@
-import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { mobileIdentity, mobileCustomerId } from "@/lib/mobile-auth";
-import { listCustomerOrders, putMobileOrder } from "@/lib/mobileadmin/data";
+import { listCustomerOrders, findOrderByPaymentIntent } from "@/lib/mobileadmin/data";
 
 export const dynamic = "force-dynamic";
 
@@ -18,16 +17,13 @@ export async function POST(request: NextRequest) {
   const identity = await mobileIdentity(request);
   if (!identity) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await request.json();
-  const now = new Date().toISOString();
-  const order = {
-    id: randomUUID(), customer_id: identity.sub, customer_email: identity.email,
-    items: Array.isArray(body.items) ? body.items.slice(0, 100) : [],
-    total_amount: Number(body.total || 0), status: "payment_verification_pending",
-    source: "mobile", payment_provider: "stripe", payment_intent_id: String(body.payment_intent_id || ""),
-    shipping: body.shipping && typeof body.shipping === "object" ? body.shipping : undefined,
-    label_status: "queued", created_at: now, updated_at: now,
-  };
-  if (!order.payment_intent_id.startsWith("pi_")) return NextResponse.json({ error: "A Stripe payment reference is required" }, { status: 400 });
-  await putMobileOrder(order);
+  // Compatibility endpoint: checkout already creates the authoritative order.
+  // Never manufacture a second order from a client total or PaymentIntent ID.
+  const paymentIntentId = String(body.payment_intent_id || "");
+  if (!/^pi_[a-zA-Z0-9]+$/.test(paymentIntentId)) return NextResponse.json({ error: "A Stripe payment reference is required" }, { status: 400 });
+  const order = await findOrderByPaymentIntent(paymentIntentId);
+  if (!order || order.customer_id !== identity.sub || order.status === "deleted") {
+    return NextResponse.json({ error: "Start checkout before saving an order." }, { status: 400 });
+  }
   return NextResponse.json(order, { status: 201 });
 }

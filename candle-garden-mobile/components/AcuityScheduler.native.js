@@ -31,10 +31,16 @@ true;
 `;
 
 function isAllowed(url) {
-  const value = String(url || '').toLowerCase();
-  if (BLOCKED.some((host) => value.includes(host))) return false;
-  if (value.startsWith('about:') || value.startsWith('data:')) return true;
-  return ALLOWED.some((host) => value.includes(host));
+  if (url === 'about:blank') return true;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password) return false;
+    const hostname = parsed.hostname.toLowerCase();
+    const matches = (host) => hostname === host || hostname.endsWith(`.${host}`);
+    return !BLOCKED.some(matches) && ALLOWED.some(matches);
+  } catch {
+    return false;
+  }
 }
 
 export default function AcuityScheduler() {
@@ -64,7 +70,7 @@ export default function AcuityScheduler() {
       key={nonce}
       source={{ uri: BOOKING_PAGE_URL }}
       style={styles.webView}
-      originWhitelist={['https://*', 'http://*']}
+      originWhitelist={['https://*']}
       javaScriptEnabled
       domStorageEnabled
       sharedCookiesEnabled
@@ -75,7 +81,7 @@ export default function AcuityScheduler() {
       startInLoadingState
       nestedScrollEnabled
       allowsBackForwardNavigationGestures
-      mixedContentMode="always"
+      mixedContentMode="never"
       renderLoading={() => (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={colors.primary} />
