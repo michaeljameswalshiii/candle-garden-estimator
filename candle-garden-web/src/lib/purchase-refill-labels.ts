@@ -8,7 +8,7 @@ import {
   stubLabelsForItems,
   type ShippingLabel,
 } from "@/lib/shipping-labels";
-import { claimShippingLeg, getMobileOrder, releaseShippingLeg, updateMobileOrder, type MobileOrder } from "@/lib/mobileadmin/data";
+import { claimShippingLeg, getMobileOrder, holdShippingLeg, releaseShippingLeg, updateMobileOrder, type MobileOrder } from "@/lib/mobileadmin/data";
 
 function persistable(row: ShippingLabel): ShippingLabel {
   const { imageBase64: _image, ...rest } = row;
@@ -32,10 +32,15 @@ function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function savedLabel(order: MobileOrder | undefined, legKey: string) {
+  return (order?.shipping_labels || []).find((row) => row.key === legKey && row.status === "purchased" && row.labelUrl);
+}
+
 async function purchaseClaimedLeg(
   orderId: string,
   legKey: string,
-  buy: () => Promise<ShippingLabel>,
+  buy: () => Promise<{ row: ShippingLabel; created: boolean }>,
+  save: (row: ShippingLabel) => Promise<void>,
 ): Promise<ShippingLabel | null> {
   const deadline = Date.now() + 12000;
   while (Date.now() < deadline) {
@@ -47,15 +52,35 @@ async function purchaseClaimedLeg(
     }
     if (!claimed) {
       await wait(300);
-      const fresh = await getMobileOrder(orderId);
-      const saved = (fresh?.shipping_labels || []).find((row) => row.key === legKey && row.status === "purchased" && row.labelUrl);
+      const saved = savedLabel(await getMobileOrder(orderId), legKey);
       if (saved) return saved;
       continue;
     }
+    let created = false;
+    let durable = false;
     try {
-      return await buy();
+      const bought = await buy();
+      if (!bought.created) {
+        durable = true;
+        return bought.row;
+      }
+      created = true;
+      await holdShippingLeg(orderId, legKey).catch(() => undefined);
+      let lastError: unknown;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          await save(bought.row);
+          if (savedLabel(await getMobileOrder(orderId), legKey)) {
+            durable = true;
+            return bought.row;
+          }
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      throw lastError instanceof Error ? lastError : new Error("Could not save this shipping label");
     } finally {
-      await releaseShippingLeg(orderId, legKey).catch(() => undefined);
+      if (!created || durable) await releaseShippingLeg(orderId, legKey).catch(() => undefined);
     }
   }
   return null;
@@ -86,7 +111,7 @@ export async function purchaseOrderLegs(order: MobileOrder, keys?: string[]) {
         }
         const freshLabels = mergeLabels(fresh?.shipping_labels || labels, []);
         const saved = freshLabels.find((row) => row.key === leg.key && row.status === "purchased" && row.labelUrl);
-        if (saved) return saved;
+        if (saved) return { row: saved, created: false };
         // Explicit customer-to-shop shipment; do not reverse the addresses again.
         const created = await createLabel(leg.from, leg.to, leg.weight, leg.dims, leg.description, false);
         const row: ShippingLabel = {
@@ -103,6 +128,8 @@ export async function purchaseOrderLegs(order: MobileOrder, keys?: string[]) {
           recipient: leg.key === "empties_in" ? "The Candle Garden" : (leg.to.name || "Customer"),
           recipientAddress: [leg.to.address, leg.to.city, `${leg.to.state} ${leg.to.zip}`].filter(Boolean).join(", "),
         };
+        return { row, created: true };
+      }, async (row) => {
         labels = mergeLabels(labels, [persistable(row)]);
         const tracking = labels.map((item) => item.trackingNumber).filter(Boolean) as string[];
         await updateMobileOrder(order.id, {
@@ -110,7 +137,6 @@ export async function purchaseOrderLegs(order: MobileOrder, keys?: string[]) {
           label_status: labelStatusFrom(labels),
           ...(tracking.length ? { tracking_numbers: tracking } : {}),
         });
-        return row;
       });
       if (purchased) printed.push(await withImage(purchased));
       else labels = mergeLabels(labels, [{

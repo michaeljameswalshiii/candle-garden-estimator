@@ -97,7 +97,7 @@ test('finalize leaves a refunded order refunded and does not buy labels', async 
   assert.equal(labels, 0);
 });
 
-test('production staff sessions use the office secret and reject the built-in pepper', () => {
+test('production staff sessions use the office secret and reject the built-in pepper', async () => {
   const source = fs.readFileSync(path.join(ROOT, 'candle-garden-web/src/lib/admin/auth.ts'), 'utf8');
   const code = ts.transpile(source, { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 });
   function load(env) {
@@ -105,6 +105,7 @@ test('production staff sessions use the office secret and reject the built-in pe
       require: id => {
         if (id === 'crypto') return require('crypto');
         if (id === 'next/headers') return { cookies: async () => ({ get() {} }) };
+        if (id === './staff') return { verifyStaff: async () => ({ ok: false }) };
         throw new Error(`Unstubbed ${id}`);
       } };
     vm.runInNewContext(code, context);
@@ -120,6 +121,28 @@ test('production staff sessions use the office secret and reject the built-in pe
   const missing = load({ NODE_ENV: 'production', VERCEL_ENV: 'production' });
   assert.throws(() => missing.createSessionToken('GardenAdmin'), /not configured/);
   assert.equal(missing.validateSessionToken(`${body}|${pepper}`).ok, false);
+  assert.equal(office.loadAdminUsers().length, 0);
+  assert.equal(office.isAdminConfigured(), false);
+  const ownerPassword = 'owner-secret-value';
+  const owner = load({
+    NODE_ENV: 'production',
+    VERCEL_ENV: 'production',
+    OFFICE_SESSION_SECRET: 'office-secret-value',
+    CANDLE_GARDEN_OWNER_PASSWORD_HASH: office.hashPassword(ownerPassword),
+    OFFICE_USERNAME: 'desk@thecandlegarden.co',
+    OFFICE_PASSWORD: 'desk-secret-value',
+  });
+  assert.equal(owner.isAdminConfigured(), true);
+  assert.equal(owner.loadAdminUsers().length, 0);
+  const ownerLogin = await owner.verifyCredentials('thepotentpig@gmail.com', ownerPassword);
+  assert.equal(ownerLogin.ok, true);
+  assert.equal(ownerLogin.id, 'thepotentpig@gmail.com');
+  const deskLogin = await owner.verifyCredentials('desk@thecandlegarden.co', 'desk-secret-value');
+  assert.equal(deskLogin.ok, true);
+  assert.equal(deskLogin.id, 'desk@thecandlegarden.co');
+  assert.equal((await owner.verifyCredentials('GardenAdmin', 'desk-secret-value')).ok, false);
+  const dev = load({});
+  assert.equal(dev.loadAdminUsers().some((user) => user.id === 'GardenAdmin'), true);
 });
 
 test('WebView allows real booking/payment domains and rejects deceptive URLs and HTTP', () => {

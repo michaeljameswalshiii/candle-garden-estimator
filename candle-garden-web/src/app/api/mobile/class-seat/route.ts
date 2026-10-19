@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { getMobileOrder, type MobileOrder } from "@/lib/mobileadmin/data";
 
 export const dynamic = "force-dynamic";
 
@@ -48,18 +49,33 @@ function squarespaceMessage(data: Record<string, unknown>) {
   return String(message || "Squarespace did not reserve the seat").slice(0, 300);
 }
 
-function seatItems(raw: unknown): SeatItem[] {
-  if (!Array.isArray(raw) || !raw.length) throw new Error("A class seat needs a variant");
-  return raw.map((item) => {
-    const row = item as Record<string, unknown>;
-    const variantId = String(row.variantId || "").trim();
+const BOOKABLE = new Set(["paid", "paid_test", "processing", "shipped", "completed", "ready_for_pickup", "ready_for_fulfillment", "refill_received", "refilling", "refill_returning"]);
+
+async function variantFor(productId: string) {
+  const { GET } = await import("@/app/api/mobile/classes/route");
+  const response = await GET();
+  if (!response.ok) throw new Error("That class is missing its Squarespace seat");
+  const payload = await response.json() as { classes?: Array<{ id?: string; variantId?: string }> };
+  const variantId = String((payload.classes || []).find((row) => row.id === productId)?.variantId || "").trim();
+  if (!variantId) throw new Error("That class is missing its Squarespace seat");
+  return variantId;
+}
+
+async function seatsFromOrder(order: MobileOrder): Promise<SeatItem[]> {
+  const classes = (order.items || []).filter((item) => String(item.type || "").toLowerCase() === "class");
+  if (!classes.length) throw new Error("This order has no class seat");
+  const seats: SeatItem[] = [];
+  for (const item of classes) {
+    const row = item as typeof item & { variantId?: string; unitCents?: number; price?: number };
     const quantity = Number(row.quantity);
-    const unitPrice = Number(row.unitPrice);
+    const unitPrice = Number(row.unitCents) > 0 ? Number(row.unitCents) / 100 : Number(row.price);
+    const variantId = String(row.variantId || "").trim() || await variantFor(String(row.productId || ""));
     if (!variantId) throw new Error("A class seat needs a variant");
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > 20) throw new Error("That class quantity is invalid");
     if (!Number.isFinite(unitPrice) || unitPrice <= 0) throw new Error("That class has no price");
-    return { variantId, quantity, unitPrice, title: String(row.title || "Candle class").slice(0, 200) };
-  });
+    seats.push({ variantId, quantity, unitPrice, title: String(row.size || row.name || "Candle class").slice(0, 200) });
+  }
+  return seats;
 }
 
 async function reserveSeats(orderId: string, email: string, name: string, items: SeatItem[]) {
@@ -111,16 +127,7 @@ async function reserveSeats(orderId: string, email: string, name: string, items:
 
 export async function GET(request: NextRequest) {
   if (!authorized(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const key = String(process.env.SQUARESPACE_API_KEY || "").trim();
-  if (!key) return NextResponse.json({ keyPresent: false, keyLength: 0 });
-  const inventory = await squarespace("/1.0/commerce/inventory");
-  const orders = await squarespace("/1.0/commerce/orders?modifiedAfter=2026-10-01T00:00:00Z&modifiedBefore=2026-10-13T00:00:00Z");
-  return NextResponse.json({
-    keyPresent: true,
-    keyLength: key.length,
-    inventoryStatus: inventory.status,
-    ordersStatus: orders.status,
-  });
+  return NextResponse.json({ ok: true });
 }
 
 export async function POST(request: NextRequest) {
@@ -129,9 +136,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const orderId = String(body.orderId || "").trim();
     if (!orderId) throw new Error("An order id is required");
-    const email = String(body.email || "").trim();
-    const name = String(body.name || "").trim();
-    const items = seatItems(body.items);
+    const order = await getMobileOrder(orderId);
+    if (!order || !BOOKABLE.has(String(order.status || ""))) throw new Error("This order is not paid");
+    const email = String(order.customer_email || "").trim();
+    const name = String(order.shipping?.name || "").trim();
+    const items = await seatsFromOrder(order);
     const reserved = await reserveSeats(orderId, email, name, items);
     return NextResponse.json(reserved);
   } catch (error) {

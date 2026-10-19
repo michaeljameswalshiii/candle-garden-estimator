@@ -4,7 +4,6 @@ import boto3
 import base64
 import logging
 import re
-import urllib.request
 from botocore.config import Config
 
 logger = logging.getLogger()
@@ -196,19 +195,11 @@ def _normalize_image(body):
     """Return (base64_str, format, error_response_or_None)."""
     image_data = body.get("image", "")
 
-    if image_data and isinstance(image_data, str) and image_data.startswith("http"):
-        try:
-            with urllib.request.urlopen(image_data) as resp:
-                raw = resp.read()
-                image_format = _detect_format_from_bytes(raw)
-                image_data = base64.b64encode(raw).decode("utf-8")
-                return _validate_format(image_data, image_format)
-        except Exception as e:
-            logger.error(f"Failed to fetch image from URL: {e}")
-            return None, None, _json_response(400, {
-                "success": False,
-                "error": f"Failed to fetch image: {str(e)}",
-            })
+    if isinstance(image_data, str) and image_data.strip().lower().startswith("http"):
+        return None, None, _json_response(400, {
+            "success": False,
+            "error": "Send a photo from the app",
+        })
 
     if not image_data or not isinstance(image_data, str):
         return None, None, _json_response(400, {
@@ -625,8 +616,8 @@ def _rate_limit_check(bucket_key, limit):
     pk = f"{bucket_key}#{window_id}"
     ttl = (window_id + 2) * window
 
-    table = dynamodb.Table(RATE_LIMIT_TABLE)
     try:
+        table = dynamodb.Table(RATE_LIMIT_TABLE)
         resp = table.update_item(
             Key={"pk": pk},
             UpdateExpression="ADD #c :one SET #ttl = if_not_exists(#ttl, :ttl)",
@@ -638,9 +629,8 @@ def _rate_limit_check(bucket_key, limit):
         remaining = max(0, limit - count)
         return count <= limit, remaining, limit
     except Exception as e:
-        # Fail open on rate-limit infra errors so refills keep working
-        logger.warning(f"Rate limit check failed open: {e}")
-        return True, limit, limit
+        logger.warning(f"Rate limit check failed closed: {e}")
+        return False, 0, limit
 
 
 def handler(event, context):
@@ -715,7 +705,7 @@ def handler(event, context):
 
         if "image" not in body or not body.get("image"):
             return _json_response(400, {
-                "error": "image (base64 or url) is required",
+                "error": "image data is empty",
                 "success": False,
             })
 

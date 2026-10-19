@@ -57,6 +57,71 @@ def test_real_id_and_access_tokens_keep_detect_authenticated(signed_identity):
         assert context["sub"] == "user-123"
 
 
+def test_detect_rejects_remote_image_urls(monkeypatch):
+    detector = load("container_detector")
+    monkeypatch.setattr(detector, "_rate_limit_check", lambda bucket, limit: (True, limit, limit))
+    result = detector.handler({
+        "headers": {},
+        "requestContext": {"identity": {"sourceIp": "192.0.2.1"}},
+        "body": json.dumps({"image": "https://example.invalid/photo.jpg"}),
+    }, None)
+    assert result["statusCode"] == 400
+    assert "example.invalid" not in result["body"]
+    assert "urlopen" not in detector._normalize_image.__code__.co_names
+
+
+def test_detect_rate_limit_fails_closed(monkeypatch):
+    detector = load("container_detector")
+    monkeypatch.setattr(detector, "RATE_LIMIT_TABLE", "candle-garden-detect-rate-limits")
+
+    class Broken:
+        def Table(self, _name):
+            raise RuntimeError("down")
+
+    monkeypatch.setattr(detector, "dynamodb", Broken())
+    allowed, remaining, _limit = detector._rate_limit_check("guest-ip:192.0.2.1", 200)
+    assert allowed is False
+    assert remaining == 0
+
+
+def test_label_claim_is_released_only_after_the_label_is_saved(monkeypatch):
+    processor = load("payment_processor")
+    stored = {"id": "order-1", "status": "paid_test", "shipping_labels": []}
+    released = []
+
+    monkeypatch.setattr(processor, "_get_order", lambda order_id: dict(stored) if order_id == "order-1" else None)
+    monkeypatch.setattr(processor, "_claim_shipping_leg", lambda *_args: True)
+    monkeypatch.setattr(processor, "_hold_shipping_leg", lambda *_args: None)
+
+    def update(_order_id, patch):
+        stored.update(patch)
+
+    def release(_order_id, key):
+        assert any(row.get("key") == key and row.get("labelUrl") for row in stored.get("shipping_labels") or [])
+        released.append(key)
+
+    monkeypatch.setattr(processor, "_update_order", update)
+    monkeypatch.setattr(processor, "_release_shipping_leg", release)
+    monkeypatch.setattr(processor, "_print_one_leg", lambda _quote, _dest, key: {
+        "key": key, "status": "purchased", "trackingNumber": "trk", "labelUrl": "https://labels.test/label.png",
+    })
+    monkeypatch.setattr(processor, "_quote_for_item", lambda _item, _dest: {"method": "prepaid_labels"})
+    purchased, errors = processor._purchase_item_legs({"type": "refill"}, {}, ["empties_in"], [], "order-1")
+    assert errors == []
+    assert purchased[0]["labelUrl"] == "https://labels.test/label.png"
+    assert released == ["empties_in"]
+
+    def fail_update(_order_id, _patch):
+        raise RuntimeError("order store unavailable")
+
+    monkeypatch.setattr(processor, "_update_order", fail_update)
+    released.clear()
+    purchased, errors = processor._purchase_item_legs({"type": "refill"}, {}, ["refills_out"], [], "order-1")
+    assert purchased == []
+    assert errors[0]["key"] == "refills_out"
+    assert released == []
+
+
 def test_detect_does_not_use_caller_forwarded_ip():
     detector = load("container_detector")
     assert detector._client_ip({"headers": {"X-Forwarded-For": "spoofed"},

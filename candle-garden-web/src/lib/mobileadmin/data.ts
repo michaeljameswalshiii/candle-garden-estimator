@@ -86,6 +86,23 @@ export async function claimShippingLeg(orderId: string, legKey: string): Promise
   }
 }
 
+export async function holdShippingLeg(orderId: string, legKey: string, durationMs = 24 * 60 * 60 * 1000) {
+  const now = Date.now();
+  try {
+    await client.send(new UpdateCommand({
+      TableName: ordersTable,
+      Key: { id: orderId },
+      UpdateExpression: "SET #claim = :until",
+      ConditionExpression: "attribute_exists(#claim) AND #claim >= :now",
+      ExpressionAttributeNames: { "#claim": claimAttribute(legKey) },
+      ExpressionAttributeValues: { ":until": now + durationMs, ":now": now },
+    }));
+  } catch (error) {
+    if (error && typeof error === "object" && (error as { name?: string }).name === "ConditionalCheckFailedException") return;
+    throw error;
+  }
+}
+
 export async function releaseShippingLeg(orderId: string, legKey: string) {
   await client.send(new UpdateCommand({
     TableName: ordersTable,

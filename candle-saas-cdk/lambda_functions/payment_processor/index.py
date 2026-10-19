@@ -779,6 +779,61 @@ def _release_shipping_leg(order_id, key):
     )
 
 
+def _hold_shipping_leg(order_id, key, duration_ms=24 * 60 * 60 * 1000):
+    if not order_id:
+        return
+    from botocore.exceptions import ClientError
+    now = int(time.time() * 1000)
+    try:
+        _orders().update_item(
+            Key={"id": order_id},
+            UpdateExpression="SET #claim = :until",
+            ConditionExpression="attribute_exists(#claim) AND #claim >= :now",
+            ExpressionAttributeNames={"#claim": _claim_name(key)},
+            ExpressionAttributeValues={":until": now + duration_ms, ":now": now},
+        )
+    except ClientError as error:
+        if error.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+            raise
+
+
+def _stored_label(order, key):
+    for row in (order or {}).get("shipping_labels") or []:
+        if isinstance(row, dict) and row.get("key") == key and row.get("status") == "purchased" and row.get("labelUrl"):
+            return row
+    return None
+
+
+def _persist_purchased_label(order_id, existing, row):
+    if not order_id:
+        return True
+    merged = _merge_labels(existing, [row])
+    public = [{k: v for k, v in item.items() if k != "imageBase64"} for item in merged if isinstance(item, dict)]
+    tracking = [item.get("trackingNumber") for item in public if item.get("trackingNumber")]
+    has_purchased = any(item.get("status") == "purchased" for item in public)
+    has_other = any(item.get("status") != "purchased" for item in public)
+    if has_purchased and has_other:
+        label_status = "partial"
+    elif has_purchased:
+        label_status = "created"
+    else:
+        label_status = "queued"
+    patch = {"shipping_labels": public, "label_status": label_status}
+    if tracking:
+        patch["tracking_numbers"] = tracking
+    last_error = None
+    for _ in range(3):
+        try:
+            _update_order(order_id, patch)
+            if _stored_label(_get_order(order_id), row.get("key")):
+                return True
+        except Exception as error:
+            last_error = error
+    if last_error:
+        raise last_error
+    return False
+
+
 def _purchase_item_legs(item, dest, keys, existing, order_id=""):
     purchased = []
     errors = []
@@ -795,28 +850,38 @@ def _purchase_item_legs(item, dest, keys, existing, order_id=""):
         if not _claim_shipping_leg(order_id, key):
             errors.append({"key": key, "title": LEG_TITLES.get(key, key), "status": "queued", "error": "Label purchase already in progress"})
             continue
+        created = False
+        durable = False
         try:
             fresh = _get_order(order_id) if order_id else None
             if fresh and fresh.get("status") in ("refunded", "partially_refunded"):
                 raise RuntimeError("Refunded orders do not get new postage.")
-            fresh_labels = {
-                row.get("key"): row
-                for row in (fresh or {}).get("shipping_labels") or []
-                if isinstance(row, dict) and row.get("status") == "purchased" and row.get("labelUrl")
-            }
-            if key in fresh_labels:
-                purchased.append(fresh_labels[key])
+            saved = _stored_label(fresh, key)
+            if saved:
+                purchased.append(saved)
+                durable = True
                 continue
             if quote is None:
                 quote = _quote_for_item(item, dest)
-            purchased.append(_print_one_leg(quote, dest, key))
+            row = _print_one_leg(quote, dest, key)
+            created = True
+            try:
+                _hold_shipping_leg(order_id, key)
+            except Exception:
+                pass
+            base = (fresh or {}).get("shipping_labels") or existing
+            if not _persist_purchased_label(order_id, base, row):
+                raise RuntimeError("Could not save this shipping label")
+            purchased.append(row)
+            durable = True
         except Exception as error:
             errors.append({"key": key, "title": LEG_TITLES.get(key, key), "status": "queued", "error": str(error)})
         finally:
-            try:
-                _release_shipping_leg(order_id, key)
-            except Exception:
-                pass
+            if not created or durable:
+                try:
+                    _release_shipping_leg(order_id, key)
+                except Exception:
+                    pass
     return purchased, errors
 
 
@@ -1470,6 +1535,19 @@ def _finalize_payment(event, trusted_order=None, trusted_payment=False):
                 except Exception:
                     print("Gift card delivery queued", order["id"])
             patch = {"status": status}
+            if paid and order.get("status") not in ("paid", "paid_test", "processing", "shipped", "completed", "ready_for_pickup", "ready_for_fulfillment", "refill_received", "refilling", "refill_returning"):
+                try:
+                    _update_order(order["id"], {"status": status})
+                    order["status"] = status
+                except Exception as error:
+                    fresh = _get_order(order["id"]) or {}
+                    if fresh.get("status") in ("refunded", "partially_refunded"):
+                        return _response(200, {
+                            "ok": True, "paid": False, "status": fresh.get("status"),
+                            "paymentIntentId": payment_intent_id, "orderId": order.get("id"),
+                            "labels": [], "shipping_labels": [],
+                        })
+                    print(f"paid status update failed: {error}")
             if paid:
                 try:
                     shipping_labels, tracking, label_status, purchased = _apply_paid_labels(order)

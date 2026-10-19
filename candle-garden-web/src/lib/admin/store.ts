@@ -20,19 +20,33 @@ async function readPrivate(key: string): Promise<string | undefined> {
   return new Response(result.stream).text();
 }
 
+function sameBlob(pathname: string, key: string) {
+  return pathname === key || pathname.endsWith(`/${key}`);
+}
+
+async function retirePublicCopies(key: string, keepUrl?: string) {
+  const { list, del } = await import("@vercel/blob");
+  const listed = await list({ prefix: key, limit: 20 });
+  for (const blob of listed.blobs) {
+    if (!sameBlob(blob.pathname, key) || !blob.url || blob.url === keepUrl) continue;
+    await del(blob.url);
+  }
+}
+
 async function migrateAdminBlobs(): Promise<void> {
   if (!blobEnabled()) return;
   if (!migration) {
     migration = (async () => {
-      const { list, put, del } = await import("@vercel/blob");
+      const { list, put } = await import("@vercel/blob");
       for (const name of ADMIN_FILES) {
         const key = `admin/${name}.json`;
         try {
-          if (await readPrivate(key)) continue;
+          if (await readPrivate(key)) {
+            await retirePublicCopies(key);
+            continue;
+          }
           const listed = await list({ prefix: key, limit: 20 });
-          const match = listed.blobs.find(
-            (blob) => blob.pathname === key || blob.pathname.endsWith(`/${key}`)
-          );
+          const match = listed.blobs.find((blob) => sameBlob(blob.pathname, key));
           if (!match?.url) continue;
           const res = await fetch(match.url, { cache: "no-store" });
           if (!res.ok) continue;
@@ -45,7 +59,7 @@ async function migrateAdminBlobs(): Promise<void> {
             contentType: "application/json",
             cacheControlMaxAge: 15,
           });
-          if (written.url !== match.url) await del(match.url);
+          await retirePublicCopies(key, written.url);
         } catch {
           /* Keep the existing copy when a private rewrite is not available. */
         }
@@ -62,15 +76,6 @@ export async function loadRecord<T>(name: string, fallback: T): Promise<T> {
       await migrateAdminBlobs();
       const json = await readPrivate(key);
       if (json) return JSON.parse(json) as T;
-      const { list } = await import("@vercel/blob");
-      const listed = await list({ prefix: key, limit: 20 });
-      const match = listed.blobs.find(
-        (blob) => blob.pathname === key || blob.pathname.endsWith(`/${key}`)
-      );
-      if (match?.url) {
-        const res = await fetch(match.url, { cache: "no-store" });
-        if (res.ok) return (await res.json()) as T;
-      }
     } catch {
       /* fall through */
     }

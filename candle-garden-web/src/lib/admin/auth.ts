@@ -5,11 +5,21 @@ const COOKIE = "cg_admin_session";
 const MAX_AGE_SEC = 60 * 60 * 12;
 const HASH_PEPPER = "candle-garden-admin-v1";
 
+function productionRuntime(): boolean {
+  return process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production";
+}
+
 function sessionSecret(): string {
   const configured = process.env.OFFICE_SESSION_SECRET || process.env.ADMIN_SESSION_SECRET || "";
   if (configured.length >= 16) return configured;
-  if (process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production") return "";
+  if (productionRuntime()) return "";
   return HASH_PEPPER;
+}
+
+function retiredProductionPassword(password: string): boolean {
+  if (!productionRuntime()) return false;
+  const hashed = hashPassword(password);
+  return BUILTIN_USERS.some((user) => safeEqual(user.passwordHash, hashed));
 }
 
 export type AdminUser = {
@@ -93,18 +103,21 @@ export function loadAdminUsers(): Array<{ id: string; passwordHash: string }> {
       .filter(Boolean) as AdminUser[];
     if (fromEnv.length) return fromEnv;
   }
+  if (productionRuntime()) return [];
   return BUILTIN_USERS;
 }
 
 export function isAdminConfigured(): boolean {
-  return loadAdminUsers().length > 0;
+  return loadAdminUsers().length > 0
+    || Boolean(process.env.CANDLE_GARDEN_OWNER_PASSWORD_HASH)
+    || envPlaintextAccounts().length > 0;
 }
 
 export async function verifyCredentials(
   id: string,
   password: string
 ): Promise<{ ok: true; id: string } | { ok: false }> {
-  if (!password) return { ok: false };
+  if (!password || retiredProductionPassword(password)) return { ok: false };
   const users = loadAdminUsers();
   const incoming = normalizeId(id);
   // Rotate the owner credential through production secrets without changing other logins.

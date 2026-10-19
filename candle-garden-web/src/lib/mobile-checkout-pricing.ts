@@ -45,7 +45,7 @@ export async function priceItems(raw: unknown, shipping: unknown) {
       if (!entry || entry.soldOut || entry.available != null && qty > Number(entry.available)) throw new Error("That class is unavailable or has too few seats.");
       const unitCents = Math.round(entry.price * 100);
       total += unitCents * qty;
-      return { type: "class", productId: entry.id, name: entry.title, size: entry.scheduleLabel, quantity: qty, unitCents };
+      return { type: "class", productId: entry.id, name: entry.title, size: entry.scheduleLabel, quantity: qty, unitCents, variantId: entry.variantId || undefined };
     }
     const entry = products.find((row) => row.id === String(item.productId));
     if (!entry || entry.soldOut) throw new Error(`${entry?.name || item.name || 'This candle'} is unavailable. Refresh Shop and choose an available size.`);
