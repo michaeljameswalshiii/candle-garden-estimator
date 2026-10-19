@@ -13,18 +13,19 @@ function blobEnabled() {
 const ADMIN_FILES = ["staff", "alerts", "content", "announcements", "inquiries", "photos", "visits"];
 let migration: Promise<void> | null = null;
 
-async function readPrivate(key: string): Promise<string | undefined> {
+async function readPrivate(key: string): Promise<{ text: string; url: string } | undefined> {
   const { get } = await import("@vercel/blob");
   const result = await get(key, { access: "private", useCache: false });
-  if (!result || result.statusCode !== 200 || !result.stream) return undefined;
-  return new Response(result.stream).text();
+  if (!result || result.statusCode !== 200 || !result.stream || !result.blob?.url) return undefined;
+  return { text: await new Response(result.stream).text(), url: result.blob.url };
 }
 
 function sameBlob(pathname: string, key: string) {
   return pathname === key || pathname.endsWith(`/${key}`);
 }
 
-async function retirePublicCopies(key: string, keepUrl?: string) {
+async function retirePublicCopies(key: string, keepUrl: string) {
+  if (!keepUrl) return;
   const { list, del } = await import("@vercel/blob");
   const listed = await list({ prefix: key, limit: 20 });
   for (const blob of listed.blobs) {
@@ -41,8 +42,9 @@ async function migrateAdminBlobs(): Promise<void> {
       for (const name of ADMIN_FILES) {
         const key = `admin/${name}.json`;
         try {
-          if (await readPrivate(key)) {
-            await retirePublicCopies(key);
+          const current = await readPrivate(key);
+          if (current) {
+            await retirePublicCopies(key, current.url);
             continue;
           }
           const listed = await list({ prefix: key, limit: 20 });
@@ -74,8 +76,8 @@ export async function loadRecord<T>(name: string, fallback: T): Promise<T> {
   if (blobEnabled()) {
     try {
       await migrateAdminBlobs();
-      const json = await readPrivate(key);
-      if (json) return JSON.parse(json) as T;
+      const current = await readPrivate(key);
+      if (current) return JSON.parse(current.text) as T;
     } catch {
       /* fall through */
     }
