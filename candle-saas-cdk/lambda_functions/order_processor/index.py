@@ -12,6 +12,7 @@ import time
 import urllib.request
 import boto3
 from boto3.dynamodb.conditions import Key
+from botocore.exceptions import ClientError
 from decimal import Decimal
 import logging
 from datetime import datetime, timezone
@@ -348,7 +349,14 @@ def purge_user_data(customer_id):
         args = {"KeyConditionExpression": Key("customer_id").eq(customer_id)}
         if cursor:
             args["ExclusiveStartKey"] = cursor
-        resp = push_table.query(**args)
+        try:
+            resp = push_table.query(**args)
+        except ClientError as error:
+            # Older installs used a separate table; the active web registration
+            # store uses push:<customer>:<token> rows in RATE_LIMIT_TABLE instead.
+            if error.response.get("Error", {}).get("Code") == "ResourceNotFoundException":
+                break
+            raise
         for item in resp.get("Items") or []:
             push_table.delete_item(Key={"customer_id": customer_id, "token": item["token"]})
             purged["push_tokens"] += 1
@@ -356,6 +364,20 @@ def purge_user_data(customer_id):
         if not cursor:
             break
     table = dynamodb.Table(RATE_LIMIT_TABLE)
+    cursor = None
+    while True:
+        args = {"FilterExpression": "begins_with(pk, :prefix)",
+            "ExpressionAttributeValues": {":prefix": f"push:{customer_id}:"},
+            "ProjectionExpression": "pk"}
+        if cursor:
+            args["ExclusiveStartKey"] = cursor
+        resp = table.scan(**args)
+        for item in resp.get("Items") or []:
+            table.delete_item(Key={"pk": item["pk"]})
+            purged["push_tokens"] += 1
+        cursor = resp.get("LastEvaluatedKey")
+        if not cursor:
+            break
     window_id = int(time.time()) // RATE_WINDOW_SECONDS
     for wid in (window_id - 1, window_id, window_id + 1):
         table.delete_item(Key={"pk": f"user:{customer_id}#{wid}"})

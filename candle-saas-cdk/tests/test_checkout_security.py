@@ -164,6 +164,7 @@ def test_purge_paginates_and_removes_personal_fields(monkeypatch):
     orders.orders_table = Mock()
     orders.push_table = Mock()
     orders.dynamodb = Mock()
+    orders.dynamodb.Table.return_value.scan.return_value = {"Items": []}
     orders.orders_table.query.side_effect = [
         {"Items": [{"id": "one", "customer_email": "private@example.com", "shipping": {"address": "Private"},
             "payment_intent_id": "pi_one", "items": [{"delivery": {"email": "recipient@example.com"}}]}],
@@ -186,6 +187,42 @@ def test_purge_failure_is_not_reported_as_success():
     orders.orders_table = Mock()
     orders.orders_table.query.side_effect = RuntimeError("Temporary database failure")
     with pytest.raises(RuntimeError):
+        orders.purge_user_data("user-123")
+
+
+def test_purge_cleans_active_push_store_when_legacy_table_does_not_exist(monkeypatch):
+    import boto3
+    from moto import mock_aws
+    with mock_aws():
+        db = boto3.resource("dynamodb", region_name="us-east-1")
+        db.create_table(TableName="candle-garden-orders", KeySchema=[{"AttributeName": "id", "KeyType": "HASH"}],
+            AttributeDefinitions=[{"AttributeName": "id", "AttributeType": "S"},
+                {"AttributeName": "customer_id", "AttributeType": "S"}, {"AttributeName": "created_at", "AttributeType": "S"}],
+            GlobalSecondaryIndexes=[{"IndexName": "customer_id-created_at-index",
+                "KeySchema": [{"AttributeName": "customer_id", "KeyType": "HASH"}, {"AttributeName": "created_at", "KeyType": "RANGE"}],
+                "Projection": {"ProjectionType": "ALL"}}], BillingMode="PAY_PER_REQUEST")
+        table = db.create_table(TableName="candle-garden-detect-rate-limits",
+            KeySchema=[{"AttributeName": "pk", "KeyType": "HASH"}],
+            AttributeDefinitions=[{"AttributeName": "pk", "AttributeType": "S"}], BillingMode="PAY_PER_REQUEST")
+        own = "push:user-123:ExpoPushToken[fictional]"
+        foreign = "push:other-user:ExpoPushToken[other]"
+        table.put_item(Item={"pk": own, "customer_id": "user-123"})
+        table.put_item(Item={"pk": foreign, "customer_id": "other-user"})
+        orders = load("order_processor")
+        result = orders.purge_user_data("user-123")
+        assert result["push_tokens"] == 1
+        assert not table.get_item(Key={"pk": own}).get("Item")
+        assert table.get_item(Key={"pk": foreign})["Item"]["customer_id"] == "other-user"
+
+
+def test_purge_does_not_hide_legacy_push_permission_failures():
+    from botocore.exceptions import ClientError
+    orders = load("order_processor")
+    orders.orders_table = Mock()
+    orders.orders_table.query.return_value = {"Items": []}
+    orders.push_table = Mock()
+    orders.push_table.query.side_effect = ClientError({"Error": {"Code": "AccessDeniedException"}}, "Query")
+    with pytest.raises(ClientError):
         orders.purge_user_data("user-123")
 
 

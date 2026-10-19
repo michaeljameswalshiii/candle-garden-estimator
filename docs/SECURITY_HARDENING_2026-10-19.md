@@ -3,7 +3,8 @@
 These changes preserve the existing app screens, guest checkout and order history,
 Cognito email/Apple login, gift-card purchase/redemption, Stripe test mode, and
 staff fulfillment. Payment mode flags, product prices, and Expo runtime versions
-are unchanged. This is a local implementation; nothing was deployed or published.
+are unchanged. Released to production on October 19, 2026; deployment details and
+live verification are recorded below.
 
 ## Changes
 
@@ -34,6 +35,9 @@ are unchanged. This is a local implementation; nothing was deployed or published
   accounting reference, and propagates cleanup failures. The app deletes the
   Cognito account only after cleanup succeeds, allowing a failed attempt to be
   retried. This does not change third-party Stripe/carrier retention policies.
+- Cleanup handles the active `push:<customer>:<token>` registrations in the shared
+  table as well as legacy push registrations. A missing legacy-only table is
+  tolerated; permission failures and other storage errors still fail the purge.
 - The paused scheduler WebView validates HTTPS hostnames, rejects deceptive URLs,
   and disallows mixed HTTP content. The active class-cart flow is unchanged.
 
@@ -59,7 +63,7 @@ The JavaScript checks exercise local API route handlers with HTTP Requests and
 mocked providers, permitted/rejected WebView URLs, and account-deletion sequencing.
 Website typecheck/build and Expo export validate compilation separately.
 
-Verified locally: 97 Python tests passed, all 6 new JavaScript security/API smoke
+Verified locally: 99 Python tests passed, all 6 new JavaScript security/API smoke
 checks passed, website typecheck/build passed, CDK synthesis passed, and the Expo
 web export passed. A native device/TestFlight payment run remains a release check.
 
@@ -84,8 +88,50 @@ checks rather than altering the interface to satisfy stale copy assertions.
    configuration when testing label purchase.
 
 The deployed backends must be checked after release; source changes alone do not
-prove the active API configuration matches CDK. No existing account data has been
-purged as part of this work.
+prove the active API configuration matches CDK. Only fictional release-check
+accounts and scratch test orders were purged during verification.
+
+## Production release
+
+- Security source commit: `25c554d5f5ea385fede7615b7dd927cd19941052`, pushed to
+  `fix/live-api-and-claude-46`. The active-push cleanup correction and this release
+  record follow in the next commit on the same branch.
+- Website: production deployment `dpl_7TFF9i7nxWM9zLjxoMYQZKtAUxUm`, ready and
+  aliased to https://candle-garden-web.vercel.app . Deployed from a clean archive of
+  the committed website and shared catalog files.
+- AWS: `CandleSaasAPIStack` reached `UPDATE_COMPLETE`. An additive CloudFormation
+  change set created the verification layer, protected account routes and invoke
+  permissions, and refreshed the production API deployment. It did not modify
+  existing Lambda environments, IAM policies, storage tables, or unrelated routes.
+- Lambda code was updated on the existing functions from rollback copies of their
+  production packages, replacing only `index.py`. Payment and detection use
+  verification layer `CognitoVerificationLayer4CF34030:1`. Payment/detection
+  published versions are `1`; the final order processor version is `2`.
+- Lambda layer attachments were updated directly to preserve live configuration
+  that is not fully represented in CDK. A future complete CDK deployment must
+  reconcile the deployed email/shipping environment and code/layer state before
+  applying the full synthesized template. Do not overwrite live settings with
+  CDK defaults. Rollback packages/configuration are retained outside Git.
+- Mobile: production iOS/Android update group
+  `739207b1-62dc-48d8-9788-7990f6f45331`, runtime `1.2.0`. Expo's production update
+  endpoint was checked separately for each platform and serves the new updates:
+  iOS `01a15568-b5dc-79e4-8812-e5d267fb65c4`, Android
+  `01a15568-b5dc-72df-9a88-f3d39a684206`. No new store binary was submitted.
+- Stripe remains in test mode. AWS live charging and UPS mode flags were preserved,
+  and EAS production environment verification confirmed a test publishable key.
+
+Live checks passed for forged-token rejection, unauthenticated purge rejection,
+guest checkout/order isolation, real Cognito ID/access tokens, signed-in unpaid
+checkout/finalization, blocked customer `paid` status writes, authoritative order
+registration, and label retries that do not buy postage for unpaid orders. A
+fictional account registered a disabled fictional push token, then successfully
+purged its orders/push registration and deleted its Cognito account. All scratch
+test intents were cancelled and scratch records were removed. No payment was
+confirmed/captured, no postage was purchased, and no customer account was touched.
+
+An on-device Apple sign-in and completed test card-payment run remains part of
+ongoing acceptance testing; the automated release checks do not claim those were
+performed on a physical phone.
 
 ## Deferred work
 
