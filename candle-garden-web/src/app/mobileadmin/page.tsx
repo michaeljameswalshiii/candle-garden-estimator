@@ -1,7 +1,11 @@
+import { getAdminSession } from "@/lib/admin/auth";
 import Link from "next/link";
 import { listMobileOrders, mobileSnapshot } from "@/lib/mobileadmin/data";
 
 export default async function MobileAdminHome() {
+  // Layouts are not an auth boundary: check the session here so data never streams to signed-out visitors.
+  if (!(await getAdminSession()).ok) return null;
+ 
   const orders = await listMobileOrders();
   const metrics = mobileSnapshot(orders);
   return <>

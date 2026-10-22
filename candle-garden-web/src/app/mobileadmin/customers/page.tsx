@@ -1,3 +1,4 @@
+import { getAdminSession } from "@/lib/admin/auth";
 import { listMobileOrders } from "@/lib/mobileadmin/data";
 import { customerGroupKey, customerLabel } from "@/lib/mobileadmin/labels";
 
@@ -8,6 +9,9 @@ function mailingAddress(shipping?: Record<string, string>) {
 }
 
 export default async function MobileCustomersPage() {
+  // Layouts are not an auth boundary: check the session here so data never streams to signed-out visitors.
+  if (!(await getAdminSession()).ok) return null;
+ 
   const orders = await listMobileOrders();
   const customers = new Map<string, { key: string; label: string; phone: string; address: string; orders: number; spent: number; last: string }>();
   for (const order of orders) {
