@@ -10,6 +10,7 @@ from aws_cdk import (
     aws_s3 as s3,
     aws_rds as rds,
     aws_cognito as cognito,
+    aws_dynamodb as dynamodb,
     Duration,
     Size,
     CfnOutput,
@@ -184,6 +185,8 @@ class APIStack(Stack):
         self._setup_images_endpoint(api, image_processor_fn)
         # Detect stays public for guest estimator; client may still send JWT
         self._setup_detect_endpoint(api, container_detector_fn)
+        # Public first-party engagement events from the mobile app (no authorizer)
+        self._setup_events_endpoint(api)
 
         CfnOutput(self, "CognitoUserPoolId", value=pool_id)
         CfnOutput(self, "ApiUrl", value=api.url)
@@ -427,3 +430,28 @@ class APIStack(Stack):
         integration = apigw.LambdaIntegration(function)
         
         detect.add_method("POST", integration)
+
+    def _setup_events_endpoint(self, api: apigw.RestApi):
+        """POST /events -> EventRecorderFunction, writing to the existing events table
+        read by candle-garden-web (src/lib/mobile-events.ts). Dedicated role; write-only to that table."""
+        events_table = dynamodb.Table.from_table_name(self, "EventsTable", "candle-garden-events")
+        role = iam.Role(
+            self, "EventRecorderRole",
+            assumed_by=iam.ServicePrincipal("lambda.amazonaws.com"),
+            managed_policies=[iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole")],
+        )
+        role.add_to_policy(iam.PolicyStatement(actions=["dynamodb:PutItem"], resources=[events_table.table_arn]))
+        fn = lambda_.Function(
+            self, "EventRecorderFunction",
+            runtime=lambda_.Runtime.PYTHON_3_10,
+            handler="index.handler",
+            code=lambda_.Code.from_asset(
+                os.path.join(os.path.dirname(__file__), "..", "..", "lambda_functions", "event_recorder")
+            ),
+            role=role,
+            environment={"EVENTS_TABLE": events_table.table_name},
+            timeout=Duration.seconds(10),
+            memory_size=128,
+            log_retention=logs.RetentionDays.TWO_WEEKS,
+        )
+        api.root.add_resource("events").add_method("POST", apigw.LambdaIntegration(fn))
