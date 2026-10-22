@@ -1,3 +1,4 @@
+import { getAdminSession } from "@/lib/admin/auth";
 import { mobileEventMetrics, recentTrackingActivity } from "@/lib/mobile-events";
 
 const etFormat = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit", timeZoneName: "short" });
@@ -6,6 +7,8 @@ function formatEt(iso: string) { const t = Date.parse(iso); return Number.isNaN(
 export const dynamic = "force-dynamic";
 
 export default async function MobileEngagementPage() {
+  // Layouts are not an auth boundary in the App Router: the page payload streams even when the layout shows the login form.
+  if (!(await getAdminSession()).ok) return null;
   const [data, activity] = await Promise.all([mobileEventMetrics(), recentTrackingActivity(100)]);
   const rejectedCount = activity.filter((row) => row.status !== "accepted").length;
   const metrics = [
