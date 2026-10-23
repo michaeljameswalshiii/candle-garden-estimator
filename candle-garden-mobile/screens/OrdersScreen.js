@@ -757,24 +757,32 @@ function OrdersScreenBody({ stripe }) {
                     <Text style={styles.shippingHint}>
                       Sign in to check out with your Candle Garden account. Your cart stays here.
                     </Text>
+                    <Text style={styles.fieldLabel}>Email</Text>
                     <TextInput
                       style={styles.shippingInput}
-                      placeholder="Email"
+                      placeholder="you@example.com"
                       placeholderTextColor={colors.textFaint}
+                      accessibilityLabel="Email"
                       value={accountEmail}
                       onChangeText={setAccountEmail}
                       autoCapitalize="none"
                       autoCorrect={false}
                       keyboardType="email-address"
+                      autoComplete="email"
+                      textContentType="emailAddress"
                     />
+                    <Text style={styles.fieldLabel}>Password</Text>
                     <TextInput
                       style={styles.shippingInput}
                       placeholder="Password"
                       placeholderTextColor={colors.textFaint}
+                      accessibilityLabel="Password"
                       value={accountPassword}
                       onChangeText={setAccountPassword}
                       secureTextEntry
                       autoCapitalize="none"
+                      autoComplete="current-password"
+                      textContentType="password"
                     />
                     <TouchableOpacity
                       style={styles.checkoutBtn}
@@ -827,20 +835,20 @@ function OrdersScreenBody({ stripe }) {
                       </View>
                     ) : null}
                     {(needsShipping
-                      ? [['name', 'Name'], ['email', 'Email'], ['phone', 'Phone'], ['zip', 'ZIP'], ['address', 'Street address'], ['city', 'City'], ['state', 'State']]
-                      : [['name', 'Name'], ['email', 'Email'], ['phone', 'Phone']]
+                      ? [['name', 'Full name', 'Jane Walsh'], ['email', 'Email', 'you@example.com'], ['phone', 'Phone', '(904) 555-0100'], ['zip', 'ZIP', '32233'], ['address', 'Street address', '123 Main St'], ['city', 'City', 'Jacksonville'], ['state', 'State', 'FL']]
+                      : [['name', 'Full name', 'Jane Walsh'], ['email', 'Email', 'you@example.com'], ['phone', 'Phone', '(904) 555-0100']]
                     ).filter(([key]) => {
                       if (key === 'email') return asGuest || !user?.email;
                       if (key === 'phone') return !(isAuthenticated && user?.phone);
                       return true;
-                    }).map(([key, label]) => (
+                    }).map(([key, label, example]) => (
                       <View key={key}>
-                        {key === 'email' ? <Text style={styles.fieldLabel}>Email</Text> : null}
+                        <Text style={styles.fieldLabel}>{label}</Text>
                         <TextInput
                           style={styles.shippingInput}
-                          placeholder={key === 'email' ? 'you@example.com' : label}
+                          placeholder={example}
                           placeholderTextColor={colors.textFaint}
-                          accessibilityLabel={key === 'email' ? 'Email address' : label}
+                          accessibilityLabel={label}
                           value={shipping[key]}
                           onChangeText={(value) => {
                             setAddressNote('');
@@ -857,7 +865,7 @@ function OrdersScreenBody({ stripe }) {
                           autoCorrect={key !== 'email' && key !== 'zip'}
                           keyboardType={key === 'email' ? 'email-address' : key === 'phone' ? 'phone-pad' : key === 'zip' ? 'number-pad' : 'default'}
                           maxLength={key === 'email' ? 120 : key === 'state' ? 2 : key === 'zip' ? 10 : undefined}
-                          textContentType={key === 'email' ? 'emailAddress' : undefined}
+                          textContentType={{name:'name',email:'emailAddress',phone:'telephoneNumber',address:'streetAddressLine1',city:'addressCity',state:'addressState',zip:'postalCode'}[key]}
                         />
                       </View>
                     ))}
@@ -1369,6 +1377,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: colors.text,
+    marginTop: 8,
     marginBottom: 4,
   },
   shippingInput: {
