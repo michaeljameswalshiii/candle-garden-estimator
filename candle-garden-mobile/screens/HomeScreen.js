@@ -218,9 +218,9 @@ export default function HomeScreen() {
         />
         <Text style={styles.infoHeading}>Why the flying pig?</Text>
         <Text style={styles.infoText}>
-          We pour heart, stories, and determination into every candle — from our
-          kitchen ten years ago to Atlantic Beach today. The flying pig logo was
-          drawn by family, a reminder that anything is possible.
+          Drawn by my husband, our logo was inspired by our two little piggy
+          dogs! The flying pig is a representation that anything is possible!
+          (psst...his tail is a little flame!)
         </Text>
       </View>
 
