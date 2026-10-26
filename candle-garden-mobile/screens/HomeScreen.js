@@ -106,11 +106,6 @@ export default function HomeScreen() {
           renderItem={({ item }) => (
             <View style={styles.heroSlide}>
               <Image source={item.source} style={styles.heroImage} resizeMode="cover" />
-              <View style={styles.heroOverlay} />
-              <View style={styles.heroCopy}>
-                <Text style={styles.heroTitle}>{item.title}</Text>
-                <Text style={styles.heroSubtitle}>{item.subtitle}</Text>
-              </View>
             </View>
           )}
         />
