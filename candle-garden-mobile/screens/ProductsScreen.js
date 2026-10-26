@@ -80,6 +80,7 @@ export default function ProductsScreen() {
             </View>
           ) : null}
         </View>
+        <View style={styles.cardBody}>
         <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
         {item.description ? (
           <Text style={styles.productDescription} numberOfLines={2}>{item.description}</Text>
@@ -94,6 +95,7 @@ export default function ProductsScreen() {
         >
           <Text style={styles.addBtnText}>{item.soldOut ? 'Sold out' : 'Add to cart'}</Text>
         </TouchableOpacity>
+        </View>
       </View>
     );
   };
@@ -187,10 +189,11 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm, paddingHorizontal: 2 },
   countText: { fontFamily: fonts.body, fontSize: 13, color: colors.textMuted },
   productCard: {
-    width: CARD_W, backgroundColor: colors.surface, borderRadius: radii.md, padding: 10,
-    borderWidth: 1, borderColor: colors.border,
+    width: CARD_W, backgroundColor: colors.surface, borderRadius: radii.md, padding: 0,
+    borderWidth: 1, borderColor: colors.border, overflow: 'hidden',
   },
-  imageWrap: { width: '100%', aspectRatio: 0.85, borderRadius: radii.sm, overflow: 'hidden', backgroundColor: colors.lightAccent, marginBottom: 8 },
+  imageWrap: { width: '100%', aspectRatio: 0.85, overflow: 'hidden', backgroundColor: colors.lightAccent, marginBottom: 8 },
+  cardBody: { paddingHorizontal: 10, paddingBottom: 4 },
   productImage: { width: '100%', height: '100%' },
   imagePlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   placeholderEmoji: { fontSize: 36 },
