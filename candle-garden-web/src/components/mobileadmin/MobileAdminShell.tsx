@@ -8,6 +8,7 @@ import { Activity, BarChart3, Menu, PackageSearch, Settings, Smartphone, Users, 
 const NAV = [
   { href: "/mobileadmin", label: "Overview", detail: "What needs attention", Icon: Activity },
   { href: "/mobileadmin/orders", label: "Orders", detail: "Search every order", Icon: PackageSearch },
+  { href: "/mobileadmin/sales", label: "Sales report", detail: "App sales and monthly fees", Icon: BarChart3 },
   { href: "/mobileadmin/customers", label: "Customers", detail: "People using the app", Icon: Users },
   { href: "/mobileadmin/engagement", label: "Engagement", detail: "Downloads and usage", Icon: BarChart3 },
   { href: "/mobileadmin/operations", label: "App health", detail: "Services and tracking", Icon: Settings },

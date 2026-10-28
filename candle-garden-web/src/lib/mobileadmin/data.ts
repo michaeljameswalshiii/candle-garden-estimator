@@ -17,11 +17,12 @@ export type MobileOrder = {
   gift_card_cents?: number;
   stripe_amount_cents?: number;
   gift_refund_review?: boolean;
-  items?: Array<{ type?: string; productId?: string; name?: string; size?: string; quantity?: number; price?: number; ounces?: number; boxKey?: string; shippingMethod?: string; vesselCount?: number; speed?: string; vesselScents?: import("../../../../packages/catalog/refillScents").VesselScent[] }>;
+  items?: Array<{ type?: string; shippingCents?: number; productId?: string; name?: string; size?: string; quantity?: number; price?: number; ounces?: number; boxKey?: string; shippingMethod?: string; vesselCount?: number; speed?: string; vesselScents?: import("../../../../packages/catalog/refillScents").VesselScent[] }>;
   created_at?: string;
   updated_at?: string;
   shipping?: Record<string, string>;
   fulfillment_method?: string;
+  tax_amount?: number;
   subtotal_amount?: number;
   discount_amount?: number;
   promotion_code?: string;
@@ -198,4 +199,16 @@ export function mobileSnapshot(orders: MobileOrder[]) {
   );
   const open = orders.filter((order) => !["complete", "completed", "cancelled", "refunded"].includes(String(order.status || "").toLowerCase()));
   return { orders: orders.length, last30: last30.length, revenue, customers: customers.size, open: open.length };
+}
+
+// Financial reporting must read every page and surface failures, never show a false zero.
+export async function listSalesOrders(): Promise<MobileOrder[]> {
+  const orders: MobileOrder[] = [];
+  let cursor: Record<string, unknown> | undefined;
+  do {
+    const response = await client.send(new ScanCommand({ TableName: ordersTable, ExclusiveStartKey: cursor }));
+    orders.push(...((response.Items || []) as MobileOrder[]));
+    cursor = response.LastEvaluatedKey;
+  } while (cursor);
+  return orders;
 }
