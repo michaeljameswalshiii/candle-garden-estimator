@@ -33,7 +33,7 @@ export function useStripe() {
       const stripe = await stripePromise;
       const clientSecret = clientSecretRef.current;
       if (!stripe || !clientSecret) {
-        return { error: { message: 'Stripe test checkout is not ready.' } };
+        return { error: { message: 'Checkout is not ready. Please try again.' } };
       }
 
       return new Promise((resolve) => {
@@ -46,10 +46,10 @@ export function useStripe() {
         panel.style.cssText = 'width:min(100%,480px);max-height:calc(100vh - 40px);overflow:auto;background:#fff;border-radius:16px;padding:24px;box-shadow:0 24px 70px rgba(0,0,0,.3);box-sizing:border-box';
 
         const heading = document.createElement('h2');
-        heading.textContent = 'Stripe test checkout';
+        heading.textContent = 'Secure checkout';
         heading.style.cssText = 'margin:0 0 6px;color:#103831;font:600 24px Georgia,serif';
         const note = document.createElement('p');
-        note.textContent = 'Test mode only — use card 4242 4242 4242 4242. No real charge will be made.';
+        note.textContent = 'Secure checkout powered by Stripe.';
         note.style.cssText = 'margin:0 0 20px;color:#5f6f6b;font:14px system-ui,sans-serif';
         const paymentHost = document.createElement('div');
         const errorText = document.createElement('p');
@@ -64,7 +64,7 @@ export function useStripe() {
         cancel.style.cssText = buttonStyle('#eef1f0', '#103831');
         const pay = document.createElement('button');
         pay.type = 'button';
-        pay.textContent = 'Pay test order';
+        pay.textContent = 'Pay now';
         pay.style.cssText = buttonStyle('#103831');
 
         actions.append(cancel, pay);
@@ -98,9 +98,9 @@ export function useStripe() {
           errorText.textContent = '';
           const result = await stripe.confirmPayment({ elements, redirect: 'if_required' });
           if (result.error) {
-            errorText.textContent = result.error.message || 'The test payment could not be completed.';
+            errorText.textContent = result.error.message || 'The payment could not be completed.';
             pay.disabled = false;
-            pay.textContent = 'Pay test order';
+            pay.textContent = 'Pay now';
             return;
           }
           finish({});

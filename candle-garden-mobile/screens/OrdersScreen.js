@@ -421,7 +421,7 @@ function OrdersScreenBody({ stripe }) {
       return;
     }
     if (!stripeConfigured || !initPaymentSheet || !presentPaymentSheet) {
-      Alert.alert('Stripe test mode is not configured', 'Add the Stripe test publishable key to the app build, then try again.');
+      Alert.alert('Checkout is not available', 'Payment setup is incomplete. Please try again later.');
       return;
     }
     const contact = isAuthenticated ? applyProfileContact(shippingRef.current, user) : shippingRef.current;
@@ -614,7 +614,7 @@ function OrdersScreenBody({ stripe }) {
     <View style={styles.container}>
       <Text style={styles.title}>Cart & orders</Text>
       <Text style={styles.subtitle}>
-        Checkout as a guest, or sign in if you already have an account. {stripeTestMode ? 'Test checkout: no real charge is made.' : ''}
+        Checkout as a guest, or sign in if you already have an account. Secure checkout powered by Stripe.
       </Text>
 
       <FlatList
@@ -682,7 +682,7 @@ function OrdersScreenBody({ stripe }) {
               <View style={styles.successDetails}>
                 <Text style={styles.successDetailLabel}>Confirmation</Text>
                 <Text style={styles.successDetailValue}>
-                  {lastCompletedOrder.paymentIntentId || 'Stripe test payment'}
+                  {lastCompletedOrder.paymentIntentId || 'Stripe payment'}
                 </Text>
                 {(lastCompletedOrder.email || user?.email) ? (
                   <>

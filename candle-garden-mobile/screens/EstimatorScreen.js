@@ -545,7 +545,7 @@ export default function EstimatorScreen() {
           {refillSpeed ? (
             <>
           <Text style={styles.sectionLabel}>Your ZIP</Text>
-          <Text style={styles.shipNote}>Estimated shipping is based on ZIP and packed weight. Checkout confirms the lowest live carrier rate (USPS in Shippo test mode).</Text>
+          <Text style={styles.shipNote}>Estimated shipping is based on ZIP and packed weight. Checkout confirms the lowest available carrier rate.</Text>
           <TextInput style={styles.zipInput} value={destZip} onChangeText={(t) => setDestZip(t.replace(/[^\d]/g, '').slice(0, 10))} keyboardType="number-pad" placeholder="32250" placeholderTextColor={colors.textFaint} maxLength={10} />
           <Text style={styles.sectionLabel}>How the empties get to us</Text>
           {methodQuotes.map(({ methodKey, method, cost: methodCost }) => {

@@ -130,7 +130,7 @@ export default function OrderHistoryCard({ order, onPrintLabel, onReorderProduct
 
       <View style={styles.statusRow}>
         <Text style={styles.status}>{title}</Text>
-        {test ? <Text style={styles.badge}>TEST ORDER</Text> : null}
+        {test ? <Text style={styles.badge}>ORDER RECEIVED</Text> : null}
       </View>
       <Text style={styles.description}>{description}</Text>
 
