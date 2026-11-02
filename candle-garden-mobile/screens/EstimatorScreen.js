@@ -40,6 +40,10 @@ const PHOTO_STEPS = [
   },
 ];
 
+// The packing-kit service remains supported for existing orders, but it is no
+// longer offered when a customer starts a new refill estimate.
+const ESTIMATOR_SHIPPING_METHODS = ['store_dropoff', 'ship_own', 'prepaid_labels'];
+
 function CustomButton({ title, onPress, disabled, color, compact }) {
   return (
     <TouchableOpacity
@@ -106,7 +110,11 @@ export default function EstimatorScreen() {
     if (!previous || !Number(previous.ounces)) return;
     const count=Math.max(1,Number(previous.vesselCount)||1);
     setResult({estimated_ounces:Number(previous.ounces),vessels:Array.from({length:count},(_,index)=>({description:previous.vesselScents?.[index]?.description,wax_needed_oz:previous.vesselScents?.[index]?.ounces || Number(previous.ounces)/count})),vesselScents:previous.vesselScents});
-    setShippingMethod(previous.shippingMethod || DEFAULT_SHIPPING_METHOD);
+    setShippingMethod(
+      ESTIMATOR_SHIPPING_METHODS.includes(previous.shippingMethod)
+        ? previous.shippingMethod
+        : DEFAULT_SHIPPING_METHOD
+    );
     setDestZip(previous.destZip || '');setSelectedBox(previous.boxKey || null);
     setRefillSpeed(previous.speed || 'standard');
   },[route.params?.reorder?.requestId]);
@@ -192,7 +200,7 @@ export default function EstimatorScreen() {
       boxKey: selectedBox,
       vesselCount,
       speed: refillSpeed,
-      methods: ['ship_own', 'kit_roundtrip', 'prepaid_labels'],
+      methods: ESTIMATOR_SHIPPING_METHODS.filter((method) => method !== 'store_dropoff'),
     })
       .then((data) => {
         if (!cancelled) {
@@ -218,7 +226,7 @@ export default function EstimatorScreen() {
       destZip,
       boxKey: selectedBox,
       speed: refillSpeed,
-    });
+    }).filter(({ methodKey }) => ESTIMATOR_SHIPPING_METHODS.includes(methodKey));
   }, [result, vesselCount, perVesselOz, destZip, selectedBox, refillSpeed]);
 
   const addEstimateToCart = () => {
