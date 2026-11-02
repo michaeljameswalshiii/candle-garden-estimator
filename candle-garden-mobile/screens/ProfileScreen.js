@@ -311,6 +311,8 @@ export default function ProfileScreen() {
     );
   };
 
+  const buildNumber = String(Constants.platform?.ios?.buildNumber || Constants.expoConfig?.ios?.buildNumber || '').trim();
+
   if (booting) {
     return (
       <View style={[styles.container, styles.centered]}>
@@ -434,7 +436,7 @@ export default function ProfileScreen() {
           {mode === 'confirm' ? <TouchableOpacity style={styles.linkBtn} onPress={onResend} disabled={busy}><Text style={styles.linkText}>Resend code</Text></TouchableOpacity> : null}
           {mode === 'signin' ? <TouchableOpacity style={styles.linkBtn} onPress={() => setMode('forgot')} disabled={busy}><Text style={styles.linkText}>Forgot password?</Text></TouchableOpacity> : null}
         </View>
-        <Text style={styles.version}>Version {Constants.expoConfig?.version} ({Constants.platform?.ios?.buildNumber || Constants.expoConfig?.ios?.buildNumber}) {'·'} The Candle Garden App</Text>
+        <Text style={styles.version}>Version {Constants.expoConfig?.version}{buildNumber ? ` (${buildNumber})` : ''} {'·'} The Candle Garden App</Text>
         <PoweredBy />
       </ScrollView>
     );
@@ -502,7 +504,7 @@ export default function ProfileScreen() {
       </View>
       <TouchableOpacity style={[styles.button, styles.logoutButton]} onPress={handleLogout} activeOpacity={0.8} disabled={busy}><Text style={[styles.buttonText, styles.logoutText]}>Sign out</Text></TouchableOpacity>
       <TouchableOpacity style={styles.deleteBtn} onPress={handleDeleteAccount} activeOpacity={0.8} disabled={busy}><Text style={styles.deleteText}>Delete account</Text></TouchableOpacity>
-      <Text style={styles.version}>Version {Constants.expoConfig?.version} ({Constants.platform?.ios?.buildNumber || Constants.expoConfig?.ios?.buildNumber}) {'·'} The Candle Garden App</Text>
+      <Text style={styles.version}>Version {Constants.expoConfig?.version}{buildNumber ? ` (${buildNumber})` : ''} {'·'} The Candle Garden App</Text>
       <PoweredBy />
     </ScrollView>
   );

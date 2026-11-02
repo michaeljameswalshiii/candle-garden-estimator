@@ -53,7 +53,7 @@ export default function ProductsScreen() {
       .then((latest) => {
         if (!cancelled) {
           setProductCatalog(latest.products);
-          setCatalogStatus('Live Squarespace inventory');
+          setCatalogStatus('');
         }
       })
       .catch(() => {
@@ -156,7 +156,7 @@ export default function ProductsScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.inventoryStatus}>{catalogStatus}</Text>
+      {catalogStatus ? <Text style={styles.inventoryStatus}>{catalogStatus}</Text> : null}
       <FlatList
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshProducts} />}
         data={items}
