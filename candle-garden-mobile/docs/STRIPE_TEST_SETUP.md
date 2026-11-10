@@ -42,17 +42,31 @@ setting is explicitly enabled.
 
 ## 3. Apple Pay setup
 
-The PaymentSheet already requests Apple Pay (`merchantCountryCode: US`) and the
-Expo Stripe plugin plus `app.json` iOS entitlements use merchant ID
-`merchant.com.michaeljameswalshiii.candlegarden`. Standard card checkout still
-works without Apple Pay.
+Apple Pay is enabled in both PaymentSheet checkouts (`OrdersScreen.js` and
+`GiftCardPurchase.js` pass `applePay: { merchantCountryCode: 'US' }`). `app.json`
+sets the merchant ID `merchant.com.michaeljameswalshiii.candlegarden` on the
+`@stripe/stripe-react-native` plugin and in the iOS entitlement
+`com.apple.developer.in-app-payments`. Standard card checkout still works
+without Apple Pay.
 
 Complete these Apple / Stripe steps so the Apple Pay button appears on a device:
 
-1. Create Merchant ID `merchant.com.michaeljameswalshiii.candlegarden` in Apple Developer.
-2. Enable Apple Pay on App ID `com.michaeljameswalshiii.candlegarden`.
-3. Add that Merchant ID in Stripe Dashboard → Settings → Payment methods → Apple Pay.
-4. Make an iOS EAS build (Apple Pay does not work in Expo Go or the iOS simulator).
+1. **Apple Developer** (account holder): Certificates, Identifiers & Profiles →
+   Identifiers → Merchant IDs → `+` → create
+   `merchant.com.michaeljameswalshiii.candlegarden`.
+2. **Apple Developer**: Identifiers → App IDs →
+   `com.michaeljameswalshiii.candlegarden` → enable **Apple Pay Payment
+   Processing** and select that Merchant ID. (EAS capability sync may do this
+   during the build; if the build complains, do it manually.)
+3. **Stripe Dashboard** (the Stripe account that takes payments, in live mode):
+   Settings → Payment methods → Apple Pay → Add new application (iOS
+   certificate) → **Download the CSR** from Stripe.
+4. **Apple Developer**: open the Merchant ID → Apple Pay Payment Processing
+   Certificate → Create Certificate → upload the Stripe CSR → download the
+   resulting `.cer` file.
+5. **Stripe Dashboard**: upload that `.cer` file in the same Apple Pay screen.
+6. Make an iOS EAS build (Apple Pay does not work in Expo Go or the iOS
+   simulator) and test on a physical device with a card in Wallet.
 
 ```powershell
 cd candle-garden-mobile

@@ -67,6 +67,7 @@ function Purchase({ visible, onClose, stripe }) {
       if (!result.paid) {
         const initialized = await stripe.initPaymentSheet({ merchantDisplayName: 'The Candle Garden',
           paymentIntentClientSecret: checkout.paymentIntentClientSecret,
+          applePay: { merchantCountryCode: 'US' },
           googlePay: { merchantCountryCode: 'US', testEnv: stripeTestMode },
           returnURL: 'candlegarden://stripe-redirect', allowsDelayedPaymentMethods: false });
         if (initialized.error) throw initialized.error;

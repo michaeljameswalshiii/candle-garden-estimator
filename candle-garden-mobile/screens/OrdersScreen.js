@@ -468,6 +468,7 @@ function OrdersScreenBody({ stripe }) {
       const { error: initError } = await initPaymentSheet({
         merchantDisplayName: 'The Candle Garden',
         paymentIntentClientSecret: sheet.paymentIntentClientSecret,
+        applePay: { merchantCountryCode: 'US' },
         googlePay: { merchantCountryCode: 'US', testEnv: stripeTestMode },
         returnURL: 'candlegarden://stripe-redirect',
         allowsDelayedPaymentMethods: false,

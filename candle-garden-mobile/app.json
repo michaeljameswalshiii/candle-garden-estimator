@@ -32,9 +32,10 @@
         "ITSAppUsesNonExemptEncryption": false
       },
       "entitlements": {
-        "aps-environment": "production"
+        "aps-environment": "production",
+        "com.apple.developer.in-app-payments": ["merchant.com.michaeljameswalshiii.candlegarden"]
       },
-      "buildNumber": "54",
+      "buildNumber": "55",
       "usesAppleSignIn": true
     },
     "android": {
@@ -57,6 +58,7 @@
       [
         "@stripe/stripe-react-native",
         {
+          "merchantIdentifier": "merchant.com.michaeljameswalshiii.candlegarden",
           "enableGooglePay": true
         }
       ],
