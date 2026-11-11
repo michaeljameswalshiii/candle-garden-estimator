@@ -35,7 +35,7 @@
         "aps-environment": "production",
         "com.apple.developer.in-app-payments": ["merchant.com.michaeljameswalshiii.candlegarden"]
       },
-      "buildNumber": "55",
+      "buildNumber": "56",
       "usesAppleSignIn": true
     },
     "android": {
